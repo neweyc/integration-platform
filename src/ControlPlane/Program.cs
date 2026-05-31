@@ -99,12 +99,6 @@ using (var scope = app.Services.CreateScope())
 
 app.UseExceptionHandler();
 
-// Only redirect to HTTPS in development — in production the container runs HTTP
-// behind a reverse proxy that handles TLS termination
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
 
 // Serve the React app's static files from wwwroot.
 // UseDefaultFiles must come before UseStaticFiles so that a request
