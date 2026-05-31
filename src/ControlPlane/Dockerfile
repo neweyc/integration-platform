@@ -27,7 +27,7 @@ COPY src/ControlPlane/ src/ControlPlane/
 # Copy the built frontend into wwwroot before publishing
 COPY --from=frontend /app/dist src/ControlPlane/wwwroot/
 
-RUN dotnet publish src/ControlPlane/ControlPlane.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish src/ControlPlane/ControlPlane.csproj -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
