@@ -106,6 +106,12 @@ if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// Serve the React app's static files from wwwroot.
+// UseDefaultFiles must come before UseStaticFiles so that a request
+// to "/" is rewritten to "/index.html" before the static file middleware handles it.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -114,5 +120,9 @@ app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
+
+// Fallback: any request that didn't match an API route returns index.html
+// so that React Router can handle client-side navigation.
+app.MapFallbackToFile("index.html");
 
 app.Run();
