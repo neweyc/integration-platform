@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
+import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { authApi } from '@/api/auth'
@@ -45,6 +46,7 @@ export default function App() {
               }
             >
               <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/secrets" element={<SecretsPage />} />
             </Route>
 
             {/* Root: check setup status, then route appropriately */}
