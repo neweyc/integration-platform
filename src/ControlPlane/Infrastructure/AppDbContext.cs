@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Integration> Integrations => Set<Integration>();
     public DbSet<AgentToken> AgentTokens => Set<AgentToken>();
     public DbSet<ExecutionRecord> ExecutionRecords => Set<ExecutionRecord>();
+    public DbSet<AssemblyPackage> AssemblyPackages => Set<AssemblyPackage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -113,6 +114,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Cascade);
 
             b.HasIndex(e => new { e.TenantId, e.IntegrationId, e.StartedAt });
+        });
+
+        modelBuilder.Entity<AssemblyPackage>(b =>
+        {
+            b.ToTable("assembly_packages");
+            b.HasKey(p => p.Id);
+            b.Property(p => p.Name).IsRequired().HasMaxLength(200);
+            b.Property(p => p.Version).IsRequired().HasMaxLength(50);
+            b.Property(p => p.FileName).IsRequired().HasMaxLength(255);
+            b.Property(p => p.Data).IsRequired();
+            b.Property(p => p.Sha256Hash).IsRequired().HasMaxLength(64);
+
+            // Package name + version must be unique within a tenant
+            b.HasIndex(p => new { p.TenantId, p.Name, p.Version }).IsUnique();
+
+            b.HasOne(p => p.Tenant)
+             .WithMany()
+             .HasForeignKey(p => p.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
