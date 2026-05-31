@@ -110,6 +110,8 @@ secrets           — id, tenant_id, environment, key, encrypted_value
 integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name
 agent_tokens      — id, tenant_id, name, environment, token_hash
 execution_records — id, tenant_id, integration_id, environment, status, started_at, completed_at, error_message
+execution_logs    — id, tenant_id, execution_record_id, timestamp, level, message, exception, properties_json
+assembly_packages — id, tenant_id, name, version, file_name, data, size_bytes, sha256_hash
 ```
 
 ---
@@ -156,6 +158,19 @@ public interface IIntegration
 
 The agent discovers integration classes by scanning a directory for `.dll` files and finding all types that implement `IIntegration`. The control plane stores the fully-qualified class name (e.g. `MyCompany.Integrations.SyncOrdersIntegration`) which the agent uses for exact type lookup.
 
+### Assembly packages
+
+The control plane has an integration package API for tenant-scoped zip archives:
+
+- `POST /api/integration-packages` stores a zip file containing compiled integration DLLs
+- `GET /api/integration-packages` lists package metadata
+- `GET /api/integration-packages/{id}/download` downloads the stored archive
+- `DELETE /api/integration-packages/{id}` removes the stored archive
+
+Packages are validated as zip files, must contain at least one `.dll`, and are stored with size and SHA-256 metadata. Package names and versions are unique per tenant.
+
+Important current limitation: package storage is not yet connected to runtime-agent deployment. Agents still load DLLs from their local `IntegrationsPath`, and operators must copy/extract package contents onto the agent host and restart the agent. Future work should add agent package sync, version pinning, rollback, and recording the package version used for each execution.
+
 ### Concurrency and scheduling
 
 The agent implements several safety mechanisms:
@@ -181,6 +196,9 @@ Agent                              Control Plane
   │◄─ { executionId, startedAt } ────────│
   │                                      │
   │  [execute integration locally]       │
+  │── POST /api/agent/executions/{id}/logs ─►│  (record execution logs)
+  │◄─ 204 No Content ────────────────────│
+  │                                      │
   │                                      │
   │── PUT /api/agent/executions/{id} ───►│  (close with result)
   │◄─ 204 No Content ────────────────────│

@@ -122,10 +122,22 @@ The agent will:
 
 ### Deploying integrations
 
+The runtime agent currently loads assemblies from the local filesystem. Package upload APIs exist in the control plane for storing and downloading zip archives, but agents do not automatically sync packages yet.
+
 1. Build your integration project: `dotnet publish -c Release`
-2. Copy the DLLs to the `IntegrationsPath` directory
-3. Restart the agent to load new assemblies
-4. Register the integration in the control plane UI with the fully qualified class name
+2. Zip the publish output if you want to store the package in the control plane:
+   ```bash
+   cd bin/Release/net10.0/publish
+   zip -r integrations.zip .
+   curl -X POST http://localhost:5000/api/integration-packages \
+     -H "Authorization: Bearer <jwt>" \
+     -F "name=MyCompany.Integrations" \
+     -F "version=1.0.0" \
+     -F "file=@integrations.zip"
+   ```
+3. Copy the published DLLs and dependencies to the agent's `IntegrationsPath` directory
+4. Restart the agent to load new assemblies
+5. Register the integration in the control plane UI with the fully qualified class name
 
 See [docs/writing-integrations.md](docs/writing-integrations.md) for details.
 
@@ -163,4 +175,4 @@ For production, use Docker Compose or Kubernetes with proper secrets management.
 dotnet test
 ```
 
-Currently 84 tests covering control plane features, SDK, and runtime agent behavior.
+Currently 90+ tests covering control plane features, SDK, and runtime agent behavior.

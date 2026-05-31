@@ -136,20 +136,37 @@ The agent injects these as environment variables (or via a typed context object)
 
 ---
 
-## Execution flow (future — runtime agent not yet built)
+## Execution flow
 
 ```
-1. Control plane evaluates scheduled integrations
-2. Integration is due → dispatched to the agent
-3. Agent receives work item: { integrationId, environment, assemblyRef }
-4. Agent fetches secret bundle for the environment
-5. Agent loads the integration assembly
+1. Runtime agent loads local integration assemblies from IntegrationsPath
+2. Agent polls the control plane for enabled integrations in its environment
+3. Agent evaluates cron schedules locally
+4. Integration is due → agent opens an execution record
+5. Agent fetches the secret bundle for the environment
 6. Agent instantiates and runs the integration class with secrets injected
-7. Agent streams logs back to the control plane during execution
-8. Agent reports final status: Success / Failed / Timed out
-9. Control plane records the execution result
+7. Integration logs written through context.Logger are sent to the control plane
+8. Agent reports final status: Succeeded / Failed
+9. Control plane records the execution result and logs
 10. (future) Alerts triggered if execution fails
 ```
+
+---
+
+## Integration packages
+
+The control plane can store compiled integration packages as tenant-scoped zip files. A package has:
+
+- Name
+- Version
+- Original filename
+- Size in bytes
+- SHA-256 hash
+- Zip data
+
+Packages are uploaded through `POST /api/integration-packages` as `multipart/form-data`. The zip must contain at least one `.dll`. The same package name and version cannot be uploaded twice for a tenant.
+
+Current operational limitation: uploaded packages are not automatically distributed to runtime agents. Operators still need to copy or extract DLLs and dependencies into the agent's `IntegrationsPath` and restart the agent. Package storage is a foundation for future agent sync, version pinning, and rollback.
 
 ---
 
@@ -166,4 +183,4 @@ Currently all authenticated users within a tenant have admin-level access. Role-
 
 ## Data retention
 
-No automatic data retention policies are implemented yet. Execution history and logs (once the runtime agent is built) will need a retention policy to prevent unbounded database growth. Recommended approach: keep 90 days of execution records, configurable per tenant.
+No automatic data retention policies are implemented yet. Execution history and logs need a retention policy to prevent unbounded database growth. Recommended approach: keep 90 days of execution records and execution logs, configurable per tenant.

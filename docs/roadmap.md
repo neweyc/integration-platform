@@ -24,18 +24,19 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 - [x] `PUT /api/agent/executions/{id}` — closes execution with result
 - [x] Execution history table and EF migration
 - [x] Tenant/environment/enabled validation on execution start
+- [x] Integration package storage endpoints
 
 ### UI (done)
 - [x] Integration list with environment, trigger, status
 - [x] Create integration form (name, slug, environment, trigger, cron, className)
 - [x] Edit integration form (name, description, status, cron)
 - [x] Delete integration
-- [ ] Execution history view per integration
-- [ ] Last run status and timestamp on the integrations list
+- [x] Execution history view per integration
+- [x] Last run status and timestamp on the integrations list
 
 ### Remaining for MVP
-- [ ] Execution history UI in control plane
-- [ ] Structured logging from agent to control plane
+- [x] Execution history UI in control plane
+- [x] Structured logging from agent to control plane
 - [ ] Durable scheduling state (currently in-memory only)
 
 ---
@@ -51,7 +52,7 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 ### Integration authoring
 - [ ] Integration SDK NuGet package (`IntegrationPlatform.Sdk`)
 - [ ] Example integration project (template)
-- [ ] Documentation: writing and deploying your first integration
+- [x] Documentation: writing and deploying your first integration
 
 ### Agent improvements
 - [ ] Webhook trigger support: agent exposes an HTTP endpoint or control plane proxies
@@ -97,7 +98,8 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 - [ ] Environment promotion: copy secrets from staging → production
 
 ### Integration management
-- [ ] Integration versioning (record which assembly version ran)
+- [ ] Agent package sync from control-plane package storage
+- [ ] Integration versioning (record which assembly/package version ran)
 - [ ] Rollback to a previous version
 - [ ] Staging/production promotion workflow
 

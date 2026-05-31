@@ -122,7 +122,16 @@ Register a new user within the current tenant. First user automatically becomes 
       "status": "Enabled",
       "triggerType": "Scheduled",
       "cronExpression": "0 * * * *",
-      "className": "MyCompany.Integrations.SyncOrdersIntegration"
+      "className": "MyCompany.Integrations.SyncOrdersIntegration",
+      "lastExecution": {
+        "id": "uuid",
+        "status": "Succeeded",
+        "environment": "production",
+        "startedAt": "2026-05-31T12:00:00Z",
+        "completedAt": "2026-05-31T12:00:05Z",
+        "durationMs": 5000,
+        "errorMessage": null
+      }
     }
   ]
 }
@@ -165,6 +174,57 @@ Register a new user within the current tenant. First user automatically becomes 
 **Auth:** JWT
 
 **Response:** Integration object or `404`
+
+---
+
+### `GET /api/integrations/{id}/executions`
+
+Returns recent executions for an integration, newest first.
+
+**Auth:** JWT
+
+**Query params:** `?limit=25` (optional, max 100)
+
+**Response**
+```json
+{
+  "executions": [
+    {
+      "id": "uuid",
+      "status": "Succeeded",
+      "environment": "production",
+      "startedAt": "2026-05-31T12:00:00Z",
+      "completedAt": "2026-05-31T12:00:05Z",
+      "durationMs": 5000,
+      "errorMessage": null
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/integrations/{id}/executions/{executionId}/logs`
+
+Returns structured logs recorded for a single execution, oldest first.
+
+**Auth:** JWT
+
+**Response**
+```json
+{
+  "logs": [
+    {
+      "id": "uuid",
+      "timestamp": "2026-05-31T12:00:01Z",
+      "level": "Information",
+      "message": "Processed 10 records",
+      "exception": null,
+      "propertiesJson": "{\"Count\":\"10\"}"
+    }
+  ]
+}
+```
 
 ---
 
@@ -242,6 +302,96 @@ Key must match `^[A-Z0-9_]+$`.
 ---
 
 ### `DELETE /api/secrets/{environment}/{key}`
+
+**Auth:** JWT
+
+**Response:** `204 No Content` or `404`
+
+---
+
+## Integration packages
+
+Integration packages are tenant-scoped zip archives containing compiled integration DLLs and their dependencies. The control plane can store and serve these packages, but the runtime agent does not automatically download or activate them yet.
+
+### `GET /api/integration-packages`
+
+**Auth:** JWT
+
+**Response**
+```json
+{
+  "packages": [
+    {
+      "id": "uuid",
+      "name": "MyCompany.Integrations",
+      "version": "1.0.0",
+      "fileName": "integrations.zip",
+      "sizeBytes": 123456,
+      "sha256Hash": "64-character lowercase hex hash",
+      "createdAt": "2026-05-31T12:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/integration-packages`
+
+Uploads a new package version.
+
+**Auth:** JWT
+
+**Content-Type:** `multipart/form-data`
+
+**Form fields**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Package name, e.g. `MyCompany.Integrations` |
+| `version` | Yes | Version string, e.g. `1.0.0` |
+| `file` | Yes | `.zip` archive containing at least one `.dll` |
+
+**Validation**
+- File must be a valid `.zip` archive
+- File must contain at least one `.dll`
+- File must be 100 MB or smaller
+- `(name, version)` must be unique within the tenant
+
+**Example**
+```bash
+curl -X POST http://localhost:5000/api/integration-packages \
+  -H "Authorization: Bearer <jwt>" \
+  -F "name=MyCompany.Integrations" \
+  -F "version=1.0.0" \
+  -F "file=@./publish/integrations.zip"
+```
+
+**Response:** `201 Created` with package metadata
+
+---
+
+### `GET /api/integration-packages/{id}`
+
+**Auth:** JWT
+
+**Response:** package metadata or `404`
+
+---
+
+### `GET /api/integration-packages/{id}/download`
+
+Downloads the original zip archive.
+
+**Auth:** JWT
+
+**Response:** `application/zip` file or `404`
+
+---
+
+### `DELETE /api/integration-packages/{id}`
+
+Deletes a stored package. This does not remove DLLs from any runtime agent.
 
 **Auth:** JWT
 
@@ -404,6 +554,27 @@ Or for failures:
 {
   "succeeded": false,
   "errorMessage": "Connection timeout after 30 seconds"
+}
+```
+
+**Response:** `204 No Content`
+
+---
+
+### `POST /api/agent/executions/{id}/logs`
+
+Records one structured log event for an execution. The token must belong to the same tenant and environment as the execution.
+
+**Auth:** `X-Agent-Token`
+
+**Request**
+```json
+{
+  "timestamp": "2026-05-31T12:00:01Z",
+  "level": "Information",
+  "message": "Processed 10 records",
+  "exception": null,
+  "propertiesJson": "{\"Count\":\"10\"}"
 }
 ```
 

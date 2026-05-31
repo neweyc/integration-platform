@@ -143,10 +143,39 @@ Avoid `Console.WriteLine` — output is not captured.
 
 ## Deploying integrations
 
+The control plane can store versioned integration package zip files, but the runtime agent does not automatically download or activate packages yet. The agent still loads DLLs from its local `IntegrationsPath`.
+
 1. Build the integration project: `dotnet publish -c Release`
-2. Copy the output `.dll` (and dependencies) to the directory configured in the agent's `IntegrationsPath` setting
-3. Restart the runtime agent — assemblies are loaded once at startup
-4. Verify the integration appears in the agent logs: `Loaded integration: MyCompany.Integrations.SyncOrdersIntegration`
+2. Create a package archive from the publish output:
+   ```bash
+   cd bin/Release/net10.0/publish
+   zip -r integrations.zip .
+   ```
+3. Optionally upload the archive to the control plane for storage:
+   ```bash
+   curl -X POST http://localhost:5000/api/integration-packages \
+     -H "Authorization: Bearer <jwt>" \
+     -F "name=MyCompany.Integrations" \
+     -F "version=1.0.0" \
+     -F "file=@integrations.zip"
+   ```
+4. Copy or extract the published output to the directory configured in the agent's `IntegrationsPath` setting
+5. Restart the runtime agent — assemblies are loaded once at startup
+6. Verify the integration appears in the agent logs: `Loaded integration: MyCompany.Integrations.SyncOrdersIntegration`
+
+Package constraints:
+
+- The uploaded file must be a valid `.zip`
+- The archive must contain at least one `.dll`
+- The archive must be 100 MB or smaller
+- The package `(name, version)` pair must be unique within the tenant
+
+Current limitations:
+
+- Uploading a package does not deploy it to agents
+- Integrations are not yet pinned to a package/version
+- The execution record does not yet store which package version ran
+- Rollback is a manual copy/extract/restart process
 
 ---
 

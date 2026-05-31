@@ -62,6 +62,56 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("agent_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.AssemblyPackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Sha256Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name", "Version")
+                        .IsUnique();
+
+                    b.ToTable("assembly_packages", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.ExecutionRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -322,6 +372,17 @@ namespace ControlPlane.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Shared.Domain.AgentToken", b =>
+                {
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.AssemblyPackage", b =>
                 {
                     b.HasOne("Shared.Domain.Tenant", "Tenant")
                         .WithMany()

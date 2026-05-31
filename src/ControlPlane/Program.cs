@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
@@ -93,6 +94,17 @@ builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, Dele
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 
+// Integration packages feature
+builder.Services.AddScoped<PackageRepository>();
+builder.Services.AddScoped<IPackageRepository>(sp => sp.GetRequiredService<PackageRepository>());
+builder.Services.AddScoped<IPackageReadRepository>(sp => sp.GetRequiredService<PackageRepository>());
+builder.Services.AddScoped<IPackageDeleteRepository>(sp => sp.GetRequiredService<PackageRepository>());
+builder.Services.AddScoped<ICommandHandler<UploadPackageCommand, PackageMetadata>, UploadPackageHandler>();
+builder.Services.AddScoped<ICommandHandler<ListPackagesCommand, ListPackagesResult>, ListPackagesHandler>();
+builder.Services.AddScoped<ICommandHandler<GetPackageCommand, PackageMetadata?>, GetPackageHandler>();
+builder.Services.AddScoped<ICommandHandler<DownloadPackageCommand, DownloadPackageResult?>, DownloadPackageHandler>();
+builder.Services.AddScoped<ICommandHandler<DeletePackageCommand, bool>, DeletePackageHandler>();
+
 // Secrets feature
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<ISecretReadRepository, SecretRepository>();
@@ -164,6 +176,7 @@ app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
+app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
