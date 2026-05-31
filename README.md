@@ -43,6 +43,18 @@ Runs on `http://localhost:5173`. API calls are proxied to the backend automatica
 
 Navigate to `http://localhost:5173` — you'll be directed to `/setup` to create the first tenant and admin user.
 
+## Connecting to the database (pgAdmin)
+
+| Field    | Value                  |
+|----------|------------------------|
+| Host     | `localhost`            |
+| Port     | `5433`                 |
+| Database | `integrationplatform`  |
+| Username | `devuser`              |
+| Password | `devpassword`          |
+
+Port is `5433` (not the default 5432) to avoid conflicts with any local Postgres instance.
+
 ## Building the frontend for production
 
 ```bash
