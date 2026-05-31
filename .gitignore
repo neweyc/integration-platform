@@ -1,0 +1,33 @@
+# Build output
+bin/
+obj/
+out/
+
+# .NET
+*.user
+*.suo
+.vs/
+*.userprefs
+.idea/
+
+# EF Core migrations snapshots are checked in, but not the DB
+*.db
+*.sqlite
+
+# Node / Frontend
+node_modules/
+dist/
+src/ControlPlane/wwwroot/
+
+# Environment / secrets
+appsettings.Development.json
+appsettings.Local.json
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude memory
+.claude/
