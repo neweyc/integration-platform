@@ -7,6 +7,7 @@ public class IntegrationExecutor(
     IControlPlaneClient controlPlane,
     IntegrationLoader loader,
     IHttpClientFactory httpClientFactory,
+    AgentOptions options,
     ILogger<IntegrationExecutor> logger)
 {
     public async Task ExecuteAsync(IntegrationItem integration, Dictionary<string, string> secrets, CancellationToken ct)
@@ -24,7 +25,7 @@ public class IntegrationExecutor(
         var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(
             executionId, integration.Id, integration.Name,
-            Environment: "", // set by caller context
+            Environment: options.Environment,
             ScheduledAt: DateTime.UtcNow);
 
         var context = new ExecutionContext(secrets, integrationLogger, http, metadata);

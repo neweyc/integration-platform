@@ -1,32 +1,42 @@
 # Roadmap
 
-Features are grouped by the phase in which they should be built. Phase 1 completes the MVP. Phases 2–3 enable commercial viability.
+Features are grouped by the phase in which they should be built. Phase 1 is largely complete. Phases 2–3 enable commercial viability.
 
 ---
 
-## Phase 1 — MVP (control plane complete, agent v1)
+## Phase 1 — MVP (largely complete)
 
-The control plane is largely feature-complete. The missing piece is the runtime agent.
+### Runtime agent (done)
+- [x] Agent process skeleton (Worker service)
+- [x] Agent authentication with the control plane using agent tokens
+- [x] Poll endpoint on the control plane: `GET /api/agent/integrations`
+- [x] Secret bundle fetch and in-memory injection
+- [x] Integration assembly loading (load a `.dll` from a configured path)
+- [x] Integration execution with `IIntegrationContext`
+- [x] Execution result reporting: `POST /api/agent/executions`, `PUT /api/agent/executions/{id}`
+- [x] Concurrency limits (`MaxConcurrentExecutions`)
+- [x] In-flight tracking to prevent overlapping executions
+- [ ] Graceful shutdown and cancellation (partial)
 
-### Runtime agent
-- [ ] Agent process skeleton (console app or worker service)
-- [ ] Agent authentication with the control plane using agent tokens
-- [ ] Poll endpoint on the control plane: `GET /api/agent/poll`
-- [ ] Secret bundle fetch and in-memory injection
-- [ ] Integration assembly loading (load a `.dll` from a configured path)
-- [ ] Integration execution with `IIntegrationContext`
-- [ ] Execution result reporting: `POST /api/agent/executions`
-- [ ] Graceful shutdown and cancellation
+### Control plane (done)
+- [x] `GET /api/agent/integrations` — returns enabled integrations for an environment
+- [x] `POST /api/agent/executions` — opens execution record with validation
+- [x] `PUT /api/agent/executions/{id}` — closes execution with result
+- [x] Execution history table and EF migration
+- [x] Tenant/environment/enabled validation on execution start
 
-### Control plane additions for agent support
-- [ ] `GET /api/agent/poll` — returns integrations due to run
-- [ ] `POST /api/agent/executions` — records execution results
-- [ ] Execution history table and EF migration
-- [ ] Execution history list endpoint
-
-### UI additions
+### UI (done)
+- [x] Integration list with environment, trigger, status
+- [x] Create integration form (name, slug, environment, trigger, cron, className)
+- [x] Edit integration form (name, description, status, cron)
+- [x] Delete integration
 - [ ] Execution history view per integration
 - [ ] Last run status and timestamp on the integrations list
+
+### Remaining for MVP
+- [ ] Execution history UI in control plane
+- [ ] Structured logging from agent to control plane
+- [ ] Durable scheduling state (currently in-memory only)
 
 ---
 
@@ -40,15 +50,15 @@ The control plane is largely feature-complete. The missing piece is the runtime 
 
 ### Integration authoring
 - [ ] Integration SDK NuGet package (`IntegrationPlatform.Sdk`)
-- [ ] `IIntegration`, `IIntegrationContext`, `ISecretContext` interfaces
 - [ ] Example integration project (template)
 - [ ] Documentation: writing and deploying your first integration
 
 ### Agent improvements
-- [ ] Webhook trigger support: agent exposes an HTTP endpoint, control plane proxies or agent registers with an external service
+- [ ] Webhook trigger support: agent exposes an HTTP endpoint or control plane proxies
 - [ ] Retry policy: configurable retry count and backoff per integration
-- [ ] Concurrent execution limit per agent
 - [ ] Agent version reporting (for compatibility checking)
+- [ ] Durable scheduling with distributed locking (for multi-agent deployments)
+- [ ] Graceful shutdown with execution draining
 
 ### Security
 - [ ] Token expiry / rotation support
@@ -103,5 +113,5 @@ The control plane is largely feature-complete. The missing piece is the runtime 
 - Secrets page is hardcoded to `production` environment — needs an environment selector
 - No pagination on list endpoints — will become a problem at scale
 - No input sanitisation beyond basic validation — add a global sanitisation layer
-- Tests don't cover the agent token endpoints yet
-- `ICurrentUser` throws if called outside a JWT context — agent endpoints need a separate identity abstraction
+- Scheduling state is in-memory only — agent restart re-evaluates all cron expressions
+- `ICurrentUser` throws if called outside a JWT context — agent endpoints use separate token validation
