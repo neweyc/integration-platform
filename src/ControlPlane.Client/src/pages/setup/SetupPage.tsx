@@ -44,7 +44,7 @@ export function SetupPage() {
     try {
       const result = await authApi.setup(form)
       saveToken(result.token)
-      await queryClient.invalidateQueries({ queryKey: ['setup-status'] })
+      queryClient.setQueryData(['setup-status'], { isComplete: true })
       navigate('/integrations')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed.')
