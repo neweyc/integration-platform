@@ -1,4 +1,5 @@
 using System.Text;
+using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
@@ -89,6 +90,17 @@ builder.Services.AddScoped<ICommandHandler<ListSecretsCommand, ListSecretsResult
 builder.Services.AddScoped<ICommandHandler<DeleteSecretCommand, bool>, DeleteSecretHandler>();
 builder.Services.AddScoped<ICommandHandler<GetSecretBundleCommand, GetSecretBundleResult>, GetSecretBundleHandler>();
 
+// Agent tokens feature
+builder.Services.AddScoped<IAgentTokenService, AgentTokenService>();
+builder.Services.AddScoped<AgentTokenRepository>();
+builder.Services.AddScoped<IAgentTokenRepository>(sp => sp.GetRequiredService<AgentTokenRepository>());
+builder.Services.AddScoped<IAgentTokenReadRepository>(sp => sp.GetRequiredService<AgentTokenRepository>());
+builder.Services.AddScoped<IAgentTokenDeleteRepository>(sp => sp.GetRequiredService<AgentTokenRepository>());
+builder.Services.AddScoped<IAgentTokenLookupRepository>(sp => sp.GetRequiredService<AgentTokenRepository>());
+builder.Services.AddScoped<ICommandHandler<CreateAgentTokenCommand, CreateAgentTokenResult>, CreateAgentTokenHandler>();
+builder.Services.AddScoped<ICommandHandler<ListAgentTokensCommand, ListAgentTokensResult>, ListAgentTokensHandler>();
+builder.Services.AddScoped<ICommandHandler<RevokeAgentTokenCommand, bool>, RevokeAgentTokenHandler>();
+
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserReadRepository, UserRepository>();
@@ -131,6 +143,7 @@ app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
+app.MapAgentTokenEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

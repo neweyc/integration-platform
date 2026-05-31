@@ -19,6 +19,7 @@ import { clearToken } from '@/api/client'
 const navItems = [
   { label: 'Integrations', path: '/integrations' },
   { label: 'Secrets', path: '/secrets' },
+  { label: 'Agent tokens', path: '/agent-tokens' },
 ]
 
 export function AppShell() {

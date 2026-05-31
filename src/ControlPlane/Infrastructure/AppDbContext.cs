@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<Secret> Secrets => Set<Secret>();
     public DbSet<Integration> Integrations => Set<Integration>();
+    public DbSet<AgentToken> AgentTokens => Set<AgentToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,6 +72,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(i => i.Tenant)
              .WithMany()
              .HasForeignKey(i => i.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AgentToken>(b =>
+        {
+            b.ToTable("agent_tokens");
+            b.HasKey(t => t.Id);
+            b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+            b.Property(t => t.Environment).IsRequired().HasMaxLength(50);
+            b.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);
+
+            // Hash must be unique — no two tokens can have the same hash
+            b.HasIndex(t => t.TokenHash).IsUnique();
+
+            b.HasOne(t => t.Tenant)
+             .WithMany()
+             .HasForeignKey(t => t.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }
