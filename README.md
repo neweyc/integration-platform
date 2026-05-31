@@ -55,6 +55,38 @@ Navigate to `http://localhost:5173` — you'll be directed to `/setup` to create
 
 Port is `5433` (not the default 5432) to avoid conflicts with any local Postgres instance.
 
+## Agent tokens
+
+Agent tokens allow a runtime agent to fetch decrypted secrets from the control plane. They are scoped to a single environment — a `production` token cannot access `staging` secrets.
+
+### Creating a token
+
+1. Go to **Agent tokens** in the UI and click **New token**
+2. Give it a name and set the environment (e.g. `production`)
+3. Copy the token value — it is shown **once only** and cannot be retrieved again
+
+### Using a token
+
+The agent calls the secret bundle endpoint with the token in the `X-Agent-Token` header:
+
+```
+GET /api/agent/secrets/{environment}
+X-Agent-Token: agt_<token>
+```
+
+Response is a decrypted key/value map:
+
+```json
+{
+  "secrets": {
+    "DATABASE_URL": "postgres://...",
+    "API_KEY": "sk-..."
+  }
+}
+```
+
+The agent injects these into the job's execution environment before running an integration.
+
 ## Building the frontend for production
 
 ```bash
