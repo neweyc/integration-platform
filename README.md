@@ -137,8 +137,30 @@ cd src/ControlPlane.Client && npm run build
 
 Output goes to `src/ControlPlane/wwwroot` and is served by the .NET server at `http://localhost:5000`.
 
+## Docker deployment
+
+Build and run the control plane as a Docker container:
+
+```bash
+# Build from repository root
+docker build -f src/ControlPlane/Dockerfile -t integration-platform .
+
+# Run with environment variables
+docker run -p 8080:8080 \
+  -e ConnectionStrings__DefaultConnection="Host=db;Database=integrationplatform;Username=user;Password=pass" \
+  -e Jwt__Key="your-256-bit-secret-key" \
+  -e Encryption__MasterKey="your-encryption-master-key" \
+  integration-platform
+```
+
+The Dockerfile builds both the React frontend and .NET backend in a multi-stage build.
+
+For production, use Docker Compose or Kubernetes with proper secrets management.
+
 ## Running tests
 
 ```bash
-$HOME/.dotnet/dotnet test IntegrationPlatform.slnx
+dotnet test
 ```
+
+Currently 84 tests covering control plane features, SDK, and runtime agent behavior.

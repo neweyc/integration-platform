@@ -44,6 +44,7 @@ This separation is a first-class design decision. The control plane owns all sta
 | Auth | JWT Bearer (user) + agent tokens (runtime) |
 | Encryption | AES-256-CBC, random IV per value, PBKDF2 key derivation |
 | Password hashing | BCrypt |
+| JSON serialization | System.Text.Json with `JsonStringEnumConverter` (enums as strings) |
 
 ### Vertical Slice Architecture
 
