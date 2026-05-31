@@ -121,7 +121,8 @@ Register a new user within the current tenant. First user automatically becomes 
       "environment": "production",
       "status": "Enabled",
       "triggerType": "Scheduled",
-      "cronExpression": "0 * * * *"
+      "cronExpression": "0 * * * *",
+      "className": "MyCompany.Integrations.SyncOrdersIntegration"
     }
   ]
 }
@@ -141,12 +142,19 @@ Register a new user within the current tenant. First user automatically becomes 
   "description": "Optional description",
   "environment": "production",
   "triggerType": "Scheduled",
-  "cronExpression": "0 * * * *"
+  "cronExpression": "0 * * * *",
+  "className": "MyCompany.Integrations.SyncOrdersIntegration"
 }
 ```
 
-`triggerType`: `Scheduled` | `Webhook` | `Manual`
-`cronExpression`: required when `triggerType` is `Scheduled`
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name |
+| `slug` | Yes | URL-safe identifier (lowercase, hyphens only) |
+| `environment` | Yes | Target environment (e.g. `production`, `staging`) |
+| `triggerType` | Yes | `Scheduled`, `Webhook`, or `Manual` |
+| `cronExpression` | When Scheduled | Cron expression for scheduling |
+| `className` | Yes | Fully-qualified .NET type name that implements `IIntegration` |
 
 **Response:** `201 Created` with integration object
 
@@ -300,11 +308,37 @@ Key must match `^[A-Z0-9_]+$`.
 
 ## Agent (runtime use only)
 
+All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (not JWT).
+
+### `GET /api/agent/integrations`
+
+Returns all enabled integrations for the token's environment. The runtime agent polls this endpoint to determine which integrations are due for execution.
+
+**Auth:** `X-Agent-Token`
+
+**Response**
+```json
+{
+  "integrations": [
+    {
+      "id": "uuid",
+      "name": "Sync Orders",
+      "slug": "sync-orders",
+      "triggerType": "Scheduled",
+      "cronExpression": "0 * * * *",
+      "className": "MyCompany.Integrations.SyncOrdersIntegration"
+    }
+  ]
+}
+```
+
+---
+
 ### `GET /api/agent/secrets/{environment}`
 
 Returns the full decrypted secret bundle for an environment. Called by the runtime agent before executing an integration.
 
-**Auth:** `X-Agent-Token: agt_<token>` header (not JWT)
+**Auth:** `X-Agent-Token`
 
 The token must be scoped to the requested environment — a token for `staging` cannot access `production`.
 
@@ -320,6 +354,60 @@ The token must be scoped to the requested environment — a token for `staging` 
 
 **Errors**
 - `401 Unauthorized` — missing, invalid, or wrong-environment token
+
+---
+
+### `POST /api/agent/executions`
+
+Opens an execution record before running an integration. The control plane validates that the integration exists, belongs to the token's tenant/environment, and is enabled.
+
+**Auth:** `X-Agent-Token`
+
+**Request**
+```json
+{
+  "integrationId": "uuid"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "executionId": "uuid",
+  "startedAt": "2026-05-31T12:00:00Z"
+}
+```
+
+**Errors**
+- `401 Unauthorized` — invalid token
+- `404 Not Found` — integration does not exist or belongs to different tenant
+- `400 Bad Request` — integration is disabled or belongs to different environment
+
+---
+
+### `PUT /api/agent/executions/{id}`
+
+Closes an execution record with the outcome.
+
+**Auth:** `X-Agent-Token`
+
+**Request**
+```json
+{
+  "succeeded": true,
+  "errorMessage": null
+}
+```
+
+Or for failures:
+```json
+{
+  "succeeded": false,
+  "errorMessage": "Connection timeout after 30 seconds"
+}
+```
+
+**Response:** `204 No Content`
 
 ---
 

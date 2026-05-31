@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.Integrations;
@@ -11,6 +12,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure JSON serialization to use string enum values instead of integers
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -75,6 +82,7 @@ builder.Services.AddScoped<IIntegrationRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationReadRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationUpdateRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationDeleteRepository, IntegrationRepository>();
+builder.Services.AddScoped<IIntegrationValidationRepository, IntegrationRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>, CreateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrationResult?>, GetIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();

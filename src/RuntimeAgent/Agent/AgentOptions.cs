@@ -16,4 +16,7 @@ public class AgentOptions
 
     // How often to poll for due integrations, in seconds
     public int PollIntervalSeconds { get; set; } = 30;
+
+    // Maximum number of integrations that can execute concurrently
+    public int MaxConcurrentExecutions { get; set; } = 5;
 }

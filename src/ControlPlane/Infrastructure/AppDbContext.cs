@@ -66,6 +66,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.Status).HasConversion<string>();
             b.Property(i => i.TriggerType).HasConversion<string>();
             b.Property(i => i.CronExpression).HasMaxLength(100);
+            b.Property(i => i.ClassName).IsRequired().HasMaxLength(500);
 
             // Slug must be unique within a tenant
             b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();

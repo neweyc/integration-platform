@@ -14,7 +14,8 @@ public record AgentIntegrationItem(
     string Name,
     string Slug,
     TriggerType TriggerType,
-    string? CronExpression);
+    string? CronExpression,
+    string ClassName);
 
 public interface IPollRepository
 {
@@ -29,7 +30,7 @@ public class PollIntegrationsHandler(IPollRepository repository)
         var integrations = await repository.ListEnabledAsync(command.TenantId, command.Environment, ct);
 
         var items = integrations
-            .Select(i => new AgentIntegrationItem(i.Id, i.Name, i.Slug, i.TriggerType, i.CronExpression))
+            .Select(i => new AgentIntegrationItem(i.Id, i.Name, i.Slug, i.TriggerType, i.CronExpression, i.ClassName))
             .ToList();
 
         return new PollIntegrationsResult(items);

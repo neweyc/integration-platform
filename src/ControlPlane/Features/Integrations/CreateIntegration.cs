@@ -11,7 +11,8 @@ public record CreateIntegrationCommand(
     string? Description,
     string Environment,
     TriggerType TriggerType,
-    string? CronExpression) : ICommand<CreateIntegrationResult>;
+    string? CronExpression,
+    string ClassName) : ICommand<CreateIntegrationResult>;
 
 public record CreateIntegrationResult(
     Guid Id,
@@ -20,7 +21,8 @@ public record CreateIntegrationResult(
     string Environment,
     string Status,
     string TriggerType,
-    string? CronExpression);
+    string? CronExpression,
+    string ClassName);
 
 public interface IIntegrationRepository
 {
@@ -47,6 +49,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
             Environment = command.Environment,
             TriggerType = command.TriggerType,
             CronExpression = command.CronExpression,
+            ClassName = command.ClassName,
             Status = IntegrationStatus.Enabled
         };
 
@@ -68,6 +71,13 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
 
         if (string.IsNullOrWhiteSpace(command.Environment))
             throw new ValidationException("Environment is required.");
+
+        if (string.IsNullOrWhiteSpace(command.ClassName))
+            throw new ValidationException("Class name is required.");
+
+        // Class name should look like a valid fully-qualified .NET type name
+        if (!System.Text.RegularExpressions.Regex.IsMatch(command.ClassName, @"^[\w]+(?:\.[\w]+)*$"))
+            throw new ValidationException("Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').");
 
         if (command.TriggerType == TriggerType.Scheduled)
         {
@@ -93,5 +103,5 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
     }
 
     internal static CreateIntegrationResult ToResult(Integration i) =>
-        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(), i.CronExpression);
+        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(), i.CronExpression, i.ClassName);
 }

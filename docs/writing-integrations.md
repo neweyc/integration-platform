@@ -1,6 +1,6 @@
 # Writing integrations
 
-> The runtime agent is not yet built. This document describes the intended developer experience to guide the SDK and agent implementation.
+This guide explains how to write, deploy, and test integrations for the platform.
 
 ---
 
@@ -88,12 +88,19 @@ The project targets `net10.0` and references the SDK package:
 
 ## Registration
 
-Once deployed, the integration class must be registered in the control plane UI:
+Once deployed, the integration class must be registered in the control plane:
 
 1. Go to **Integrations → New integration**
-2. Set the name, slug, environment, and trigger
-3. Set the **class name** (fully qualified: `MyIntegrations.SyncOrdersIntegration`)
-4. The runtime agent will locate the class in the loaded assembly when dispatching this integration
+2. Fill in the required fields:
+   - **Name** — display name (e.g. "Sync Orders")
+   - **Slug** — URL-safe identifier (e.g. `sync-orders`)
+   - **Environment** — target environment (e.g. `production`)
+   - **Trigger type** — `Scheduled`, `Webhook`, or `Manual`
+   - **Cron expression** — required for scheduled triggers (e.g. `0 * * * *` for hourly)
+   - **Class name** — fully qualified .NET type name (e.g. `MyIntegrations.SyncOrdersIntegration`)
+3. The runtime agent uses the **class name** to locate and instantiate the integration class when it's due to run
+
+> **Important:** The class name must exactly match the fully qualified type name in your assembly. If the agent can't find the class, it will log a warning and skip execution.
 
 ---
 
@@ -137,9 +144,9 @@ Avoid `Console.WriteLine` — output is not captured.
 ## Deploying integrations
 
 1. Build the integration project: `dotnet publish -c Release`
-2. Copy the output `.dll` to the directory the runtime agent is configured to watch
-3. The agent hot-reloads the assembly (or restart the agent if hot-reload is not yet implemented)
-4. Verify the integration appears as loadable in the agent logs
+2. Copy the output `.dll` (and dependencies) to the directory configured in the agent's `IntegrationsPath` setting
+3. Restart the runtime agent — assemblies are loaded once at startup
+4. Verify the integration appears in the agent logs: `Loaded integration: MyCompany.Integrations.SyncOrdersIntegration`
 
 ---
 

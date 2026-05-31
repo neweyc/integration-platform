@@ -24,7 +24,8 @@ public static class IntegrationEndpoints
                     request.Description,
                     request.Environment,
                     request.TriggerType,
-                    request.CronExpression), ct);
+                    request.CronExpression,
+                    request.ClassName), ct);
 
             return Results.Created($"/api/integrations/{result.Id}", result);
         });
@@ -92,7 +93,8 @@ public record CreateIntegrationRequest(
     string? Description,
     string Environment,
     TriggerType TriggerType,
-    string? CronExpression);
+    string? CronExpression,
+    string ClassName);
 
 public record UpdateIntegrationRequest(
     string Name,

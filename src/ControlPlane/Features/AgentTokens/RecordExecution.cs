@@ -25,11 +25,28 @@ public interface IExecutionRepository
     Task UpdateAsync(ExecutionRecord record, CancellationToken ct = default);
 }
 
-public class StartExecutionHandler(IExecutionRepository repository)
+public interface IIntegrationValidationRepository
+{
+    Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
+}
+
+public class StartExecutionHandler(IExecutionRepository repository, IIntegrationValidationRepository integrationRepository)
     : ICommandHandler<StartExecutionCommand, StartExecutionResult>
 {
     public async Task<StartExecutionResult> HandleAsync(StartExecutionCommand command, CancellationToken ct = default)
     {
+        // Validate that the integration exists, belongs to the tenant, matches the environment, and is enabled
+        var integration = await integrationRepository.GetByIdAsync(command.TenantId, command.IntegrationId, ct);
+
+        if (integration is null)
+            throw new NotFoundException($"Integration '{command.IntegrationId}' not found.");
+
+        if (integration.Environment != command.Environment)
+            throw new ValidationException($"Integration '{command.IntegrationId}' belongs to environment '{integration.Environment}', not '{command.Environment}'.");
+
+        if (integration.Status != IntegrationStatus.Enabled)
+            throw new ValidationException($"Integration '{command.IntegrationId}' is disabled.");
+
         var record = new ExecutionRecord
         {
             TenantId = command.TenantId,

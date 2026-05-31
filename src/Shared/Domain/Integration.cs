@@ -14,6 +14,10 @@ public class Integration : Entity
     // Null for Webhook and Manual triggers.
     public string? CronExpression { get; set; }
 
+    // Fully qualified class name that implements IIntegration (e.g. "MyCompany.Integrations.SyncOrdersIntegration").
+    // The runtime agent uses this to locate and instantiate the integration class.
+    public string ClassName { get; set; } = string.Empty;
+
     public Tenant Tenant { get; set; } = null!;
 }
 

@@ -1,3 +1,4 @@
+using ControlPlane.Features.AgentTokens;
 using ControlPlane.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shared.Domain;
@@ -5,7 +6,7 @@ using Shared.Domain;
 namespace ControlPlane.Features.Integrations;
 
 public class IntegrationRepository(AppDbContext db)
-    : IIntegrationRepository, IIntegrationReadRepository, IIntegrationUpdateRepository, IIntegrationDeleteRepository
+    : IIntegrationRepository, IIntegrationReadRepository, IIntegrationUpdateRepository, IIntegrationDeleteRepository, IIntegrationValidationRepository
 {
     public Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default) =>
         db.Integrations.AnyAsync(i => i.TenantId == tenantId && i.Slug == slug, ct);

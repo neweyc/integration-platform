@@ -11,11 +11,11 @@ public class IntegrationExecutor(
 {
     public async Task ExecuteAsync(IntegrationItem integration, Dictionary<string, string> secrets, CancellationToken ct)
     {
-        var instance = loader.Resolve(integration.Slug);
+        var instance = loader.Resolve(integration.ClassName);
         if (instance is null)
         {
-            logger.LogWarning("Skipping {Name} — no matching integration class found for slug '{Slug}'",
-                integration.Name, integration.Slug);
+            logger.LogWarning("Skipping {Name} — no matching integration class found for '{ClassName}'",
+                integration.Name, integration.ClassName);
             return;
         }
 

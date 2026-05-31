@@ -16,7 +16,8 @@ public record IntegrationItem(
     string Name,
     string Slug,
     string TriggerType,
-    string? CronExpression);
+    string? CronExpression,
+    string ClassName);
 
 public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<ControlPlaneClient> logger)
     : IControlPlaneClient

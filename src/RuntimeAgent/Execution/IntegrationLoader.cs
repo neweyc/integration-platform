@@ -44,26 +44,15 @@ public class IntegrationLoader(ILogger<IntegrationLoader> logger)
         logger.LogInformation("Loaded {Count} integration(s) from {Path}", _integrationTypes.Count, path);
     }
 
-    public IIntegration? Resolve(string slug)
+    public IIntegration? Resolve(string className)
     {
-        // Normalise the slug to a bare word for comparison:
-        // "hello-world" → "helloworld", "HelloWorldIntegration" → "helloworldintegration"
-        var normalised = slug.Replace("-", "").Replace("_", "");
-
-        var type = _integrationTypes.Values.FirstOrDefault(t =>
-            string.Equals(Normalise(t.Name), normalised, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(Normalise(t.FullName!), normalised, StringComparison.OrdinalIgnoreCase));
-
-        if (type is null)
+        if (_integrationTypes.TryGetValue(className, out var type))
         {
-            logger.LogWarning("No integration found for slug '{Slug}' (normalised: '{Normalised}'). " +
-                              "Loaded types: {Types}",
-                              slug, normalised, string.Join(", ", _integrationTypes.Keys));
-            return null;
+            return (IIntegration)Activator.CreateInstance(type)!;
         }
 
-        return (IIntegration)Activator.CreateInstance(type)!;
+        logger.LogWarning("No integration found for class name '{ClassName}'. Loaded types: {Types}",
+            className, string.Join(", ", _integrationTypes.Keys));
+        return null;
     }
-
-    private static string Normalise(string name) => name.Replace("-", "").Replace("_", "");
 }

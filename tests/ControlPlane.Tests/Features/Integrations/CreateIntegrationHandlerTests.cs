@@ -22,7 +22,7 @@ public class CreateIntegrationHandlerTests
     {
         var command = new CreateIntegrationCommand(
             _tenantId, "Sync Orders", "sync-orders", "Syncs orders from Shopify",
-            "production", TriggerType.Manual, null);
+            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration");
 
         _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
 
@@ -32,6 +32,7 @@ public class CreateIntegrationHandlerTests
         Assert.Equal("sync-orders", result.Slug);
         Assert.Equal("Enabled", result.Status);
         Assert.Equal("Manual", result.TriggerType);
+        Assert.Equal("MyCompany.Integrations.SyncOrdersIntegration", result.ClassName);
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public class CreateIntegrationHandlerTests
     {
         var command = new CreateIntegrationCommand(
             _tenantId, "Nightly Report", "nightly-report", null,
-            "production", TriggerType.Scheduled, "0 2 * * *");
+            "production", TriggerType.Scheduled, "0 2 * * *", "MyCompany.Integrations.NightlyReportIntegration");
 
         _repository.SlugExistsAsync(_tenantId, "nightly-report").Returns(false);
 
@@ -53,7 +54,7 @@ public class CreateIntegrationHandlerTests
     {
         var command = new CreateIntegrationCommand(
             _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null);
+            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration");
 
         _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(true);
 
@@ -61,18 +62,17 @@ public class CreateIntegrationHandlerTests
     }
 
     [Theory]
-    [InlineData("", "valid-slug", "Name is required.")]
-    [InlineData("Valid Name", "", "Slug is required.")]
-    [InlineData("Valid Name", "Invalid Slug!", "Slug may only contain lowercase letters, numbers, and hyphens.")]
-    [InlineData("Valid Name", "valid-slug", "Environment is required.")]
+    [InlineData("", "valid-slug", "production", "MyCompany.Test", "Name is required.")]
+    [InlineData("Valid Name", "", "production", "MyCompany.Test", "Slug is required.")]
+    [InlineData("Valid Name", "Invalid Slug!", "production", "MyCompany.Test", "Slug may only contain lowercase letters, numbers, and hyphens.")]
+    [InlineData("Valid Name", "valid-slug", "", "MyCompany.Test", "Environment is required.")]
+    [InlineData("Valid Name", "valid-slug", "production", "", "Class name is required.")]
+    [InlineData("Valid Name", "valid-slug", "production", "Invalid Class Name!", "Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').")]
     public async Task HandleAsync_InvalidInput_ThrowsValidationException(
-        string name, string slug, string expectedMessage)
+        string name, string slug, string environment, string className, string expectedMessage)
     {
-        // Use empty environment to trigger the environment validation in the last case
-        var environment = expectedMessage.Contains("Environment") ? "" : "production";
-
         var command = new CreateIntegrationCommand(
-            _tenantId, name, slug, null, environment, TriggerType.Manual, null);
+            _tenantId, name, slug, null, environment, TriggerType.Manual, null, className);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
@@ -84,7 +84,7 @@ public class CreateIntegrationHandlerTests
     {
         var command = new CreateIntegrationCommand(
             _tenantId, "Report", "report", null,
-            "production", TriggerType.Scheduled, null);
+            "production", TriggerType.Scheduled, null, "MyCompany.Integrations.ReportIntegration");
 
         _repository.SlugExistsAsync(_tenantId, "report").Returns(false);
 
@@ -98,7 +98,7 @@ public class CreateIntegrationHandlerTests
     {
         var command = new CreateIntegrationCommand(
             _tenantId, "Report", "report", null,
-            "production", TriggerType.Scheduled, "not-a-cron");
+            "production", TriggerType.Scheduled, "not-a-cron", "MyCompany.Integrations.ReportIntegration");
 
         _repository.SlugExistsAsync(_tenantId, "report").Returns(false);
 

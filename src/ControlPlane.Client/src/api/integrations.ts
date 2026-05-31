@@ -12,6 +12,7 @@ export interface Integration {
   status: IntegrationStatus
   triggerType: TriggerType
   cronExpression?: string
+  className: string
 }
 
 export interface CreateIntegrationRequest {
@@ -21,6 +22,7 @@ export interface CreateIntegrationRequest {
   environment: string
   triggerType: TriggerType
   cronExpression?: string
+  className: string
 }
 
 export interface UpdateIntegrationRequest {

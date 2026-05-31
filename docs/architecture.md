@@ -103,26 +103,38 @@ PostgreSQL via EF Core. Migrations are applied automatically on startup — no m
 Schema:
 
 ```
-tenants          — id, name, slug, status
-users            — id, tenant_id, email, password_hash, role
-secrets          — id, tenant_id, environment, key, encrypted_value
-integrations     — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression
-agent_tokens     — id, tenant_id, name, environment, token_hash
+tenants           — id, name, slug, status
+users             — id, tenant_id, email, password_hash, role
+secrets           — id, tenant_id, environment, key, encrypted_value
+integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name
+agent_tokens      — id, tenant_id, name, environment, token_hash
+execution_records — id, tenant_id, integration_id, environment, status, started_at, completed_at, error_message
 ```
 
 ---
 
 ## Runtime Agent
 
-> Not yet built. Design intent documented here to guide implementation.
-
-The agent is a separate process deployed by the customer. It:
+The agent is a .NET Worker Service deployed by the customer. It:
 
 1. Authenticates with the control plane using an agent token
-2. Polls (or is pushed) for work — integrations that are due to run
+2. Polls for work — integrations that are due to run based on their cron schedules
 3. Fetches the secret bundle for its environment
 4. Loads and executes the integration C# class with secrets injected
-5. Reports execution status, logs, and any output back to the control plane
+5. Reports execution status and any errors back to the control plane
+
+### Configuration
+
+The agent is configured via `appsettings.json` or environment variables:
+
+| Setting | Description |
+|---------|-------------|
+| `ControlPlaneUrl` | Base URL of the control plane API |
+| `AgentToken` | Token in format `agt_xxx` from the control plane UI |
+| `Environment` | Environment this agent serves (e.g. `production`) |
+| `IntegrationsPath` | Directory containing integration `.dll` files |
+| `PollIntervalSeconds` | How often to check for due integrations (default: 30) |
+| `MaxConcurrentExecutions` | Maximum parallel integration runs (default: 5) |
 
 ### Integration execution model
 
@@ -139,26 +151,44 @@ public interface IIntegration
 - `Secrets` — the decrypted key/value map for the environment
 - `Logger` — structured logging that feeds back to the control plane
 - `Http` — a pre-configured `HttpClient`
-- (future) `Trigger` — event payload if triggered by webhook
+- `Execution` — metadata about the current run (IDs, timestamps)
 
-The agent discovers integration classes by loading a compiled assembly. The control plane stores or references the assembly — exact mechanism TBD (options: assembly uploaded to control plane, Git repo URL, NuGet package).
+The agent discovers integration classes by scanning a directory for `.dll` files and finding all types that implement `IIntegration`. The control plane stores the fully-qualified class name (e.g. `MyCompany.Integrations.SyncOrdersIntegration`) which the agent uses for exact type lookup.
+
+### Concurrency and scheduling
+
+The agent implements several safety mechanisms:
+
+- **Concurrency limit** — A configurable `MaxConcurrentExecutions` setting (default: 5) limits how many integrations can run simultaneously using a semaphore
+- **In-flight tracking** — Each integration is tracked while executing; if a poll cycle fires while an integration is still running, it will be skipped to prevent overlapping executions
+- **Cron-based scheduling** — The agent evaluates each integration's cron expression against the last run time to determine if it's due
+
+Note: Scheduling state (`_lastRun`) is held in memory. Agent restarts will cause integrations to re-evaluate against `DateTime.MinValue`, potentially triggering immediate runs. For multi-instance deployments, consider distributed locking (future enhancement).
 
 ### Agent ↔ Control Plane protocol
 
 ```
-Agent                          Control Plane
-  │                                  │
-  │── GET /api/agent/poll ──────────►│  (heartbeat + fetch pending work)
-  │◄─ { integrations: [...] } ───────│
-  │                                  │
-  │── GET /api/agent/secrets/prod ──►│  (fetch secret bundle)
-  │◄─ { secrets: { KEY: "val" } } ───│
-  │                                  │
-  │  [execute integration locally]   │
-  │                                  │
-  │── POST /api/agent/executions ───►│  (report result)
-  │◄─ 200 OK ────────────────────────│
+Agent                              Control Plane
+  │                                      │
+  │── GET /api/agent/integrations ──────►│  (fetch enabled integrations)
+  │◄─ { integrations: [...] } ───────────│
+  │                                      │
+  │── GET /api/agent/secrets/{env} ─────►│  (fetch secret bundle)
+  │◄─ { secrets: { KEY: "val" } } ───────│
+  │                                      │
+  │── POST /api/agent/executions ───────►│  (open execution record)
+  │◄─ { executionId, startedAt } ────────│
+  │                                      │
+  │  [execute integration locally]       │
+  │                                      │
+  │── PUT /api/agent/executions/{id} ───►│  (close with result)
+  │◄─ 204 No Content ────────────────────│
 ```
+
+The control plane validates execution requests:
+- Integration must exist and belong to the agent's tenant
+- Integration must match the agent's environment
+- Integration must be enabled
 
 ---
 

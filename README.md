@@ -87,6 +87,48 @@ Response is a decrypted key/value map:
 
 The agent injects these into the job's execution environment before running an integration.
 
+## Running the Runtime Agent
+
+The runtime agent is a separate process that executes integrations. It polls the control plane for work, fetches secrets, and runs your C# integration classes.
+
+### Configuration
+
+Create an `appsettings.json` in the RuntimeAgent project directory:
+
+```json
+{
+  "Agent": {
+    "ControlPlaneUrl": "http://localhost:5000",
+    "AgentToken": "agt_<your-token>",
+    "Environment": "production",
+    "IntegrationsPath": "./integrations",
+    "PollIntervalSeconds": 30,
+    "MaxConcurrentExecutions": 5
+  }
+}
+```
+
+### Running
+
+```bash
+dotnet run --project src/RuntimeAgent
+```
+
+The agent will:
+1. Load integration assemblies from `IntegrationsPath`
+2. Poll for enabled integrations matching its environment
+3. Execute due integrations based on their cron schedules
+4. Report execution results back to the control plane
+
+### Deploying integrations
+
+1. Build your integration project: `dotnet publish -c Release`
+2. Copy the DLLs to the `IntegrationsPath` directory
+3. Restart the agent to load new assemblies
+4. Register the integration in the control plane UI with the fully qualified class name
+
+See [docs/writing-integrations.md](docs/writing-integrations.md) for details.
+
 ## Building the frontend for production
 
 ```bash
