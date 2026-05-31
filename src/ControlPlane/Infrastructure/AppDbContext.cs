@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Secret> Secrets => Set<Secret>();
     public DbSet<Integration> Integrations => Set<Integration>();
     public DbSet<AgentToken> AgentTokens => Set<AgentToken>();
+    public DbSet<ExecutionRecord> ExecutionRecords => Set<ExecutionRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,6 +91,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(t => t.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ExecutionRecord>(b =>
+        {
+            b.ToTable("execution_records");
+            b.HasKey(e => e.Id);
+            b.Property(e => e.Environment).IsRequired().HasMaxLength(50);
+            b.Property(e => e.Status).HasConversion<string>();
+            b.Property(e => e.ErrorMessage).HasMaxLength(4000);
+
+            b.HasOne(e => e.Integration)
+             .WithMany()
+             .HasForeignKey(e => e.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(e => e.Tenant)
+             .WithMany()
+             .HasForeignKey(e => e.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(e => new { e.TenantId, e.IntegrationId, e.StartedAt });
         });
     }
 }

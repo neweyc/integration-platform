@@ -42,8 +42,10 @@ public static class AgentTokenEndpoints
             return Results.NoContent();
         });
 
-        // Agent-facing endpoint — authenticated via X-Agent-Token header, not JWT
-        app.MapGet("/api/agent/secrets/{environment}", async (
+        // All agent-facing endpoints share the same token validation pattern
+        var agent = app.MapGroup("/api/agent").WithTags("Agent");
+
+        agent.MapGet("/secrets/{environment}", async (
             string environment,
             HttpContext http,
             IAgentTokenService tokenService,
@@ -51,25 +53,99 @@ public static class AgentTokenEndpoints
             IDispatcher dispatcher,
             CancellationToken ct) =>
         {
-            // Extract and validate the agent token
-            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
-            if (string.IsNullOrEmpty(header))
-                return Results.Unauthorized();
-
-            var hash = tokenService.Hash(header);
-            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
-
-            if (agentToken is null || agentToken.Environment != environment)
-                return Results.Unauthorized();
+            var agentToken = await ResolveAgentToken(http, environment, tokenService, tokenRepo, ct);
+            if (agentToken is null) return Results.Unauthorized();
 
             var result = await dispatcher.SendAsync(
                 new GetSecretBundleCommand(agentToken.TenantId, environment), ct);
 
             return Results.Ok(result);
-        }).WithTags("Agent");
+        });
+
+        agent.MapGet("/integrations", async (
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            var result = await dispatcher.SendAsync(
+                new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment), ct);
+
+            return Results.Ok(result);
+        });
+
+        agent.MapPost("/executions", async (
+            [FromBody] StartExecutionRequest request,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            var result = await dispatcher.SendAsync(
+                new StartExecutionCommand(agentToken.TenantId, agentToken.Environment, request.IntegrationId), ct);
+
+            return Results.Created($"/api/agent/executions/{result.ExecutionId}", result);
+        });
+
+        agent.MapPut("/executions/{id:guid}", async (
+            Guid id,
+            [FromBody] CompleteExecutionRequest request,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            await dispatcher.SendAsync(
+                new CompleteExecutionCommand(agentToken.TenantId, id, request.Succeeded, request.ErrorMessage), ct);
+
+            return Results.NoContent();
+        });
 
         return app;
+    }
+
+    // Validates X-Agent-Token and checks environment scope
+    private static async Task<Shared.Domain.AgentToken?> ResolveAgentToken(
+        HttpContext http,
+        string environment,
+        IAgentTokenService tokenService,
+        IAgentTokenLookupRepository tokenRepo,
+        CancellationToken ct)
+    {
+        var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+        if (string.IsNullOrEmpty(header)) return null;
+
+        var hash = tokenService.Hash(header);
+        var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+
+        return agentToken?.Environment == environment ? agentToken : null;
     }
 }
 
 public record CreateAgentTokenRequest(string Name, string Environment);
+public record StartExecutionRequest(Guid IntegrationId);
+public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage);

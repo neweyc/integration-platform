@@ -100,6 +100,13 @@ builder.Services.AddScoped<IAgentTokenLookupRepository>(sp => sp.GetRequiredServ
 builder.Services.AddScoped<ICommandHandler<CreateAgentTokenCommand, CreateAgentTokenResult>, CreateAgentTokenHandler>();
 builder.Services.AddScoped<ICommandHandler<ListAgentTokensCommand, ListAgentTokensResult>, ListAgentTokensHandler>();
 builder.Services.AddScoped<ICommandHandler<RevokeAgentTokenCommand, bool>, RevokeAgentTokenHandler>();
+builder.Services.AddScoped<PollRepository>();
+builder.Services.AddScoped<IPollRepository>(sp => sp.GetRequiredService<PollRepository>());
+builder.Services.AddScoped<ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>, PollIntegrationsHandler>();
+builder.Services.AddScoped<ExecutionRepository>();
+builder.Services.AddScoped<IExecutionRepository>(sp => sp.GetRequiredService<ExecutionRepository>());
+builder.Services.AddScoped<ICommandHandler<StartExecutionCommand, StartExecutionResult>, StartExecutionHandler>();
+builder.Services.AddScoped<ICommandHandler<CompleteExecutionCommand, bool>, CompleteExecutionHandler>();
 
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
