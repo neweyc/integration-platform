@@ -39,6 +39,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
+// In development, allow requests from the Vite dev server on port 5173
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+            policy.WithOrigins("http://localhost:5173")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod());
+    });
+}
+
 // Dispatcher
 builder.Services.AddScoped<IDispatcher, Dispatcher>();
 
@@ -105,6 +117,11 @@ app.UseExceptionHandler();
 // to "/" is rewritten to "/index.html" before the static file middleware handles it.
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
