@@ -27,6 +27,7 @@ export interface LoginResponse {
 }
 
 export const authApi = {
+  setupStatus: () => api.get<{ isComplete: boolean }>('/setup/status'),
   setup: (data: SetupRequest) => api.post<SetupResponse>('/setup', data),
   login: (data: LoginRequest) => api.post<LoginResponse>('/auth/login', data),
 }

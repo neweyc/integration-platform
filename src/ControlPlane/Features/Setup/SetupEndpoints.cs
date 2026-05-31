@@ -9,6 +9,14 @@ public static class SetupEndpoints
     {
         // No authentication required — this is how the first user gets created.
         // The handler rejects the call if any tenant already exists.
+        app.MapGet("/api/setup/status", async (
+            ISetupRepository repository,
+            CancellationToken ct) =>
+        {
+            var isComplete = await repository.AnyTenantExistsAsync(ct);
+            return Results.Ok(new { isComplete });
+        }).WithTags("Setup");
+
         app.MapPost("/api/setup", async (
             [FromBody] SetupRequest request,
             IDispatcher dispatcher,
