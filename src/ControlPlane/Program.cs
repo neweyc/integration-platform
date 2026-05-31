@@ -72,8 +72,23 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 var app = builder.Build();
 
+// Apply any pending database migrations on startup.
+// This means running `docker-compose up` is all you need — no manual migration step.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseExceptionHandler();
-app.UseHttpsRedirection();
+
+// Only redirect to HTTPS in development — in production the container runs HTTP
+// behind a reverse proxy that handles TLS termination
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
