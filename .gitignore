@@ -20,7 +20,6 @@ dist/
 src/ControlPlane/wwwroot/
 
 # Environment / secrets
-appsettings.Development.json
 appsettings.Local.json
 .env
 .env.local
