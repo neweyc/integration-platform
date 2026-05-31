@@ -108,6 +108,53 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("execution_records", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.ExecutionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Exception")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<Guid>("ExecutionRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PropertiesJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutionRecordId");
+
+                    b.HasIndex("TenantId", "ExecutionRecordId", "Timestamp");
+
+                    b.ToTable("execution_logs", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.Integration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -300,6 +347,25 @@ namespace ControlPlane.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Integration");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.ExecutionLog", b =>
+                {
+                    b.HasOne("Shared.Domain.ExecutionRecord", "ExecutionRecord")
+                        .WithMany()
+                        .HasForeignKey("ExecutionRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ExecutionRecord");
 
                     b.Navigation("Tenant");
                 });

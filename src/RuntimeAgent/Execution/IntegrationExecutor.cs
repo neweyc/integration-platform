@@ -21,7 +21,7 @@ public class IntegrationExecutor(
         }
 
         var executionId = await controlPlane.StartExecutionAsync(integration.Id, ct);
-        var integrationLogger = logger; // could create a named logger per integration
+        var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId, ct);
         var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(
             executionId, integration.Id, integration.Name,
@@ -42,6 +42,15 @@ public class IntegrationExecutor(
         catch (Exception ex)
         {
             logger.LogError(ex, "Execution {ExecutionId} failed", executionId);
+            await controlPlane.RecordLogAsync(
+                executionId,
+                new ExecutionLogEntry(
+                    DateTime.UtcNow,
+                    LogLevel.Error.ToString(),
+                    $"Execution failed: {ex.Message}",
+                    ex.ToString(),
+                    null),
+                ct);
             await controlPlane.CompleteExecutionAsync(executionId, succeeded: false, errorMessage: ex.Message, ct);
         }
     }

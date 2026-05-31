@@ -83,11 +83,15 @@ builder.Services.AddScoped<IIntegrationReadRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationUpdateRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationDeleteRepository, IntegrationRepository>();
 builder.Services.AddScoped<IIntegrationValidationRepository, IntegrationRepository>();
+builder.Services.AddScoped<IExecutionHistoryRepository, ExecutionHistoryRepository>();
+builder.Services.AddScoped<IExecutionLogReadRepository, ExecutionLogReadRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>, CreateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrationResult?>, GetIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();
 builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
+builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
+builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 
 // Secrets feature
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
@@ -113,8 +117,10 @@ builder.Services.AddScoped<IPollRepository>(sp => sp.GetRequiredService<PollRepo
 builder.Services.AddScoped<ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>, PollIntegrationsHandler>();
 builder.Services.AddScoped<ExecutionRepository>();
 builder.Services.AddScoped<IExecutionRepository>(sp => sp.GetRequiredService<ExecutionRepository>());
+builder.Services.AddScoped<IExecutionLogRepository, ExecutionLogRepository>();
 builder.Services.AddScoped<ICommandHandler<StartExecutionCommand, StartExecutionResult>, StartExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<CompleteExecutionCommand, bool>, CompleteExecutionHandler>();
+builder.Services.AddScoped<ICommandHandler<RecordExecutionLogCommand, bool>, RecordExecutionLogHandler>();
 
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();

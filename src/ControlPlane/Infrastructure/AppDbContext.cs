@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Integration> Integrations => Set<Integration>();
     public DbSet<AgentToken> AgentTokens => Set<AgentToken>();
     public DbSet<ExecutionRecord> ExecutionRecords => Set<ExecutionRecord>();
+    public DbSet<ExecutionLog> ExecutionLogs => Set<ExecutionLog>();
     public DbSet<AssemblyPackage> AssemblyPackages => Set<AssemblyPackage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -114,6 +115,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Cascade);
 
             b.HasIndex(e => new { e.TenantId, e.IntegrationId, e.StartedAt });
+        });
+
+        modelBuilder.Entity<ExecutionLog>(b =>
+        {
+            b.ToTable("execution_logs");
+            b.HasKey(l => l.Id);
+            b.Property(l => l.Level).IsRequired().HasMaxLength(20);
+            b.Property(l => l.Message).IsRequired().HasMaxLength(4000);
+            b.Property(l => l.Exception).HasMaxLength(8000);
+            b.Property(l => l.PropertiesJson);
+
+            b.HasOne(l => l.ExecutionRecord)
+             .WithMany()
+             .HasForeignKey(l => l.ExecutionRecordId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(l => l.Tenant)
+             .WithMany()
+             .HasForeignKey(l => l.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(l => new { l.TenantId, l.ExecutionRecordId, l.Timestamp });
         });
 
         modelBuilder.Entity<AssemblyPackage>(b =>

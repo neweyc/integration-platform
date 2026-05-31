@@ -54,6 +54,32 @@ public static class IntegrationEndpoints
             return result is null ? Results.NotFound() : Results.Ok(result);
         });
 
+        group.MapGet("/{id:guid}/executions", async (
+            Guid id,
+            [FromQuery] int? limit,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new ListIntegrationExecutionsCommand(currentUser.TenantId, id, limit ?? 25), ct);
+
+            return Results.Ok(result);
+        });
+
+        group.MapGet("/{id:guid}/executions/{executionId:guid}/logs", async (
+            Guid id,
+            Guid executionId,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new ListExecutionLogsCommand(currentUser.TenantId, id, executionId), ct);
+
+            return Results.Ok(result);
+        });
+
         group.MapPut("/{id:guid}", async (
             Guid id,
             [FromBody] UpdateIntegrationRequest request,

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   integrationsApi,
   type Integration,
+  type ExecutionSummary,
+  type ExecutionLogItem,
   type TriggerType,
   type CreateIntegrationRequest,
   type UpdateIntegrationRequest,
@@ -59,6 +61,8 @@ export function IntegrationsPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [formMode, setFormMode] = useState<FormMode>('create')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [historyIntegration, setHistoryIntegration] = useState<Integration | null>(null)
+  const [selectedExecution, setSelectedExecution] = useState<ExecutionSummary | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -92,6 +96,26 @@ export function IntegrationsPage() {
   const deleteIntegration = useMutation({
     mutationFn: (id: string) => integrationsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] }),
+  })
+
+  const {
+    data: executionHistory,
+    isLoading: isHistoryLoading,
+    error: historyError,
+  } = useQuery({
+    queryKey: ['integration-executions', historyIntegration?.id],
+    queryFn: () => integrationsApi.executions(historyIntegration!.id),
+    enabled: historyIntegration !== null,
+  })
+
+  const {
+    data: executionLogs,
+    isLoading: areLogsLoading,
+    error: logsError,
+  } = useQuery({
+    queryKey: ['execution-logs', historyIntegration?.id, selectedExecution?.id],
+    queryFn: () => integrationsApi.logs(historyIntegration!.id, selectedExecution!.id),
+    enabled: historyIntegration !== null && selectedExecution !== null,
   })
 
   function handleOpenCreate() {
@@ -181,6 +205,7 @@ export function IntegrationsPage() {
         <IntegrationsTable
           integrations={data?.integrations ?? []}
           onEdit={handleOpenEdit}
+          onViewHistory={setHistoryIntegration}
           onDelete={id => deleteIntegration.mutate(id)}
         />
       )}
@@ -360,6 +385,68 @@ export function IntegrationsPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <Sheet
+        open={historyIntegration !== null}
+        onOpenChange={open => {
+          if (!open) {
+            setHistoryIntegration(null)
+            setSelectedExecution(null)
+          }
+        }}
+      >
+        <SheetContent className="sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{historyIntegration?.name ?? 'Execution history'}</SheetTitle>
+            <SheetDescription>
+              Recent runtime agent executions for this integration.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="px-4 pb-4">
+            {historyError && (
+              <p className="text-sm text-destructive">
+                {historyError instanceof Error
+                  ? historyError.message
+                  : 'Failed to load execution history.'}
+              </p>
+            )}
+
+            {isHistoryLoading ? (
+              <ExecutionHistorySkeleton />
+            ) : (
+              <ExecutionHistoryList
+                executions={executionHistory?.executions ?? []}
+                selectedExecutionId={selectedExecution?.id ?? null}
+                onSelectExecution={setSelectedExecution}
+              />
+            )}
+
+            {selectedExecution && (
+              <div className="mt-6 space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium">Logs</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(selectedExecution.startedAt)}
+                  </p>
+                </div>
+
+                {logsError && (
+                  <p className="text-sm text-destructive">
+                    {logsError instanceof Error ? logsError.message : 'Failed to load logs.'}
+                  </p>
+                )}
+
+                {areLogsLoading ? (
+                  <ExecutionLogsSkeleton />
+                ) : (
+                  <ExecutionLogsList logs={executionLogs?.logs ?? []} />
+                )}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -367,10 +454,12 @@ export function IntegrationsPage() {
 function IntegrationsTable({
   integrations,
   onEdit,
+  onViewHistory,
   onDelete,
 }: {
   integrations: Integration[]
   onEdit: (integration: Integration) => void
+  onViewHistory: (integration: Integration) => void
   onDelete: (id: string) => void
 }) {
   if (integrations.length === 0) {
@@ -391,6 +480,7 @@ function IntegrationsTable({
             <TableHead>Environment</TableHead>
             <TableHead>Trigger</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Last run</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -419,7 +509,13 @@ function IntegrationsTable({
               <TableCell>
                 <StatusBadge status={integration.status} />
               </TableCell>
+              <TableCell>
+                <LastRun execution={integration.lastExecution} />
+              </TableCell>
               <TableCell className="text-right space-x-2">
+                <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration)}>
+                  History
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => onEdit(integration)}>
                   Edit
                 </Button>
@@ -446,6 +542,229 @@ function StatusBadge({ status }: { status: Integration['status'] }) {
   )
 }
 
+function ExecutionStatusBadge({ status }: { status: ExecutionSummary['status'] }) {
+  const variant = status === 'Failed' ? 'destructive' : status === 'Running' ? 'secondary' : 'default'
+
+  return <Badge variant={variant}>{status}</Badge>
+}
+
+function LastRun({ execution }: { execution?: ExecutionSummary | null }) {
+  if (!execution) {
+    return <span className="text-sm text-muted-foreground">Never</span>
+  }
+
+  return (
+    <div className="space-y-1">
+      <ExecutionStatusBadge status={execution.status} />
+      <p className="text-xs text-muted-foreground">{formatDateTime(execution.startedAt)}</p>
+    </div>
+  )
+}
+
+function ExecutionHistoryList({
+  executions,
+  selectedExecutionId,
+  onSelectExecution,
+}: {
+  executions: ExecutionSummary[]
+  selectedExecutionId: string | null
+  onSelectExecution: (execution: ExecutionSummary) => void
+}) {
+  if (executions.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground border rounded-lg">
+        <p className="text-sm">No executions recorded yet.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Started</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>Error</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {executions.map(execution => (
+            <TableRow key={execution.id}>
+              <TableCell>
+                <div>
+                  <p className="text-sm">{formatDateTime(execution.startedAt)}</p>
+                  <p className="text-xs text-muted-foreground">{execution.environment}</p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <ExecutionStatusBadge status={execution.status} />
+              </TableCell>
+              <TableCell>
+                <span className="text-sm">{formatDuration(execution)}</span>
+              </TableCell>
+              <TableCell>
+                {execution.errorMessage ? (
+                  <p className="max-w-64 truncate text-sm text-destructive" title={execution.errorMessage}>
+                    {execution.errorMessage}
+                  </p>
+                ) : (
+                  <span className="text-sm text-muted-foreground">None</span>
+                )}
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant={selectedExecutionId === execution.id ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => onSelectExecution(execution)}
+                >
+                  Logs
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function ExecutionLogsList({ logs }: { logs: ExecutionLogItem[] }) {
+  if (logs.length === 0) {
+    return (
+      <div className="text-center py-10 text-muted-foreground border rounded-lg">
+        <p className="text-sm">No logs recorded for this execution.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border rounded-lg divide-y">
+      {logs.map(log => (
+        <div key={log.id} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
+          <p className="text-xs text-muted-foreground">{formatLogTime(log.timestamp)}</p>
+          <ExecutionLogLevel level={log.level} />
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm break-words">{log.message}</p>
+            {log.exception && (
+              <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs text-destructive">
+                {log.exception}
+              </pre>
+            )}
+            {log.propertiesJson && (
+              <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
+                {formatJson(log.propertiesJson)}
+              </pre>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ExecutionLogLevel({ level }: { level: string }) {
+  const variant = level === 'Error' || level === 'Critical'
+    ? 'destructive'
+    : level === 'Warning'
+      ? 'secondary'
+      : 'outline'
+
+  return <Badge variant={variant}>{level}</Badge>
+}
+
+function ExecutionLogsSkeleton() {
+  return (
+    <div className="border rounded-lg divide-y">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-full" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ExecutionHistorySkeleton() {
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Started</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>Error</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <Skeleton className="h-4 w-36" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-20" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-16" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-32" />
+              </TableCell>
+              <TableCell />
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function formatLogTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value))
+}
+
+function formatJson(value: string) {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2)
+  } catch {
+    return value
+  }
+}
+
+function formatDuration(execution: ExecutionSummary) {
+  if (execution.status === 'Running') return 'Running'
+  if (execution.durationMs == null) return '-'
+
+  if (execution.durationMs < 1000) return `${execution.durationMs} ms`
+
+  const seconds = execution.durationMs / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)} s`
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.round(seconds % 60)
+  return `${minutes}m ${remainingSeconds}s`
+}
+
 function IntegrationsTableSkeleton() {
   return (
     <div className="border rounded-lg">
@@ -456,6 +775,7 @@ function IntegrationsTableSkeleton() {
             <TableHead>Environment</TableHead>
             <TableHead>Trigger</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Last run</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -473,6 +793,9 @@ function IntegrationsTableSkeleton() {
               </TableCell>
               <TableCell>
                 <Skeleton className="h-4 w-16" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-4 w-24" />
               </TableCell>
               <TableCell />
             </TableRow>

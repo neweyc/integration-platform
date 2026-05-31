@@ -8,6 +8,7 @@ public interface IControlPlaneClient
     Task<List<IntegrationItem>> GetIntegrationsAsync(CancellationToken ct);
     Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct);
     Task<Guid> StartExecutionAsync(Guid integrationId, CancellationToken ct);
+    Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
     Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct);
 }
 
@@ -18,6 +19,13 @@ public record IntegrationItem(
     string TriggerType,
     string? CronExpression,
     string ClassName);
+
+public record ExecutionLogEntry(
+    DateTime Timestamp,
+    string Level,
+    string Message,
+    string? Exception,
+    string? PropertiesJson);
 
 public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<ControlPlaneClient> logger)
     : IControlPlaneClient
@@ -62,6 +70,28 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
 
         if (!response.IsSuccessStatusCode)
             logger.LogWarning("Failed to complete execution {ExecutionId}: {Status}", executionId, response.StatusCode);
+    }
+
+    public async Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync(
+                $"/api/agent/executions/{executionId}/logs",
+                log,
+                JsonOptions,
+                ct);
+
+            if (!response.IsSuccessStatusCode)
+                logger.LogDebug(
+                    "Failed to record log for execution {ExecutionId}: {Status}",
+                    executionId,
+                    response.StatusCode);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogDebug(ex, "Failed to record log for execution {ExecutionId}", executionId);
+        }
     }
 
     private record IntegrationsResponse(List<IntegrationItem> Integrations);

@@ -125,6 +125,37 @@ public static class AgentTokenEndpoints
             return Results.NoContent();
         });
 
+        agent.MapPost("/executions/{id:guid}/logs", async (
+            Guid id,
+            [FromBody] RecordExecutionLogRequest request,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            await dispatcher.SendAsync(
+                new RecordExecutionLogCommand(
+                    agentToken.TenantId,
+                    agentToken.Environment,
+                    id,
+                    request.Timestamp,
+                    request.Level,
+                    request.Message,
+                    request.Exception,
+                    request.PropertiesJson),
+                ct);
+
+            return Results.NoContent();
+        });
+
         return app;
     }
 
@@ -149,3 +180,9 @@ public static class AgentTokenEndpoints
 public record CreateAgentTokenRequest(string Name, string Environment);
 public record StartExecutionRequest(Guid IntegrationId);
 public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage);
+public record RecordExecutionLogRequest(
+    DateTime Timestamp,
+    string Level,
+    string Message,
+    string? Exception,
+    string? PropertiesJson);
