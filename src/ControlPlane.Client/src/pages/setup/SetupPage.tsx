@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,6 +10,7 @@ import { saveToken } from '@/api/client'
 
 export function SetupPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -42,6 +44,7 @@ export function SetupPage() {
     try {
       const result = await authApi.setup(form)
       saveToken(result.token)
+      await queryClient.invalidateQueries({ queryKey: ['setup-status'] })
       navigate('/integrations')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed.')
