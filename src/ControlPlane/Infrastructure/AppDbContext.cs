@@ -7,6 +7,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Secret> Secrets => Set<Secret>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(u => u.Tenant)
              .WithMany()
              .HasForeignKey(u => u.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Secret>(b =>
+        {
+            b.ToTable("secrets");
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Environment).IsRequired().HasMaxLength(50);
+            b.Property(s => s.Key).IsRequired().HasMaxLength(200);
+            b.Property(s => s.EncryptedValue).IsRequired();
+
+            // Each secret key must be unique within a tenant + environment combination
+            b.HasIndex(s => new { s.TenantId, s.Environment, s.Key }).IsUnique();
+
+            b.HasOne(s => s.Tenant)
+             .WithMany()
+             .HasForeignKey(s => s.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

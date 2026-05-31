@@ -1,5 +1,6 @@
 using System.Text;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -42,12 +43,22 @@ builder.Services.AddScoped<IDispatcher, Dispatcher>();
 // Infrastructure services
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddScoped<IEncryptionService, AesEncryptionService>();
 
 // Tenant feature
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<ITenantReadRepository, TenantRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateTenantCommand, CreateTenantResult>, CreateTenantHandler>();
 builder.Services.AddScoped<ICommandHandler<GetTenantCommand, GetTenantResult?>, GetTenantHandler>();
+
+// Secrets feature
+builder.Services.AddScoped<ISecretRepository, SecretRepository>();
+builder.Services.AddScoped<ISecretReadRepository, SecretRepository>();
+builder.Services.AddScoped<ISecretDeleteRepository, SecretRepository>();
+builder.Services.AddScoped<ICommandHandler<SetSecretCommand, SetSecretResult>, SetSecretHandler>();
+builder.Services.AddScoped<ICommandHandler<ListSecretsCommand, ListSecretsResult>, ListSecretsHandler>();
+builder.Services.AddScoped<ICommandHandler<DeleteSecretCommand, bool>, DeleteSecretHandler>();
+builder.Services.AddScoped<ICommandHandler<GetSecretBundleCommand, GetSecretBundleResult>, GetSecretBundleHandler>();
 
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -68,5 +79,6 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
+app.MapSecretEndpoints();
 
 app.Run();
