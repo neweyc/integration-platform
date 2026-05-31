@@ -2,6 +2,7 @@ using System.Text;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
+using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -51,6 +52,10 @@ builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<ITenantReadRepository, TenantRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateTenantCommand, CreateTenantResult>, CreateTenantHandler>();
 builder.Services.AddScoped<ICommandHandler<GetTenantCommand, GetTenantResult?>, GetTenantHandler>();
+
+// Setup feature
+builder.Services.AddScoped<ISetupRepository, SetupRepository>();
+builder.Services.AddScoped<ICommandHandler<SetupCommand, SetupResult>, SetupHandler>();
 
 // Integrations feature
 builder.Services.AddScoped<IIntegrationRepository, IntegrationRepository>();
@@ -104,6 +109,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapSecretEndpoints();
