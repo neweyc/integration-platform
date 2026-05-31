@@ -1,5 +1,6 @@
 using System.Text;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
@@ -51,6 +52,17 @@ builder.Services.AddScoped<ITenantReadRepository, TenantRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateTenantCommand, CreateTenantResult>, CreateTenantHandler>();
 builder.Services.AddScoped<ICommandHandler<GetTenantCommand, GetTenantResult?>, GetTenantHandler>();
 
+// Integrations feature
+builder.Services.AddScoped<IIntegrationRepository, IntegrationRepository>();
+builder.Services.AddScoped<IIntegrationReadRepository, IntegrationRepository>();
+builder.Services.AddScoped<IIntegrationUpdateRepository, IntegrationRepository>();
+builder.Services.AddScoped<IIntegrationDeleteRepository, IntegrationRepository>();
+builder.Services.AddScoped<ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>, CreateIntegrationHandler>();
+builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrationResult?>, GetIntegrationHandler>();
+builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
+builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
+
 // Secrets feature
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<ISecretReadRepository, SecretRepository>();
@@ -95,5 +107,6 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapSecretEndpoints();
+app.MapIntegrationEndpoints();
 
 app.Run();

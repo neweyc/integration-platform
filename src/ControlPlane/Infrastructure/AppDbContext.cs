@@ -8,6 +8,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Secret> Secrets => Set<Secret>();
+    public DbSet<Integration> Integrations => Set<Integration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +50,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(s => s.Tenant)
              .WithMany()
              .HasForeignKey(s => s.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Integration>(b =>
+        {
+            b.ToTable("integrations");
+            b.HasKey(i => i.Id);
+            b.Property(i => i.Name).IsRequired().HasMaxLength(200);
+            b.Property(i => i.Slug).IsRequired().HasMaxLength(100);
+            b.Property(i => i.Description).HasMaxLength(1000);
+            b.Property(i => i.Environment).IsRequired().HasMaxLength(50);
+            b.Property(i => i.Status).HasConversion<string>();
+            b.Property(i => i.TriggerType).HasConversion<string>();
+            b.Property(i => i.CronExpression).HasMaxLength(100);
+
+            // Slug must be unique within a tenant
+            b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();
+
+            b.HasOne(i => i.Tenant)
+             .WithMany()
+             .HasForeignKey(i => i.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }
