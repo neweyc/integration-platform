@@ -18,7 +18,8 @@ public record IntegrationItem(
     string Slug,
     string TriggerType,
     string? CronExpression,
-    string ClassName);
+    string ClassName,
+    DateTime? LeaseExpiresAt);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,

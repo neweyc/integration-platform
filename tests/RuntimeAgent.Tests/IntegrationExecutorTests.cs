@@ -37,7 +37,8 @@ public class IntegrationExecutorTests
             "test-integration",
             "Scheduled",
             "0 * * * *",
-            "Unknown.ClassName");
+            "Unknown.ClassName",
+            DateTime.UtcNow.AddMinutes(5));
         var secrets = new Dictionary<string, string>();
 
         // Act
@@ -59,7 +60,8 @@ public class IntegrationExecutorTests
             "test-integration",
             "Scheduled",
             "0 * * * *",
-            typeof(SuccessfulTestIntegration).FullName!);
+            typeof(SuccessfulTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5));
 
         var secrets = new Dictionary<string, string> { ["API_KEY"] = "test-key" };
 
@@ -93,7 +95,8 @@ public class IntegrationExecutorTests
             "failing-integration",
             "Scheduled",
             "0 * * * *",
-            typeof(FailingTestIntegration).FullName!);
+            typeof(FailingTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5));
 
         var secrets = new Dictionary<string, string>();
 

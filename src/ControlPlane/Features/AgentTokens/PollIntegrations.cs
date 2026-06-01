@@ -4,8 +4,11 @@ using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
 
-// Claims due scheduled integrations for an environment.
-public record PollIntegrationsCommand(Guid TenantId, string Environment) : ICommand<PollIntegrationsResult>;
+// Claims due scheduled integrations for an environment, acquiring a lease to prevent duplicate dispatch.
+public record PollIntegrationsCommand(
+    Guid TenantId,
+    string Environment,
+    Guid LeaseOwnerId) : ICommand<PollIntegrationsResult>;
 
 public record PollIntegrationsResult(IReadOnlyList<AgentIntegrationItem> Integrations);
 
@@ -15,26 +18,47 @@ public record AgentIntegrationItem(
     string Slug,
     TriggerType TriggerType,
     string? CronExpression,
-    string ClassName);
+    string ClassName,
+    DateTime? LeaseExpiresAt);
 
 public interface IPollRepository
 {
-    Task<IReadOnlyList<Integration>> ClaimDueScheduledAsync(Guid tenantId, string environment, DateTime now, CancellationToken ct = default);
+    Task<IReadOnlyList<ClaimedIntegration>> ClaimDueScheduledAsync(
+        Guid tenantId,
+        string environment,
+        Guid leaseOwnerId,
+        TimeSpan leaseDuration,
+        DateTime now,
+        CancellationToken ct = default);
 }
+
+public record ClaimedIntegration(Integration Integration, DateTime LeaseExpiresAt);
 
 public class PollIntegrationsHandler(IPollRepository repository)
     : ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>
 {
+    // Leases expire after 5 minutes by default. If an agent crashes, work can be reclaimed.
+    private static readonly TimeSpan DefaultLeaseDuration = TimeSpan.FromMinutes(5);
+
     public async Task<PollIntegrationsResult> HandleAsync(PollIntegrationsCommand command, CancellationToken ct = default)
     {
-        var integrations = await repository.ClaimDueScheduledAsync(
+        var claimed = await repository.ClaimDueScheduledAsync(
             command.TenantId,
             command.Environment,
+            command.LeaseOwnerId,
+            DefaultLeaseDuration,
             DateTime.UtcNow,
             ct);
 
-        var items = integrations
-            .Select(i => new AgentIntegrationItem(i.Id, i.Name, i.Slug, i.TriggerType, i.CronExpression, i.ClassName))
+        var items = claimed
+            .Select(c => new AgentIntegrationItem(
+                c.Integration.Id,
+                c.Integration.Name,
+                c.Integration.Slug,
+                c.Integration.TriggerType,
+                c.Integration.CronExpression,
+                c.Integration.ClassName,
+                c.LeaseExpiresAt))
             .ToList();
 
         return new PollIntegrationsResult(items);

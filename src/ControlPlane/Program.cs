@@ -127,6 +127,7 @@ builder.Services.AddScoped<ICommandHandler<RevokeAgentTokenCommand, bool>, Revok
 builder.Services.AddScoped<PollRepository>();
 builder.Services.AddScoped<IPollRepository>(sp => sp.GetRequiredService<PollRepository>());
 builder.Services.AddScoped<ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>, PollIntegrationsHandler>();
+builder.Services.AddScoped<IScheduleStateRepository, ScheduleStateRepository>();
 builder.Services.AddScoped<ExecutionRepository>();
 builder.Services.AddScoped<IExecutionRepository>(sp => sp.GetRequiredService<ExecutionRepository>());
 builder.Services.AddScoped<IExecutionLogRepository, ExecutionLogRepository>();

@@ -76,8 +76,9 @@ public static class AgentTokenEndpoints
             var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
             if (agentToken is null) return Results.Unauthorized();
 
+            // Use the agent token ID as the lease owner to track which agent claimed work
             var result = await dispatcher.SendAsync(
-                new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment), ct);
+                new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment, agentToken.Id), ct);
 
             return Results.Ok(result);
         });
@@ -98,7 +99,7 @@ public static class AgentTokenEndpoints
             if (agentToken is null) return Results.Unauthorized();
 
             var result = await dispatcher.SendAsync(
-                new StartExecutionCommand(agentToken.TenantId, agentToken.Environment, request.IntegrationId), ct);
+                new StartExecutionCommand(agentToken.TenantId, agentToken.Environment, request.IntegrationId, agentToken.Id), ct);
 
             return Results.Created($"/api/agent/executions/{result.ExecutionId}", result);
         });

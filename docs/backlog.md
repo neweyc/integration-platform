@@ -32,14 +32,11 @@ Completed notes:
 - `integration_schedule_states` stores `last_dispatched_at` and `next_run_at`.
 - `GET /api/agent/integrations` claims due scheduled integrations and advances state in the control plane.
 - The runtime agent no longer stores durable cron state locally.
-
-Remaining limitation:
-
-- Claims do not yet have leases. If an agent crashes after polling but before starting execution, that occurrence can be skipped.
+- Leases prevent duplicate dispatch (see Lease-Based Scheduling Recovery below).
 
 ### Lease-Based Scheduling Recovery
 
-**Status:** Todo
+**Status:** Done
 
 Add claim leases so abandoned scheduled work can be retried safely.
 
@@ -50,6 +47,16 @@ Acceptance criteria:
 - Expired claims can be reclaimed.
 - Duplicate execution is still prevented while a lease is active.
 - Tests cover abandoned claims, active claims, and reclaimed claims.
+
+Completed notes:
+
+- `integration_schedule_states` now includes `LeaseOwnerId` and `LeaseExpiresAt` columns.
+- When polling, the control plane claims due integrations with a 5-minute lease.
+- Another agent cannot claim work while an active lease exists.
+- Expired leases can be reclaimed by any agent on the next poll.
+- `POST /api/agent/executions` validates lease ownership for scheduled integrations.
+- Lease is cleared when execution completes.
+- Tests cover lease state transitions, ownership validation, and expiry behavior.
 
 ### Graceful Agent Shutdown
 
@@ -69,7 +76,7 @@ Acceptance criteria:
 
 **Status:** Todo
 
-Add a user-facing way to trigger an integration immediately.
+Add a user-facing way to trigger an integration immediately. This is the first external trigger and the simplest path for testing/debugging integrations without waiting for cron.
 
 Acceptance criteria:
 
@@ -78,6 +85,50 @@ Acceptance criteria:
 - Manual runs create normal execution records and logs.
 - Disabled integrations cannot be manually run unless explicitly allowed by design.
 - Scheduled and manual executions do not overlap for the same integration.
+- Execution history records source as `Manual`.
+
+### Work Item Execution Queue
+
+**Status:** Todo
+
+Introduce a general persisted work item model so scheduled, manual, webhook, and future event sources all feed the same agent execution path.
+
+Acceptance criteria:
+
+- Add `integration_work_items` or equivalent persisted table.
+- Work item stores tenant, integration, environment, trigger source, status, payload, availability time, claim owner, and claim expiry.
+- Scheduled polling creates or claims scheduled work through this model.
+- Manual run creates a pending manual work item.
+- Agents poll/claim work items instead of receiving raw integration definitions.
+- Execution records reference the work item or trigger source.
+- Tests cover scheduled, manual, claimed, expired-claim, and duplicate-claim behavior.
+
+Notes:
+
+- This should become the long-term dispatch model.
+- Durable scheduling state can remain the producer of scheduled work items.
+- This unlocks webhook and queue/event triggers without creating separate execution paths.
+
+### Webhook Trigger Support
+
+**Status:** Todo
+
+Allow external systems to trigger integrations through tenant/integration-specific webhook endpoints.
+
+Acceptance criteria:
+
+- Integration can be configured with `Webhook` trigger type.
+- Control plane exposes a stable webhook URL for each webhook integration.
+- Webhook request creates a pending work item for an agent.
+- Request payload is stored or referenced safely and passed to the integration context.
+- Webhook executions appear in history with source `Webhook`.
+- Basic authentication option exists, such as shared secret header or signature verification.
+- Tests cover valid webhook, invalid auth, disabled integration, wrong environment, and payload handoff.
+
+Notes:
+
+- The control plane should receive and validate webhooks, but the runtime agent should still execute the integration.
+- Replay support can follow after the first webhook implementation.
 
 ---
 

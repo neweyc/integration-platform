@@ -466,7 +466,12 @@ Claims and returns due scheduled integrations for the token's environment. Cron 
 
 **Auth:** `X-Agent-Token`
 
-Calling this endpoint can update `integration_schedule_states` by setting `last_dispatched_at` and advancing `next_run_at` for due integrations.
+Calling this endpoint:
+- Evaluates cron schedules for all enabled scheduled integrations in the token's environment
+- Claims due integrations with a 5-minute lease (prevents duplicate dispatch)
+- Updates `integration_schedule_states` with `last_dispatched_at`, `next_run_at`, and lease info
+- Skips integrations with active leases held by other agents
+- Can reclaim integrations with expired leases
 
 **Response**
 ```json
@@ -478,11 +483,14 @@ Calling this endpoint can update `integration_schedule_states` by setting `last_
       "slug": "sync-orders",
       "triggerType": "Scheduled",
       "cronExpression": "0 * * * *",
-      "className": "MyCompany.Integrations.SyncOrdersIntegration"
+      "className": "MyCompany.Integrations.SyncOrdersIntegration",
+      "leaseExpiresAt": "2026-05-31T12:05:00Z"
     }
   ]
 }
 ```
+
+The `leaseExpiresAt` field indicates when the claim expires. If the agent crashes before starting execution, another agent can reclaim the work after this time.
 
 ---
 
@@ -511,7 +519,11 @@ The token must be scoped to the requested environment — a token for `staging` 
 
 ### `POST /api/agent/executions`
 
-Opens an execution record before running an integration. The control plane validates that the integration exists, belongs to the token's tenant/environment, and is enabled.
+Opens an execution record before running an integration. The control plane validates:
+- Integration exists and belongs to the token's tenant
+- Integration matches the token's environment
+- Integration is enabled
+- For scheduled integrations: the requesting agent holds an active lease
 
 **Auth:** `X-Agent-Token`
 

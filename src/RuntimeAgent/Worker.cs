@@ -38,28 +38,34 @@ public class Worker(
     {
         try
         {
+            // The control plane returns only integrations that are due AND have been claimed with a lease.
+            // Leases prevent duplicate dispatch across multiple agents or poll cycles.
             var integrations = await controlPlane.GetIntegrationsAsync(ct);
 
-            var dispatchable = integrations
-                .Where(ShouldDispatch)
-                .ToList();
-
-            if (dispatchable.Count == 0)
+            if (integrations.Count == 0)
                 return;
 
             // Fetch secrets once and share across all executions this cycle
             var secrets = await controlPlane.GetSecretsAsync(ct);
 
-            foreach (var integration in dispatchable)
+            foreach (var integration in integrations)
             {
-                // Check if this integration is already running
+                // Check if this integration is already running locally
                 lock (_inFlightLock)
                 {
                     if (_inFlight.Contains(integration.Id))
                     {
-                        logger.LogDebug("Skipping {Name} — already executing", integration.Name);
+                        logger.LogDebug("Skipping {Name} — already executing locally", integration.Name);
                         continue;
                     }
+                }
+
+                if (integration.LeaseExpiresAt.HasValue)
+                {
+                    logger.LogDebug(
+                        "Dispatching {Name} (lease expires at {LeaseExpiresAt})",
+                        integration.Name,
+                        integration.LeaseExpiresAt.Value);
                 }
 
                 // Run with concurrency control
@@ -112,11 +118,6 @@ public class Worker(
                 _inFlight.Remove(integration.Id);
             }
         }
-    }
-
-    private bool ShouldDispatch(IntegrationItem integration)
-    {
-        return integration.TriggerType == "Scheduled" && !string.IsNullOrWhiteSpace(integration.CronExpression);
     }
 
     public override void Dispose()

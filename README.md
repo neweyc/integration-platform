@@ -177,4 +177,4 @@ For production, use Docker Compose or Kubernetes with proper secrets management.
 dotnet test
 ```
 
-Currently 90+ tests covering control plane features, SDK, and runtime agent behavior.
+Currently 114 tests covering control plane features, SDK, and runtime agent behavior.

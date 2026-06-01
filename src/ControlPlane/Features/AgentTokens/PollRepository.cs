@@ -7,9 +7,11 @@ namespace ControlPlane.Features.AgentTokens;
 
 public class PollRepository(AppDbContext db) : IPollRepository
 {
-    public async Task<IReadOnlyList<Integration>> ClaimDueScheduledAsync(
+    public async Task<IReadOnlyList<ClaimedIntegration>> ClaimDueScheduledAsync(
         Guid tenantId,
         string environment,
+        Guid leaseOwnerId,
+        TimeSpan leaseDuration,
         DateTime now,
         CancellationToken ct = default)
     {
@@ -28,7 +30,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
             .Where(s => s.TenantId == tenantId && integrationIds.Contains(s.IntegrationId))
             .ToDictionaryAsync(s => s.IntegrationId, ct);
 
-        var due = new List<Integration>();
+        var claimed = new List<ClaimedIntegration>();
 
         foreach (var integration in integrations)
         {
@@ -36,6 +38,10 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
             try
             {
+                // Skip if another agent holds an active lease (not expired, not ours)
+                if (state is not null && state.HasActiveLease(now) && state.LeaseOwnerId != leaseOwnerId)
+                    continue;
+
                 var decision = ScheduleStateCalculator.Evaluate(integration, state, now);
 
                 if (state is null)
@@ -48,12 +54,24 @@ public class PollRepository(AppDbContext db) : IPollRepository
                     db.IntegrationScheduleStates.Add(state);
                 }
 
-                state.LastDispatchedAt = decision.LastDispatchedAt;
-                state.NextRunAt = decision.NextRunAt;
-                state.UpdatedAt = now;
-
                 if (decision.IsDue)
-                    due.Add(integration);
+                {
+                    // Claim this integration with a lease
+                    var leaseExpiresAt = now.Add(leaseDuration);
+                    state.LastDispatchedAt = decision.LastDispatchedAt;
+                    state.NextRunAt = decision.NextRunAt;
+                    state.LeaseOwnerId = leaseOwnerId;
+                    state.LeaseExpiresAt = leaseExpiresAt;
+                    state.UpdatedAt = now;
+
+                    claimed.Add(new ClaimedIntegration(integration, leaseExpiresAt));
+                }
+                else
+                {
+                    // Not due - just update schedule state without claiming
+                    state.NextRunAt = decision.NextRunAt;
+                    state.UpdatedAt = now;
+                }
             }
             catch
             {
@@ -65,6 +83,6 @@ public class PollRepository(AppDbContext db) : IPollRepository
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return due;
+        return claimed;
     }
 }

@@ -166,6 +166,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             b.HasIndex(s => s.IntegrationId).IsUnique();
             b.HasIndex(s => new { s.TenantId, s.NextRunAt });
+            b.HasIndex(s => new { s.TenantId, s.LeaseExpiresAt });
 
             b.HasOne(s => s.Integration)
              .WithMany()
