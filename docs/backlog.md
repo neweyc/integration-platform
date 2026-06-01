@@ -117,6 +117,29 @@ Acceptance criteria:
 - UI shows version and stale/unsupported state.
 - Compatibility checks can warn when packages require a newer agent.
 
+### Execution Token Scoping
+
+**Status:** Todo
+
+Issue a short-lived execution token when an agent starts a run. The agent uses this token for execution-scoped operations, such as log streaming and completion, instead of using the broad agent token for the entire run.
+
+Acceptance criteria:
+
+- `POST /api/agent/executions` returns an `executionToken` with the `executionId`.
+- Execution token is scoped to exactly one execution record.
+- Execution token expires after a short configurable window.
+- Log writes require the execution token.
+- Execution completion requires the execution token or validates both the agent token and execution token.
+- Stored execution tokens are hashed, not stored as plaintext.
+- Failed or expired execution-token use returns consistent `401` or `403` responses.
+- Tests cover wrong execution id, expired token, revoked parent token, and cross-environment attempts.
+
+Notes:
+
+- Revoking the parent agent token should prevent future execution starts.
+- Decide whether parent token revocation should also invalidate active execution tokens.
+- This will reduce the blast radius of a leaked agent token during long-running executions.
+
 ---
 
 ## P1 — Logging And Observability
@@ -286,6 +309,25 @@ Acceptance criteria:
 - `/healthz` reports process liveness.
 - `/readyz` checks database connectivity.
 - Docker/Kubernetes examples use the endpoints.
+
+### Cache Derived Encryption Key
+
+**Status:** Todo
+
+Avoid running PBKDF2 for every secret encrypt/decrypt operation. `AesEncryptionService` currently derives the AES key on each call, which makes secret bundle decryption unnecessarily expensive when an environment has many secrets.
+
+Acceptance criteria:
+
+- AES key is derived once per process/configured master key.
+- `GetSecretBundle` decrypting many secrets does not perform PBKDF2 once per secret.
+- Random IV per encryption remains unchanged.
+- Tests verify repeated encrypt/decrypt calls work with the cached key.
+- Future key rotation requirements are documented separately.
+
+Notes:
+
+- Current service registration is scoped; a singleton key provider or immutable cached key is preferable.
+- Do not cache plaintext secret values.
 
 ---
 
