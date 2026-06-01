@@ -112,6 +112,7 @@ agent_tokens      — id, tenant_id, name, environment, token_hash
 execution_records — id, tenant_id, integration_id, environment, status, started_at, completed_at, error_message
 execution_logs    — id, tenant_id, execution_record_id, timestamp, level, message, exception, properties_json
 assembly_packages — id, tenant_id, name, version, file_name, data, size_bytes, sha256_hash
+integration_schedule_states — id, tenant_id, integration_id, last_dispatched_at, next_run_at
 ```
 
 ---
@@ -177,16 +178,18 @@ The agent implements several safety mechanisms:
 
 - **Concurrency limit** — A configurable `MaxConcurrentExecutions` setting (default: 5) limits how many integrations can run simultaneously using a semaphore
 - **In-flight tracking** — Each integration is tracked while executing; if a poll cycle fires while an integration is still running, it will be skipped to prevent overlapping executions
-- **Cron-based scheduling** — The agent evaluates each integration's cron expression against the last run time to determine if it's due
+- **Durable cron scheduling** — The control plane evaluates cron schedules and persists `LastDispatchedAt` and `NextRunAt` in `integration_schedule_states`
 
-Note: Scheduling state (`_lastRun`) is held in memory. Agent restarts will cause integrations to re-evaluate against `DateTime.MinValue`, potentially triggering immediate runs. For multi-instance deployments, consider distributed locking (future enhancement).
+The poll endpoint claims due scheduled integrations inside a serializable transaction. This prevents agent restarts from resetting scheduling state. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
+
+Current limitation: if an agent claims a due integration and then crashes before starting execution, that occurrence may be skipped because the durable state has already advanced. A future lease-based dispatcher should add claim expiry and recovery.
 
 ### Agent ↔ Control Plane protocol
 
 ```
 Agent                              Control Plane
   │                                      │
-  │── GET /api/agent/integrations ──────►│  (fetch enabled integrations)
+  │── GET /api/agent/integrations ──────►│  (claim due scheduled integrations)
   │◄─ { integrations: [...] } ───────────│
   │                                      │
   │── GET /api/agent/secrets/{env} ─────►│  (fetch secret bundle)

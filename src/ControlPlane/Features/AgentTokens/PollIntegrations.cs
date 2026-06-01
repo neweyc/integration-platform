@@ -4,7 +4,7 @@ using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
 
-// Returns all enabled integrations for an environment so the agent can determine which are due.
+// Claims due scheduled integrations for an environment.
 public record PollIntegrationsCommand(Guid TenantId, string Environment) : ICommand<PollIntegrationsResult>;
 
 public record PollIntegrationsResult(IReadOnlyList<AgentIntegrationItem> Integrations);
@@ -19,7 +19,7 @@ public record AgentIntegrationItem(
 
 public interface IPollRepository
 {
-    Task<IReadOnlyList<Integration>> ListEnabledAsync(Guid tenantId, string environment, CancellationToken ct = default);
+    Task<IReadOnlyList<Integration>> ClaimDueScheduledAsync(Guid tenantId, string environment, DateTime now, CancellationToken ct = default);
 }
 
 public class PollIntegrationsHandler(IPollRepository repository)
@@ -27,7 +27,11 @@ public class PollIntegrationsHandler(IPollRepository repository)
 {
     public async Task<PollIntegrationsResult> HandleAsync(PollIntegrationsCommand command, CancellationToken ct = default)
     {
-        var integrations = await repository.ListEnabledAsync(command.TenantId, command.Environment, ct);
+        var integrations = await repository.ClaimDueScheduledAsync(
+            command.TenantId,
+            command.Environment,
+            DateTime.UtcNow,
+            ct);
 
         var items = integrations
             .Select(i => new AgentIntegrationItem(i.Id, i.Name, i.Slug, i.TriggerType, i.CronExpression, i.ClassName))

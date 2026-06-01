@@ -140,9 +140,9 @@ The agent injects these as environment variables (or via a typed context object)
 
 ```
 1. Runtime agent loads local integration assemblies from IntegrationsPath
-2. Agent polls the control plane for enabled integrations in its environment
-3. Agent evaluates cron schedules locally
-4. Integration is due → agent opens an execution record
+2. Agent polls the control plane for due scheduled integrations in its environment
+3. Control plane claims due integrations and advances durable schedule state
+4. Agent opens an execution record for each claimed integration
 5. Agent fetches the secret bundle for the environment
 6. Agent instantiates and runs the integration class with secrets injected
 7. Integration logs written through context.Logger are sent to the control plane
@@ -150,6 +150,10 @@ The agent injects these as environment variables (or via a typed context object)
 9. Control plane records the execution result and logs
 10. (future) Alerts triggered if execution fails
 ```
+
+Scheduling state is stored in `integration_schedule_states` with `last_dispatched_at` and `next_run_at`. New scheduled integrations calculate their first run from the integration creation time. Existing scheduled integrations use the persisted `next_run_at`, so agent restarts do not cause all jobs to run immediately.
+
+Current limitation: schedule claiming advances state before the agent starts execution. If an agent crashes after claiming work but before opening an execution record, that scheduled occurrence may be skipped. A future lease model should allow abandoned claims to expire and be retried.
 
 ---
 

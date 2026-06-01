@@ -16,10 +16,11 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 - [x] Execution result reporting: `POST /api/agent/executions`, `PUT /api/agent/executions/{id}`
 - [x] Concurrency limits (`MaxConcurrentExecutions`)
 - [x] In-flight tracking to prevent overlapping executions
+- [x] Control-plane backed durable scheduling state
 - [ ] Graceful shutdown and cancellation (partial)
 
 ### Control plane (done)
-- [x] `GET /api/agent/integrations` — returns enabled integrations for an environment
+- [x] `GET /api/agent/integrations` — claims due scheduled integrations for an environment
 - [x] `POST /api/agent/executions` — opens execution record with validation
 - [x] `PUT /api/agent/executions/{id}` — closes execution with result
 - [x] Execution history table and EF migration
@@ -37,7 +38,7 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 ### Remaining for MVP
 - [x] Execution history UI in control plane
 - [x] Structured logging from agent to control plane
-- [ ] Durable scheduling state (currently in-memory only)
+- [x] Durable scheduling state
 
 ---
 
@@ -58,7 +59,7 @@ Features are grouped by the phase in which they should be built. Phase 1 is larg
 - [ ] Webhook trigger support: agent exposes an HTTP endpoint or control plane proxies
 - [ ] Retry policy: configurable retry count and backoff per integration
 - [ ] Agent version reporting (for compatibility checking)
-- [ ] Durable scheduling with distributed locking (for multi-agent deployments)
+- [ ] Lease-based scheduling recovery for abandoned claims
 - [ ] Graceful shutdown with execution draining
 
 ### Security

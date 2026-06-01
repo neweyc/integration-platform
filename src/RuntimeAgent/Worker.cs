@@ -1,4 +1,3 @@
-using Cronos;
 using RuntimeAgent.Agent;
 using RuntimeAgent.Execution;
 
@@ -12,9 +11,6 @@ public class Worker(
     AgentOptions options,
     ILogger<Worker> logger) : BackgroundService
 {
-    // Tracks the last time each integration was dispatched, keyed by integration ID
-    private readonly Dictionary<Guid, DateTime> _lastRun = new();
-
     // Tracks which integrations are currently executing to prevent overlapping runs
     private readonly HashSet<Guid> _inFlight = new();
     private readonly object _inFlightLock = new();
@@ -44,15 +40,18 @@ public class Worker(
         {
             var integrations = await controlPlane.GetIntegrationsAsync(ct);
 
+            var dispatchable = integrations
+                .Where(ShouldDispatch)
+                .ToList();
+
+            if (dispatchable.Count == 0)
+                return;
+
             // Fetch secrets once and share across all executions this cycle
             var secrets = await controlPlane.GetSecretsAsync(ct);
 
-            var now = DateTime.UtcNow;
-
-            foreach (var integration in integrations)
+            foreach (var integration in dispatchable)
             {
-                if (!IsDue(integration, now)) continue;
-
                 // Check if this integration is already running
                 lock (_inFlightLock)
                 {
@@ -62,8 +61,6 @@ public class Worker(
                         continue;
                     }
                 }
-
-                _lastRun[integration.Id] = now;
 
                 // Run with concurrency control
                 _ = ExecuteWithConcurrencyControlAsync(integration, secrets, ct);
@@ -117,24 +114,9 @@ public class Worker(
         }
     }
 
-    private bool IsDue(IntegrationItem integration, DateTime now)
+    private bool ShouldDispatch(IntegrationItem integration)
     {
-        if (integration.TriggerType != "Scheduled" || string.IsNullOrEmpty(integration.CronExpression))
-            return false;
-
-        try
-        {
-            var cron = CronExpression.Parse(integration.CronExpression);
-            var lastRun = _lastRun.GetValueOrDefault(integration.Id, DateTime.MinValue);
-            var next = cron.GetNextOccurrence(lastRun, TimeZoneInfo.Utc);
-            return next.HasValue && next.Value <= now;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Invalid cron expression for {Name}: '{Cron}'",
-                integration.Name, integration.CronExpression);
-            return false;
-        }
+        return integration.TriggerType == "Scheduled" && !string.IsNullOrWhiteSpace(integration.CronExpression);
     }
 
     public override void Dispose()

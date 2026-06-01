@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ExecutionRecord> ExecutionRecords => Set<ExecutionRecord>();
     public DbSet<ExecutionLog> ExecutionLogs => Set<ExecutionLog>();
     public DbSet<AssemblyPackage> AssemblyPackages => Set<AssemblyPackage>();
+    public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -155,6 +156,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(p => p.Tenant)
              .WithMany()
              .HasForeignKey(p => p.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IntegrationScheduleState>(b =>
+        {
+            b.ToTable("integration_schedule_states");
+            b.HasKey(s => s.Id);
+
+            b.HasIndex(s => s.IntegrationId).IsUnique();
+            b.HasIndex(s => new { s.TenantId, s.NextRunAt });
+
+            b.HasOne(s => s.Integration)
+             .WithMany()
+             .HasForeignKey(s => s.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(s => s.Tenant)
+             .WithMany()
+             .HasForeignKey(s => s.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

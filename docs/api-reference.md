@@ -462,9 +462,11 @@ All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (
 
 ### `GET /api/agent/integrations`
 
-Returns all enabled integrations for the token's environment. The runtime agent polls this endpoint to determine which integrations are due for execution.
+Claims and returns due scheduled integrations for the token's environment. Cron evaluation and schedule state are stored in the control plane.
 
 **Auth:** `X-Agent-Token`
+
+Calling this endpoint can update `integration_schedule_states` by setting `last_dispatched_at` and advancing `next_run_at` for due integrations.
 
 **Response**
 ```json

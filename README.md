@@ -116,9 +116,11 @@ dotnet run --project src/RuntimeAgent
 
 The agent will:
 1. Load integration assemblies from `IntegrationsPath`
-2. Poll for enabled integrations matching its environment
-3. Execute due integrations based on their cron schedules
+2. Poll the control plane for claimed due integrations matching its environment
+3. Execute the integrations returned by the control plane
 4. Report execution results back to the control plane
+
+Scheduling state is persisted in the control plane, so agent restarts do not reset cron evaluation.
 
 ### Deploying integrations
 

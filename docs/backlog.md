@@ -15,7 +15,7 @@ Status key:
 
 ### Durable Scheduling State
 
-**Status:** Todo
+**Status:** Done
 
 Store scheduling state in the control plane instead of the agent's in-memory `_lastRun` dictionary.
 
@@ -27,10 +27,29 @@ Acceptance criteria:
 - Execution start is guarded so the same due run cannot be started twice by accident.
 - Tests cover restart behavior and duplicate-dispatch prevention.
 
-Notes:
+Completed notes:
 
-- This is required before multi-agent or production scheduling is reliable.
-- Likely needs a `next_run_at`, `last_run_at`, or scheduling lease model.
+- `integration_schedule_states` stores `last_dispatched_at` and `next_run_at`.
+- `GET /api/agent/integrations` claims due scheduled integrations and advances state in the control plane.
+- The runtime agent no longer stores durable cron state locally.
+
+Remaining limitation:
+
+- Claims do not yet have leases. If an agent crashes after polling but before starting execution, that occurrence can be skipped.
+
+### Lease-Based Scheduling Recovery
+
+**Status:** Todo
+
+Add claim leases so abandoned scheduled work can be retried safely.
+
+Acceptance criteria:
+
+- Schedule claim records include lease owner and lease expiry.
+- Agent starts execution using a valid claim.
+- Expired claims can be reclaimed.
+- Duplicate execution is still prevented while a lease is active.
+- Tests cover abandoned claims, active claims, and reclaimed claims.
 
 ### Graceful Agent Shutdown
 
