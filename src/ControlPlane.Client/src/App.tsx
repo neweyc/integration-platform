@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
+import { LandingPage } from '@/pages/landing/LandingPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
@@ -35,8 +36,10 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
+            <Route path="/" element={<LandingPage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/app" element={<RootRedirect />} />
 
             {/* Protected routes — wrapped in the app shell */}
             <Route
@@ -51,8 +54,8 @@ export default function App() {
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
             </Route>
 
-            {/* Root: check setup status, then route appropriately */}
-            <Route path="/" element={<RootRedirect />} />
+            {/* Unknown paths fall back to the landing page */}
+            <Route path="*" element={<LandingPage />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
