@@ -177,4 +177,13 @@ For production, use Docker Compose or Kubernetes with proper secrets management.
 dotnet test
 ```
 
-Currently 114 tests covering control plane features, SDK, and runtime agent behavior.
+Currently 125 tests covering control plane features, SDK, runtime agent behavior, and database-backed integration paths.
+
+The control plane integration tests use a temporary PostgreSQL database when one is available. By default they try the local development database server at `127.0.0.1:5433` with `devuser` / `devpassword`. To point them at a different server, set:
+
+```bash
+export INTEGRATION_TEST_CONNECTION="Host=127.0.0.1;Port=5433;Database=postgres;Username=devuser;Password=devpassword"
+dotnet test
+```
+
+The test harness creates and drops isolated databases named `integration_platform_test_*`.

@@ -4,6 +4,8 @@
 
 Integration Platform is a code-first integration platform. Users write integrations as C# classes rather than configuring them in a low-code editor. The platform handles scheduling, secrets injection, execution, and observability.
 
+![Integration Platform architecture overview](assets/architecture-overview.svg)
+
 The system is split into two independently deployable components:
 
 ```

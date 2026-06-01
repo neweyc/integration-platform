@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="980" viewBox="0 0 1440 980" role="img" aria-labelledby="title desc">
+  <title id="title">Integration Platform architecture overview</title>
+  <desc id="desc">Diagram showing the React frontend, control plane, PostgreSQL database, runtime agent, integration assemblies, and customer systems.</desc>
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <linearGradient id="control" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#155e75"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="data" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#a21caf"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M 1 1 L 12 7 L 1 13 z" fill="#334155"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M 1 1 L 12 7 L 1 13 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M 1 1 L 12 7 L 1 13 z" fill="#0f766e"/>
+    </marker>
+    <style>
+      .bg { fill: url(#page); }
+      .title { font: 700 34px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 16px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; filter: url(#shadow); }
+      .soft { fill: #f8fafc; stroke: #dbe3ee; stroke-width: 1.2; }
+      .label { font: 700 18px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; }
+      .small { font: 500 13px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .tiny { font: 600 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #64748b; }
+      .whiteLabel { font: 700 18px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #ffffff; }
+      .whiteSmall { font: 500 13px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #dbeafe; }
+      .pillText { font: 700 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; }
+      .line { fill: none; stroke: #334155; stroke-width: 2.2; marker-end: url(#arrow); }
+      .blueLine { fill: none; stroke: #2563eb; stroke-width: 2.4; marker-end: url(#arrowBlue); }
+      .greenLine { fill: none; stroke: #0f766e; stroke-width: 2.4; marker-end: url(#arrowGreen); }
+      .dash { stroke-dasharray: 7 7; }
+      .boundary { fill: none; stroke: #94a3b8; stroke-width: 1.4; stroke-dasharray: 8 8; }
+      .iconStroke { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1440" height="980"/>
+
+  <text class="title" x="72" y="72">Integration Platform Architecture</text>
+  <text class="subtitle" x="72" y="102">Control plane owns configuration, state, scheduling, secrets, and observability. Runtime agents execute integration code close to customer systems.</text>
+
+  <rect class="boundary" x="52" y="130" width="755" height="790" rx="18"/>
+  <text class="tiny" x="78" y="158">CONTROL PLANE HOSTING BOUNDARY</text>
+
+  <rect class="boundary" x="855" y="130" width="535" height="790" rx="18"/>
+  <text class="tiny" x="882" y="158">CUSTOMER NETWORK / AGENT HOST</text>
+
+  <!-- Browser and frontend -->
+  <rect class="card" x="92" y="195" width="250" height="145" rx="12"/>
+  <rect x="116" y="220" width="58" height="42" rx="7" fill="#eff6ff" stroke="#bfdbfe"/>
+  <path d="M124 232h42M124 244h30M130 275h30" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+  <text class="label" x="192" y="235">Browser</text>
+  <text class="small" x="192" y="260">React client</text>
+  <text class="small" x="192" y="282">Setup, login, UI</text>
+  <rect x="192" y="296" width="92" height="25" rx="12" fill="#e0f2fe" stroke="#bae6fd"/>
+  <text class="pillText" x="211" y="313">User JWT</text>
+
+  <!-- Control plane -->
+  <rect x="420" y="176" width="340" height="430" rx="18" fill="url(#control)" filter="url(#shadow)"/>
+  <text class="whiteLabel" x="454" y="218">Control Plane API</text>
+  <text class="whiteSmall" x="454" y="244">ASP.NET Core Minimal APIs</text>
+
+  <rect x="454" y="278" width="126" height="62" rx="10" fill="#ecfeff" fill-opacity="0.96"/>
+  <text class="pillText" x="476" y="304">Integrations</text>
+  <text class="tiny" x="476" y="323">registry + runs</text>
+
+  <rect x="604" y="278" width="126" height="62" rx="10" fill="#f0fdf4" fill-opacity="0.96"/>
+  <text class="pillText" x="630" y="304">Scheduling</text>
+  <text class="tiny" x="630" y="323">leases + cron</text>
+
+  <rect x="454" y="360" width="126" height="62" rx="10" fill="#fff7ed" fill-opacity="0.96"/>
+  <text class="pillText" x="485" y="386">Secrets</text>
+  <text class="tiny" x="475" y="405">encrypted values</text>
+
+  <rect x="604" y="360" width="126" height="62" rx="10" fill="#fdf2f8" fill-opacity="0.96"/>
+  <text class="pillText" x="636" y="386">Logs</text>
+  <text class="tiny" x="627" y="405">execution history</text>
+
+  <rect x="454" y="442" width="126" height="62" rx="10" fill="#eef2ff" fill-opacity="0.96"/>
+  <text class="pillText" x="475" y="468">Agent Tokens</text>
+  <text class="tiny" x="482" y="487">environment scoped</text>
+
+  <rect x="604" y="442" width="126" height="62" rx="10" fill="#f8fafc" fill-opacity="0.96"/>
+  <text class="pillText" x="628" y="468">Packages</text>
+  <text class="tiny" x="630" y="487">zip storage API</text>
+
+  <rect x="454" y="530" width="276" height="46" rx="10" fill="#0f172a" fill-opacity="0.22" stroke="#99f6e4"/>
+  <text class="whiteSmall" x="479" y="558">Vertical slices + dispatcher + EF Core</text>
+
+  <!-- Database -->
+  <rect class="card" x="330" y="690" width="360" height="172" rx="14"/>
+  <ellipse cx="388" cy="728" rx="44" ry="17" fill="url(#data)"/>
+  <path d="M344 728v70c0 9 20 17 44 17s44-8 44-17v-70" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <ellipse cx="388" cy="798" rx="44" ry="17" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text class="label" x="462" y="728">PostgreSQL</text>
+  <text class="small" x="462" y="754">Tenants, users, secrets</text>
+  <text class="small" x="462" y="778">Integrations, packages</text>
+  <text class="small" x="462" y="802">Executions, logs, leases</text>
+  <rect x="462" y="820" width="148" height="25" rx="12" fill="#f3e8ff" stroke="#ddd6fe"/>
+  <text class="pillText" x="481" y="837">EF migrations</text>
+
+  <!-- Runtime agent -->
+  <rect x="910" y="248" width="318" height="350" rx="18" fill="url(#agent)" filter="url(#shadow)"/>
+  <text class="whiteLabel" x="946" y="291">Runtime Agent</text>
+  <text class="whiteSmall" x="946" y="317">.NET Worker Service</text>
+
+  <rect x="946" y="352" width="246" height="48" rx="9" fill="#ffffff" fill-opacity="0.95"/>
+  <text class="pillText" x="972" y="381">Polls and claims work</text>
+
+  <rect x="946" y="416" width="246" height="48" rx="9" fill="#ffffff" fill-opacity="0.95"/>
+  <text class="pillText" x="972" y="445">Fetches secret bundle</text>
+
+  <rect x="946" y="480" width="246" height="48" rx="9" fill="#ffffff" fill-opacity="0.95"/>
+  <text class="pillText" x="972" y="509">Runs integration classes</text>
+
+  <rect x="946" y="544" width="246" height="34" rx="9" fill="#0f172a" fill-opacity="0.18" stroke="#bfdbfe"/>
+  <text class="whiteSmall" x="973" y="566">Reports logs and completion</text>
+
+  <rect x="1010" y="205" width="128" height="27" rx="13" fill="#dbeafe" stroke="#93c5fd"/>
+  <text class="pillText" x="1034" y="223">Agent token</text>
+
+  <!-- Local assemblies -->
+  <rect class="card" x="930" y="690" width="250" height="138" rx="14"/>
+  <path d="M964 722h46l18 18v52h-64z" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <path d="M1010 722v20h18" fill="none" stroke="#64748b" stroke-width="2"/>
+  <text class="label" x="1048" y="730">Integration DLLs</text>
+  <text class="small" x="1048" y="756">Local filesystem</text>
+  <text class="small" x="1048" y="780">Loaded by class name</text>
+  <text class="tiny" x="964" y="810">Package sync is planned backlog work</text>
+
+  <!-- Customer systems -->
+  <rect class="card" x="1215" y="670" width="135" height="178" rx="14"/>
+  <text class="label" x="1240" y="710">Internal</text>
+  <text class="label" x="1240" y="734">Systems</text>
+  <rect x="1240" y="758" width="84" height="24" rx="12" fill="#dcfce7" stroke="#bbf7d0"/>
+  <text class="pillText" x="1255" y="775">ERP</text>
+  <rect x="1240" y="792" width="84" height="24" rx="12" fill="#ffedd5" stroke="#fed7aa"/>
+  <text class="pillText" x="1257" y="809">CRM</text>
+  <rect x="1240" y="826" width="84" height="24" rx="12" fill="#e0f2fe" stroke="#bae6fd"/>
+  <text class="pillText" x="1251" y="843">APIs</text>
+
+  <!-- External trigger box -->
+  <rect class="card" x="92" y="430" width="250" height="130" rx="12"/>
+  <text class="label" x="124" y="470">Trigger Sources</text>
+  <text class="small" x="124" y="497">Scheduled cron</text>
+  <text class="small" x="124" y="522">Manual run</text>
+  <text class="small" x="124" y="547">Webhook planned</text>
+
+  <!-- Lines -->
+  <path class="greenLine" d="M342 252 C370 252 382 252 420 252"/>
+  <text class="tiny" x="357" y="236">HTTPS API</text>
+
+  <path class="line" d="M590 606 L590 690"/>
+  <text class="tiny" x="608" y="655">EF Core</text>
+
+  <path class="blueLine" d="M760 322 C815 322 842 322 910 322"/>
+  <text class="tiny" x="788" y="303">poll work</text>
+
+  <path class="blueLine" d="M910 392 C850 392 820 392 760 392"/>
+  <text class="tiny" x="790" y="377">secret bundle</text>
+
+  <path class="blueLine" d="M910 518 C842 518 815 518 760 518"/>
+  <text class="tiny" x="790" y="503">start, logs, complete</text>
+
+  <path class="line dash" d="M682 504 C782 620 830 700 930 740"/>
+  <text class="tiny" x="732" y="637">package download planned</text>
+
+  <path class="line" d="M1055 598 L1055 690"/>
+  <text class="tiny" x="1072" y="646">load classes</text>
+
+  <path class="greenLine" d="M1180 764 L1215 764"/>
+  <text class="tiny" x="1158" y="746">calls</text>
+
+  <path class="line" d="M342 495 C372 495 390 430 420 430"/>
+  <text class="tiny" x="358" y="475">run requests</text>
+
+  <!-- Flow legend -->
+  <rect class="soft" x="72" y="890" width="1296" height="52" rx="12"/>
+  <line x1="100" y1="916" x2="158" y2="916" class="greenLine"/>
+  <text class="tiny" x="174" y="921">user and integration management</text>
+  <line x1="398" y1="916" x2="456" y2="916" class="blueLine"/>
+  <text class="tiny" x="472" y="921">agent protocol</text>
+  <line x1="642" y1="916" x2="700" y2="916" class="line dash"/>
+  <text class="tiny" x="716" y="921">planned package sync path</text>
+  <text class="tiny" x="1000" y="921">Trust boundary keeps execution inside customer network</text>
+</svg>

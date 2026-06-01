@@ -104,7 +104,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasKey(e => e.Id);
             b.Property(e => e.Environment).IsRequired().HasMaxLength(50);
             b.Property(e => e.Status).HasConversion<string>();
-            b.Property(e => e.TriggerSource).HasConversion<string>();
+            b.Property(e => e.TriggerSource).HasConversion<string>().HasMaxLength(20);
             b.Property(e => e.ErrorMessage).HasMaxLength(4000);
 
             b.HasOne(e => e.Integration)
@@ -186,7 +186,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.ToTable("manual_run_requests");
             b.HasKey(r => r.Id);
             b.Property(r => r.Environment).IsRequired().HasMaxLength(50);
-            b.Property(r => r.Status).HasConversion<string>();
+            b.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
 
             // Index for agent polling: find pending requests for an environment
             b.HasIndex(r => new { r.TenantId, r.Environment, r.Status });
