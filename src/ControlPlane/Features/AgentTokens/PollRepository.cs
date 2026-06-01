@@ -85,4 +85,65 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
         return claimed;
     }
+
+    public async Task<IReadOnlyList<ClaimedManualRun>> ClaimPendingManualRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid agentTokenId,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        // Find pending or expired-claim manual run requests for this environment
+        var claimableRequests = await db.ManualRunRequests
+            .Include(r => r.Integration)
+            .Where(r => r.TenantId == tenantId
+                     && r.Environment == environment
+                     && (r.Status == ManualRunStatus.Pending ||
+                         (r.Status == ManualRunStatus.Claimed && r.ClaimExpiresAt != null && r.ClaimExpiresAt <= now)))
+            .ToListAsync(ct);
+
+        // Get integrations that are currently running to prevent overlap
+        var integrationIds = claimableRequests.Select(r => r.IntegrationId).Distinct().ToList();
+        var runningIntegrations = await db.ExecutionRecords
+            .Where(e => e.TenantId == tenantId
+                     && integrationIds.Contains(e.IntegrationId)
+                     && e.Status == ExecutionStatus.Running)
+            .Select(e => e.IntegrationId)
+            .ToHashSetAsync(ct);
+
+        var claimed = new List<ClaimedManualRun>();
+        var claimExpiresAt = now.Add(claimDuration);
+
+        foreach (var request in claimableRequests)
+        {
+            // Skip if the integration is not enabled
+            if (request.Integration.Status != IntegrationStatus.Enabled)
+                continue;
+
+            // Skip if the integration is already running (prevents overlap)
+            if (runningIntegrations.Contains(request.IntegrationId))
+                continue;
+
+            // Skip if another agent holds an active claim (not ours, not expired)
+            if (request.HasActiveClaim(now) && request.ClaimedByAgentTokenId != agentTokenId)
+                continue;
+
+            // Claim the request
+            request.Status = ManualRunStatus.Claimed;
+            request.ClaimedByAgentTokenId = agentTokenId;
+            request.ClaimedAt = now;
+            request.ClaimExpiresAt = claimExpiresAt;
+            request.UpdatedAt = now;
+
+            claimed.Add(new ClaimedManualRun(request, request.Integration));
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return claimed;
+    }
 }

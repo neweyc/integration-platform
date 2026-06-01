@@ -66,6 +66,14 @@ export interface ListExecutionLogsResponse {
   logs: ExecutionLogItem[]
 }
 
+export interface ManualRunResult {
+  requestId: string
+  integrationId: string
+  integrationName: string
+  environment: string
+  requestedAt: string
+}
+
 export const integrationsApi = {
   list: (environment?: string) => {
     const query = environment ? `?environment=${environment}` : ''
@@ -79,4 +87,5 @@ export const integrationsApi = {
   create: (data: CreateIntegrationRequest) => api.post<Integration>('/integrations', data),
   update: (id: string, data: UpdateIntegrationRequest) => api.put<Integration>(`/integrations/${id}`, data),
   delete: (id: string) => api.delete<void>(`/integrations/${id}`),
+  runManual: (id: string) => api.post<ManualRunResult>(`/integrations/${id}/run`, {}),
 }

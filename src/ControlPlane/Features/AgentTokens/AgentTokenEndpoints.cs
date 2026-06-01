@@ -99,7 +99,13 @@ public static class AgentTokenEndpoints
             if (agentToken is null) return Results.Unauthorized();
 
             var result = await dispatcher.SendAsync(
-                new StartExecutionCommand(agentToken.TenantId, agentToken.Environment, request.IntegrationId, agentToken.Id), ct);
+                new StartExecutionCommand(
+                    agentToken.TenantId,
+                    agentToken.Environment,
+                    request.IntegrationId,
+                    agentToken.Id,
+                    request.TriggerSource,
+                    request.ManualRunRequestId), ct);
 
             return Results.Created($"/api/agent/executions/{result.ExecutionId}", result);
         });
@@ -179,7 +185,7 @@ public static class AgentTokenEndpoints
 }
 
 public record CreateAgentTokenRequest(string Name, string Environment);
-public record StartExecutionRequest(Guid IntegrationId);
+public record StartExecutionRequest(Guid IntegrationId, string TriggerSource = "Scheduled", Guid? ManualRunRequestId = null);
 public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage);
 public record RecordExecutionLogRequest(
     DateTime Timestamp,

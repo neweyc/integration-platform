@@ -7,7 +7,7 @@ public interface IControlPlaneClient
 {
     Task<List<IntegrationItem>> GetIntegrationsAsync(CancellationToken ct);
     Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct);
-    Task<Guid> StartExecutionAsync(Guid integrationId, CancellationToken ct);
+    Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
     Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct);
 }
@@ -19,7 +19,9 @@ public record IntegrationItem(
     string TriggerType,
     string? CronExpression,
     string ClassName,
-    DateTime? LeaseExpiresAt);
+    DateTime? LeaseExpiresAt,
+    string TriggerSource,
+    Guid? ManualRunRequestId);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,
@@ -49,11 +51,11 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
         return response?.Secrets ?? [];
     }
 
-    public async Task<Guid> StartExecutionAsync(Guid integrationId, CancellationToken ct)
+    public async Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct)
     {
         var response = await http.PostAsJsonAsync(
             "/api/agent/executions",
-            new { IntegrationId = integrationId },
+            new { IntegrationId = integrationId, TriggerSource = triggerSource, ManualRunRequestId = manualRunRequestId },
             JsonOptions, ct);
 
         response.EnsureSuccessStatusCode();

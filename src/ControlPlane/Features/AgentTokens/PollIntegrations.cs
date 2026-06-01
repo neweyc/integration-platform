@@ -19,7 +19,9 @@ public record AgentIntegrationItem(
     TriggerType TriggerType,
     string? CronExpression,
     string ClassName,
-    DateTime? LeaseExpiresAt);
+    DateTime? LeaseExpiresAt,
+    TriggerSource TriggerSource,
+    Guid? ManualRunRequestId);
 
 public interface IPollRepository
 {
@@ -30,9 +32,18 @@ public interface IPollRepository
         TimeSpan leaseDuration,
         DateTime now,
         CancellationToken ct = default);
+
+    Task<IReadOnlyList<ClaimedManualRun>> ClaimPendingManualRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid agentTokenId,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default);
 }
 
 public record ClaimedIntegration(Integration Integration, DateTime LeaseExpiresAt);
+public record ClaimedManualRun(ManualRunRequest Request, Integration Integration);
 
 public class PollIntegrationsHandler(IPollRepository repository)
     : ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>
@@ -42,24 +53,57 @@ public class PollIntegrationsHandler(IPollRepository repository)
 
     public async Task<PollIntegrationsResult> HandleAsync(PollIntegrationsCommand command, CancellationToken ct = default)
     {
-        var claimed = await repository.ClaimDueScheduledAsync(
+        var now = DateTime.UtcNow;
+
+        // Claim due scheduled integrations
+        var scheduled = await repository.ClaimDueScheduledAsync(
             command.TenantId,
             command.Environment,
             command.LeaseOwnerId,
             DefaultLeaseDuration,
-            DateTime.UtcNow,
+            now,
             ct);
 
-        var items = claimed
-            .Select(c => new AgentIntegrationItem(
+        // Claim pending manual run requests (uses same lease duration)
+        var manualRuns = await repository.ClaimPendingManualRunsAsync(
+            command.TenantId,
+            command.Environment,
+            command.LeaseOwnerId,
+            DefaultLeaseDuration,
+            now,
+            ct);
+
+        var items = new List<AgentIntegrationItem>();
+
+        // Add scheduled integrations
+        foreach (var c in scheduled)
+        {
+            items.Add(new AgentIntegrationItem(
                 c.Integration.Id,
                 c.Integration.Name,
                 c.Integration.Slug,
                 c.Integration.TriggerType,
                 c.Integration.CronExpression,
                 c.Integration.ClassName,
-                c.LeaseExpiresAt))
-            .ToList();
+                c.LeaseExpiresAt,
+                TriggerSource.Scheduled,
+                null));
+        }
+
+        // Add manual runs
+        foreach (var m in manualRuns)
+        {
+            items.Add(new AgentIntegrationItem(
+                m.Integration.Id,
+                m.Integration.Name,
+                m.Integration.Slug,
+                m.Integration.TriggerType,
+                m.Integration.CronExpression,
+                m.Integration.ClassName,
+                m.Request.ClaimExpiresAt, // Manual runs also have claim expiry
+                TriggerSource.Manual,
+                m.Request.Id));
+        }
 
         return new PollIntegrationsResult(items);
     }

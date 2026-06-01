@@ -109,6 +109,18 @@ public static class IntegrationEndpoints
             return Results.NoContent();
         });
 
+        group.MapPost("/{id:guid}/run", async (
+            Guid id,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new RequestManualRunCommand(currentUser.TenantId, id), ct);
+
+            return Results.Accepted($"/api/integrations/{id}/executions", result);
+        });
+
         return app;
     }
 }

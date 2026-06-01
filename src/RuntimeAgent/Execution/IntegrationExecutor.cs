@@ -20,7 +20,8 @@ public class IntegrationExecutor(
             return;
         }
 
-        var executionId = await controlPlane.StartExecutionAsync(integration.Id, ct);
+        var executionId = await controlPlane.StartExecutionAsync(
+            integration.Id, integration.TriggerSource, integration.ManualRunRequestId, ct);
         var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId, ct);
         var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(

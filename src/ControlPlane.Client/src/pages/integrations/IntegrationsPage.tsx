@@ -65,6 +65,7 @@ export function IntegrationsPage() {
   const [selectedExecution, setSelectedExecution] = useState<ExecutionSummary | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['integrations'],
@@ -96,6 +97,16 @@ export function IntegrationsPage() {
   const deleteIntegration = useMutation({
     mutationFn: (id: string) => integrationsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] }),
+  })
+
+  const runManual = useMutation({
+    mutationFn: (id: string) => integrationsApi.runManual(id),
+    onSuccess: () => {
+      setRunError(null)
+      queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integration-executions'] })
+    },
+    onError: (err: Error) => setRunError(err.message),
   })
 
   const {
@@ -199,6 +210,15 @@ export function IntegrationsPage() {
         </p>
       )}
 
+      {runError && (
+        <div className="flex items-center justify-between rounded-md border border-destructive bg-destructive/10 px-4 py-3">
+          <p className="text-sm text-destructive">{runError}</p>
+          <Button variant="ghost" size="sm" onClick={() => setRunError(null)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <IntegrationsTableSkeleton />
       ) : (
@@ -206,6 +226,8 @@ export function IntegrationsPage() {
           integrations={data?.integrations ?? []}
           onEdit={handleOpenEdit}
           onViewHistory={setHistoryIntegration}
+          onRun={id => runManual.mutate(id)}
+          isRunPending={runManual.isPending}
           onDelete={id => deleteIntegration.mutate(id)}
         />
       )}
@@ -455,11 +477,15 @@ function IntegrationsTable({
   integrations,
   onEdit,
   onViewHistory,
+  onRun,
+  isRunPending,
   onDelete,
 }: {
   integrations: Integration[]
   onEdit: (integration: Integration) => void
   onViewHistory: (integration: Integration) => void
+  onRun: (id: string) => void
+  isRunPending: boolean
   onDelete: (id: string) => void
 }) {
   if (integrations.length === 0) {
@@ -513,6 +539,14 @@ function IntegrationsTable({
                 <LastRun execution={integration.lastExecution} />
               </TableCell>
               <TableCell className="text-right space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={integration.status === 'Disabled' || isRunPending}
+                  onClick={() => onRun(integration.id)}
+                >
+                  Run now
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration)}>
                   History
                 </Button>

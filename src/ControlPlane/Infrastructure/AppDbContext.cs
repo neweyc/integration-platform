@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ExecutionLog> ExecutionLogs => Set<ExecutionLog>();
     public DbSet<AssemblyPackage> AssemblyPackages => Set<AssemblyPackage>();
     public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
+    public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,6 +104,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasKey(e => e.Id);
             b.Property(e => e.Environment).IsRequired().HasMaxLength(50);
             b.Property(e => e.Status).HasConversion<string>();
+            b.Property(e => e.TriggerSource).HasConversion<string>();
             b.Property(e => e.ErrorMessage).HasMaxLength(4000);
 
             b.HasOne(e => e.Integration)
@@ -176,6 +178,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(s => s.Tenant)
              .WithMany()
              .HasForeignKey(s => s.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ManualRunRequest>(b =>
+        {
+            b.ToTable("manual_run_requests");
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Environment).IsRequired().HasMaxLength(50);
+            b.Property(r => r.Status).HasConversion<string>();
+
+            // Index for agent polling: find pending requests for an environment
+            b.HasIndex(r => new { r.TenantId, r.Environment, r.Status });
+
+            b.HasOne(r => r.Integration)
+             .WithMany()
+             .HasForeignKey(r => r.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(r => r.Tenant)
+             .WithMany()
+             .HasForeignKey(r => r.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

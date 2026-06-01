@@ -87,13 +87,15 @@ public class WorkerTests
             "Scheduled",
             "0 * * * *",
             typeof(SuccessfulTestIntegration).FullName!,
-            leaseExpires);
+            leaseExpires,
+            "Scheduled",
+            null);
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem> { integration });
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string>());
-        controlPlane.StartExecutionAsync(integrationId, Arg.Any<CancellationToken>())
+        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
 
         var worker = new Worker(controlPlane, executor, loader, options,
@@ -114,7 +116,7 @@ public class WorkerTests
         }
 
         // Assert - should have attempted to start execution for the claimed integration
-        await controlPlane.Received().StartExecutionAsync(integrationId, Arg.Any<CancellationToken>());
+        await controlPlane.Received().StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -145,7 +147,9 @@ public class WorkerTests
             "Scheduled",
             "0 * * * *",
             "Some.ClassName",
-            DateTime.UtcNow.AddMinutes(5));
+            DateTime.UtcNow.AddMinutes(5),
+            "Scheduled",
+            null);
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem> { integration });

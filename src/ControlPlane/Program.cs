@@ -93,6 +93,8 @@ builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateInteg
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
+builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
+builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
 
 // Integration packages feature
 builder.Services.AddScoped<PackageRepository>();
@@ -131,6 +133,7 @@ builder.Services.AddScoped<IScheduleStateRepository, ScheduleStateRepository>();
 builder.Services.AddScoped<ExecutionRepository>();
 builder.Services.AddScoped<IExecutionRepository>(sp => sp.GetRequiredService<ExecutionRepository>());
 builder.Services.AddScoped<IExecutionLogRepository, ExecutionLogRepository>();
+builder.Services.AddScoped<IManualRunRequestRepository, ManualRunRequestRepository>();
 builder.Services.AddScoped<ICommandHandler<StartExecutionCommand, StartExecutionResult>, StartExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<CompleteExecutionCommand, bool>, CompleteExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<RecordExecutionLogCommand, bool>, RecordExecutionLogHandler>();

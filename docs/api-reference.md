@@ -254,6 +254,36 @@ Returns structured logs recorded for a single execution, oldest first.
 
 ---
 
+### `POST /api/integrations/{id}/run`
+
+Triggers a manual run of an integration. Creates a pending request that the next polling agent will claim and execute.
+
+**Auth:** JWT
+
+**Validation**
+- Integration must exist and belong to the current tenant
+- Integration must be enabled (cannot manually run a disabled integration)
+- No existing pending manual run for this integration
+- No currently running execution for this integration
+
+**Response:** `202 Accepted`
+```json
+{
+  "requestId": "uuid",
+  "integrationId": "uuid",
+  "integrationName": "Sync Orders",
+  "environment": "production",
+  "requestedAt": "2026-05-31T12:00:00Z"
+}
+```
+
+**Errors**
+- `404 Not Found` — integration does not exist
+- `400 Bad Request` — integration is disabled
+- `409 Conflict` — a manual run is already pending, or the integration is already running
+
+---
+
 ## Secrets
 
 ### `GET /api/secrets/{environment}`
@@ -462,13 +492,14 @@ All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (
 
 ### `GET /api/agent/integrations`
 
-Claims and returns due scheduled integrations for the token's environment. Cron evaluation and schedule state are stored in the control plane.
+Claims and returns work items for the token's environment. This includes both due scheduled integrations and pending manual run requests.
 
 **Auth:** `X-Agent-Token`
 
 Calling this endpoint:
 - Evaluates cron schedules for all enabled scheduled integrations in the token's environment
 - Claims due integrations with a 5-minute lease (prevents duplicate dispatch)
+- Claims pending manual run requests
 - Updates `integration_schedule_states` with `last_dispatched_at`, `next_run_at`, and lease info
 - Skips integrations with active leases held by other agents
 - Can reclaim integrations with expired leases
@@ -484,13 +515,30 @@ Calling this endpoint:
       "triggerType": "Scheduled",
       "cronExpression": "0 * * * *",
       "className": "MyCompany.Integrations.SyncOrdersIntegration",
-      "leaseExpiresAt": "2026-05-31T12:05:00Z"
+      "leaseExpiresAt": "2026-05-31T12:05:00Z",
+      "triggerSource": "Scheduled",
+      "manualRunRequestId": null
+    },
+    {
+      "id": "uuid",
+      "name": "Manual Job",
+      "slug": "manual-job",
+      "triggerType": "Manual",
+      "cronExpression": null,
+      "className": "MyCompany.Integrations.ManualJobIntegration",
+      "leaseExpiresAt": null,
+      "triggerSource": "Manual",
+      "manualRunRequestId": "uuid"
     }
   ]
 }
 ```
 
-The `leaseExpiresAt` field indicates when the claim expires. If the agent crashes before starting execution, another agent can reclaim the work after this time.
+| Field | Description |
+|-------|-------------|
+| `leaseExpiresAt` | For scheduled runs, when the claim expires. If the agent crashes, another can reclaim after this time. |
+| `triggerSource` | `Scheduled`, `Manual`, or `Webhook` — indicates how this run was triggered |
+| `manualRunRequestId` | For manual runs, the ID of the manual run request. Must be passed to `POST /api/agent/executions`. |
 
 ---
 
@@ -524,15 +572,33 @@ Opens an execution record before running an integration. The control plane valid
 - Integration matches the token's environment
 - Integration is enabled
 - For scheduled integrations: the requesting agent holds an active lease
+- For manual runs: the manual run request exists, was claimed by this agent, and is still in Claimed status
 
 **Auth:** `X-Agent-Token`
 
 **Request**
 ```json
 {
-  "integrationId": "uuid"
+  "integrationId": "uuid",
+  "triggerSource": "Scheduled",
+  "manualRunRequestId": null
 }
 ```
+
+For manual runs:
+```json
+{
+  "integrationId": "uuid",
+  "triggerSource": "Manual",
+  "manualRunRequestId": "uuid"
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `integrationId` | Required | The integration to execute |
+| `triggerSource` | `"Scheduled"` | `Scheduled`, `Manual`, or `Webhook` |
+| `manualRunRequestId` | `null` | Required when `triggerSource` is `Manual` |
 
 **Response:** `201 Created`
 ```json
@@ -545,7 +611,8 @@ Opens an execution record before running an integration. The control plane valid
 **Errors**
 - `401 Unauthorized` — invalid token
 - `404 Not Found` — integration does not exist or belongs to different tenant
-- `400 Bad Request` — integration is disabled or belongs to different environment
+- `400 Bad Request` — integration is disabled, belongs to different environment, or manual run request validation failed
+- `409 Conflict` — manual run request was claimed by a different agent
 
 ---
 

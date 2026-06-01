@@ -38,14 +38,16 @@ public class IntegrationExecutorTests
             "Scheduled",
             "0 * * * *",
             "Unknown.ClassName",
-            DateTime.UtcNow.AddMinutes(5));
+            DateTime.UtcNow.AddMinutes(5),
+            "Scheduled",
+            null);
         var secrets = new Dictionary<string, string>();
 
         // Act
         await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
 
         // Assert - should not call StartExecutionAsync since class was not found
-        await _controlPlane.DidNotReceive().StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await _controlPlane.DidNotReceive().StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -61,11 +63,13 @@ public class IntegrationExecutorTests
             "Scheduled",
             "0 * * * *",
             typeof(SuccessfulTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5));
+            DateTime.UtcNow.AddMinutes(5),
+            "Scheduled",
+            null);
 
         var secrets = new Dictionary<string, string> { ["API_KEY"] = "test-key" };
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
         // Load the test assembly so the loader can find our test integration
@@ -75,7 +79,7 @@ public class IntegrationExecutorTests
         await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
 
         // Assert
-        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<CancellationToken>());
+        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
         await _controlPlane.Received(1).CompleteExecutionAsync(
             executionId,
             succeeded: true,
@@ -96,11 +100,13 @@ public class IntegrationExecutorTests
             "Scheduled",
             "0 * * * *",
             typeof(FailingTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5));
+            DateTime.UtcNow.AddMinutes(5),
+            "Scheduled",
+            null);
 
         var secrets = new Dictionary<string, string>();
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
         // Load the test assembly
@@ -110,7 +116,7 @@ public class IntegrationExecutorTests
         await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
 
         // Assert
-        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<CancellationToken>());
+        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
         await _controlPlane.Received(1).CompleteExecutionAsync(
             executionId,
             succeeded: false,

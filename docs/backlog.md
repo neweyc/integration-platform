@@ -74,7 +74,7 @@ Acceptance criteria:
 
 ### Manual Run Support
 
-**Status:** Todo
+**Status:** Done
 
 Add a user-facing way to trigger an integration immediately. This is the first external trigger and the simplest path for testing/debugging integrations without waiting for cron.
 
@@ -86,6 +86,15 @@ Acceptance criteria:
 - Disabled integrations cannot be manually run unless explicitly allowed by design.
 - Scheduled and manual executions do not overlap for the same integration.
 - Execution history records source as `Manual`.
+
+Completed notes:
+
+- `POST /api/integrations/{id}/run` creates a pending `ManualRunRequest`.
+- UI "Run now" button calls this endpoint for any enabled integration.
+- `GET /api/agent/integrations` returns pending manual runs alongside due scheduled integrations.
+- `TriggerSource` field on `ExecutionRecord` tracks whether a run was Scheduled, Manual, or Webhook.
+- Overlap prevention: cannot create a manual run if one is already pending or if the integration is already running.
+- `POST /api/agent/executions` validates manual run requests and updates status to Started.
 
 ### Work Item Execution Queue
 
@@ -160,6 +169,33 @@ Acceptance criteria:
 - Timeout cancels the integration through `CancellationToken`.
 - Timeout is recorded distinctly in execution history.
 - Logs include timeout context.
+
+### Scheduled Claim Running-Execution Guard
+
+**Status:** Todo
+
+Prevent scheduled polling from consuming a due schedule when the integration already has a running execution. The current start path rejects overlap, but the poll path can still advance scheduling state and set a lease before the overlap is discovered.
+
+Acceptance criteria:
+
+- `GET /api/agent/integrations` does not claim or advance scheduled work for integrations with an active running execution.
+- Schedule state is not advanced when no execution can start.
+- Existing lease recovery behavior still works for abandoned scheduled claims.
+- Tests cover scheduled poll behavior when an execution is already running.
+
+### Manual Run Claim Failure Handling
+
+**Status:** Todo
+
+Handle manual run claims that never reach execution start, such as when an agent cannot resolve the integration class or fails before calling `POST /api/agent/executions`.
+
+Acceptance criteria:
+
+- Manual run requests that repeatedly fail before start move to a terminal failed or expired state.
+- Users can request a new manual run after the previous request has expired or failed.
+- Control plane records a useful failure reason when the agent reports a pre-start failure.
+- Agent reports pre-start failures for missing integration classes where possible.
+- Tests cover missing class, expired claim, reclaim, and new request after terminal failure.
 
 ### Agent Heartbeats
 
@@ -635,6 +671,19 @@ Acceptance criteria:
 - `dotnet ef migrations add <Name>` works from the repository root.
 - Generated migrations compile without manual path fixes.
 - Documentation includes the expected migration command.
+
+### Align EF Model Snapshot With Fluent Mapping
+
+**Status:** Todo
+
+Keep the EF fluent model, migrations, and model snapshot consistent for enum string column lengths. The manual-run migration and snapshot use `character varying(20)` for `ExecutionRecord.TriggerSource` and `ManualRunRequest.Status`, but `AppDbContext` currently only applies string conversion without the matching max length.
+
+Acceptance criteria:
+
+- `ExecutionRecord.TriggerSource` fluent mapping includes the same max length as the migration/snapshot.
+- `ManualRunRequest.Status` fluent mapping includes the same max length as the migration/snapshot.
+- A no-op migration check does not produce type-only churn for these columns.
+- Tests/build continue to pass after the mapping cleanup.
 
 ### Secrets Page Environment Selector
 
