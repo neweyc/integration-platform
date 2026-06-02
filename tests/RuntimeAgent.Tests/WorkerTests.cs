@@ -7,6 +7,13 @@ namespace RuntimeAgent.Tests;
 
 public class WorkerTests
 {
+    private static PackageSyncer NoOpSyncer(IControlPlaneClient controlPlane, AgentOptions options)
+    {
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+        return new PackageSyncer(controlPlane, loader, options, NullLogger<PackageSyncer>.Instance);
+    }
+
+
     [Fact]
     public async Task Worker_PollsControlPlane_OnStart()
     {
@@ -33,7 +40,7 @@ public class WorkerTests
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string>());
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
@@ -98,7 +105,7 @@ public class WorkerTests
         controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
@@ -156,7 +163,7 @@ public class WorkerTests
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string> { ["API_KEY"] = "secret" });
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
@@ -202,7 +209,7 @@ public class WorkerTests
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem>());
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
@@ -248,7 +255,7 @@ public class WorkerTests
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns<List<IntegrationItem>>(x => throw new HttpRequestException("Control plane unavailable"));
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
@@ -309,7 +316,7 @@ public class WorkerTests
         controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource();
@@ -373,7 +380,7 @@ public class WorkerTests
         controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
-        var worker = new Worker(controlPlane, executor, loader, options,
+        var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
         using var cts = new CancellationTokenSource();

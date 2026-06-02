@@ -26,6 +26,7 @@ builder.Services.AddHttpClient("integration");
 
 builder.Services.AddSingleton<IntegrationLoader>();
 builder.Services.AddScoped<IntegrationExecutor>();
+builder.Services.AddScoped<PackageSyncer>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

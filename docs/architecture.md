@@ -169,10 +169,14 @@ The control plane has an integration package API for tenant-scoped zip archives:
 - `GET /api/integration-packages` lists package metadata
 - `GET /api/integration-packages/{id}/download` downloads the stored archive
 - `DELETE /api/integration-packages/{id}` removes the stored archive
+- `GET /api/agent/packages` lets runtime agents list tenant packages with an agent token
+- `GET /api/agent/packages/{id}/download` lets runtime agents download tenant packages with an agent token
 
 Packages are validated as zip files, must contain at least one `.dll`, and are stored with size and SHA-256 metadata. Package names and versions are unique per tenant.
 
-Important current limitation: package storage is not yet connected to runtime-agent deployment. Agents still load DLLs from their local `IntegrationsPath`, and operators must copy/extract package contents onto the agent host and restart the agent. Future work should add agent package sync, version pinning, rollback, and recording the package version used for each execution.
+Runtime agents sync packages into `PackagesPath`, verify SHA-256 before activation, and load extracted assemblies. Agents still also load DLLs from local `IntegrationsPath` for development.
+
+Important current limitation: integrations are not yet pinned to package versions, execution records do not record which package version ran, package deletion does not remove local agent cache entries, and assemblies are still loaded in the default load context.
 
 ### Concurrency and scheduling
 

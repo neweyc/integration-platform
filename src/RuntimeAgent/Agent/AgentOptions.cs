@@ -22,4 +22,10 @@ public class AgentOptions
 
     // Seconds to wait for in-flight executions to finish on shutdown before cancelling them
     public int ShutdownDrainSeconds { get; set; } = 30;
+
+    // Directory where packages downloaded from the control plane are extracted
+    public string PackagesPath { get; set; } = "./packages";
+
+    // How often to check for new or updated packages, in seconds
+    public int PackageSyncIntervalSeconds { get; set; } = 300;
 }

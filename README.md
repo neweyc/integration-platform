@@ -102,7 +102,9 @@ Create an `appsettings.json` in the RuntimeAgent project directory:
     "AgentToken": "agt_<your-token>",
     "Environment": "production",
     "IntegrationsPath": "./integrations",
+    "PackagesPath": "./packages",
     "PollIntervalSeconds": 30,
+    "PackageSyncIntervalSeconds": 300,
     "MaxConcurrentExecutions": 5,
     "ShutdownDrainSeconds": 30
   }
@@ -117,15 +119,16 @@ dotnet run --project src/RuntimeAgent
 
 The agent will:
 1. Load integration assemblies from `IntegrationsPath`
-2. Poll the control plane for claimed due integrations matching its environment
-3. Execute the integrations returned by the control plane
-4. Report execution results back to the control plane
+2. Sync uploaded integration packages into `PackagesPath`
+3. Poll the control plane for claimed due integrations matching its environment
+4. Execute the integrations returned by the control plane
+5. Report execution results back to the control plane
 
 Scheduling state is persisted in the control plane, so agent restarts do not reset cron evaluation.
 
 ### Deploying integrations
 
-The runtime agent currently loads assemblies from the local filesystem. Package upload APIs exist in the control plane for storing and downloading zip archives, but agents do not automatically sync packages yet.
+The runtime agent loads assemblies from the local filesystem and can sync uploaded packages from the control plane. Synced packages are downloaded, SHA-256 verified, extracted under `PackagesPath`, and loaded by the agent. Package version pinning is not implemented yet, so uploaded packages are tenant-scoped and every agent for that tenant can discover them.
 
 1. Build your integration project: `dotnet publish -c Release`
 2. Zip the publish output if you want to store the package in the control plane:
@@ -138,9 +141,10 @@ The runtime agent currently loads assemblies from the local filesystem. Package 
      -F "version=1.0.0" \
      -F "file=@integrations.zip"
    ```
-3. Copy the published DLLs and dependencies to the agent's `IntegrationsPath` directory
-4. Restart the agent to load new assemblies
-5. Register the integration in the control plane UI with the fully qualified class name
+3. The agent will download and extract the package on startup or at the next package sync interval
+4. Register the integration in the control plane UI with the fully qualified class name
+
+You can still copy published DLLs directly to the agent's `IntegrationsPath` for local development. Package sync avoids manual copying, but integrations are not yet pinned to package versions and rollback is still manual.
 
 See [docs/writing-integrations.md](docs/writing-integrations.md) for details.
 

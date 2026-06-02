@@ -7,10 +7,14 @@ public interface IControlPlaneClient
 {
     Task<List<IntegrationItem>> GetIntegrationsAsync(CancellationToken ct);
     Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct);
+    Task<List<AgentPackageInfo>> ListPackagesAsync(CancellationToken ct);
+    Task<byte[]> DownloadPackageAsync(Guid packageId, CancellationToken ct);
     Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
     Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct);
 }
+
+public record AgentPackageInfo(Guid Id, string Name, string Version, string Sha256Hash);
 
 public record IntegrationItem(
     Guid Id,
@@ -49,6 +53,21 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
             $"/api/agent/secrets/{options.Environment}", JsonOptions, ct);
 
         return response?.Secrets ?? [];
+    }
+
+    public async Task<List<AgentPackageInfo>> ListPackagesAsync(CancellationToken ct)
+    {
+        var response = await http.GetFromJsonAsync<AgentPackagesResponse>(
+            "/api/agent/packages", JsonOptions, ct);
+
+        return response?.Packages ?? [];
+    }
+
+    public async Task<byte[]> DownloadPackageAsync(Guid packageId, CancellationToken ct)
+    {
+        var response = await http.GetAsync($"/api/agent/packages/{packageId}/download", ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
     public async Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct)
@@ -99,5 +118,6 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
 
     private record IntegrationsResponse(List<IntegrationItem> Integrations);
     private record SecretsResponse(Dictionary<string, string> Secrets);
+    private record AgentPackagesResponse(List<AgentPackageInfo> Packages);
     private record StartExecutionResponse(Guid ExecutionId, DateTime StartedAt);
 }

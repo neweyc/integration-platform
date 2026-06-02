@@ -1,3 +1,4 @@
+using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
@@ -81,6 +82,49 @@ public static class AgentTokenEndpoints
                 new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment, agentToken.Id), ct);
 
             return Results.Ok(result);
+        });
+
+        agent.MapGet("/packages", async (
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IPackageReadRepository packageRepo,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            var packages = await packageRepo.ListAsync(agentToken.TenantId, ct);
+            var items = packages
+                .Select(p => new AgentPackageItem(p.Id, p.Name, p.Version, p.Sha256Hash))
+                .ToList();
+
+            return Results.Ok(new AgentPackagesResponse(items));
+        });
+
+        agent.MapGet("/packages/{id:guid}/download", async (
+            Guid id,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IPackageReadRepository packageRepo,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            var package = await packageRepo.GetAsync(agentToken.TenantId, id, ct);
+            if (package is null) return Results.NotFound();
+
+            return Results.File(package.Data, "application/zip", package.FileName);
         });
 
         agent.MapPost("/executions", async (
@@ -183,6 +227,9 @@ public static class AgentTokenEndpoints
         return agentToken?.Environment == environment ? agentToken : null;
     }
 }
+
+public record AgentPackageItem(Guid Id, string Name, string Version, string Sha256Hash);
+public record AgentPackagesResponse(IReadOnlyList<AgentPackageItem> Packages);
 
 public record CreateAgentTokenRequest(string Name, string Environment);
 public record StartExecutionRequest(Guid IntegrationId, string TriggerSource = "Scheduled", Guid? ManualRunRequestId = null);

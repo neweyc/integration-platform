@@ -8,6 +8,7 @@ public class Worker(
     IControlPlaneClient controlPlane,
     IntegrationExecutor executor,
     IntegrationLoader loader,
+    PackageSyncer syncer,
     AgentOptions options,
     ILogger<Worker> logger) : BackgroundService
 {
@@ -16,6 +17,7 @@ public class Worker(
     private readonly Dictionary<Guid, (Task Task, CancellationTokenSource Cts)> _inFlight = new();
     private readonly object _inFlightLock = new();
     private SemaphoreSlim? _concurrencySemaphore;
+    private DateTime _lastPackageSync = DateTime.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -26,8 +28,14 @@ public class Worker(
             "Agent started — environment: {Environment}, poll interval: {Interval}s, max concurrent: {MaxConcurrent}",
             options.Environment, options.PollIntervalSeconds, options.MaxConcurrentExecutions);
 
+        // Sync packages before the first poll so integrations are available immediately
+        await SyncPackagesAsync(stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (DateTime.UtcNow - _lastPackageSync >= TimeSpan.FromSeconds(options.PackageSyncIntervalSeconds))
+                await SyncPackagesAsync(stoppingToken);
+
             await PollAndDispatchAsync(stoppingToken);
 
             try
@@ -78,6 +86,12 @@ public class Worker(
 
             await Task.WhenAll(allTasks);
         }
+    }
+
+    private async Task SyncPackagesAsync(CancellationToken stoppingToken)
+    {
+        await syncer.SyncAsync(stoppingToken);
+        _lastPackageSync = DateTime.UtcNow;
     }
 
     private async Task PollAndDispatchAsync(CancellationToken stoppingToken)

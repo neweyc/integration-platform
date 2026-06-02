@@ -143,7 +143,7 @@ Avoid `Console.WriteLine` — output is not captured.
 
 ## Deploying integrations
 
-The control plane can store versioned integration package zip files, but the runtime agent does not automatically download or activate packages yet. The agent still loads DLLs from its local `IntegrationsPath`.
+The control plane stores versioned integration package zip files, and runtime agents can sync those packages into their configured `PackagesPath`. Agents also still load DLLs from their local `IntegrationsPath`, which is useful for local development.
 
 1. Build the integration project: `dotnet publish -c Release`
 2. Create a package archive from the publish output:
@@ -151,7 +151,7 @@ The control plane can store versioned integration package zip files, but the run
    cd bin/Release/net10.0/publish
    zip -r integrations.zip .
    ```
-3. Optionally upload the archive to the control plane for storage:
+3. Upload the archive to the control plane:
    ```bash
    curl -X POST http://localhost:5000/api/integration-packages \
      -H "Authorization: Bearer <jwt>" \
@@ -159,9 +159,8 @@ The control plane can store versioned integration package zip files, but the run
      -F "version=1.0.0" \
      -F "file=@integrations.zip"
    ```
-4. Copy or extract the published output to the directory configured in the agent's `IntegrationsPath` setting
-5. Restart the runtime agent — assemblies are loaded once at startup
-6. Verify the integration appears in the agent logs: `Loaded integration: MyCompany.Integrations.SyncOrdersIntegration`
+4. Wait for the runtime agent to sync packages, or restart it to sync immediately
+5. Verify the integration appears in the agent logs: `Loaded integration: MyCompany.Integrations.SyncOrdersIntegration`
 
 Package constraints:
 
@@ -172,10 +171,11 @@ Package constraints:
 
 Current limitations:
 
-- Uploading a package does not deploy it to agents
+- Packages are tenant-scoped, not environment-scoped
 - Integrations are not yet pinned to a package/version
 - The execution record does not yet store which package version ran
-- Rollback is a manual copy/extract/restart process
+- Rollback is not yet a first-class workflow
+- Loaded assemblies are not isolated or unloaded yet
 
 ---
 

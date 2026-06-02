@@ -341,7 +341,7 @@ Key must match `^[A-Z0-9_]+$`.
 
 ## Integration packages
 
-Integration packages are tenant-scoped zip archives containing compiled integration DLLs and their dependencies. The control plane can store and serve these packages, but the runtime agent does not automatically download or activate them yet.
+Integration packages are tenant-scoped zip archives containing compiled integration DLLs and their dependencies. The control plane stores package metadata and data, and runtime agents can sync packages through agent-token endpoints.
 
 ### `GET /api/integration-packages`
 
@@ -426,6 +426,38 @@ Deletes a stored package. This does not remove DLLs from any runtime agent.
 **Auth:** JWT
 
 **Response:** `204 No Content` or `404`
+
+---
+
+### `GET /api/agent/packages`
+
+Lists package metadata available to the authenticated agent's tenant.
+
+**Auth:** `X-Agent-Token`
+
+**Response**
+```json
+{
+  "packages": [
+    {
+      "id": "uuid",
+      "name": "MyCompany.Integrations",
+      "version": "1.0.0",
+      "sha256Hash": "64-character lowercase hex hash"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/agent/packages/{id}/download`
+
+Downloads a package archive for the authenticated agent's tenant.
+
+**Auth:** `X-Agent-Token`
+
+**Response:** `application/zip` file or `404`
 
 ---
 

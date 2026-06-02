@@ -170,7 +170,9 @@ The control plane can store compiled integration packages as tenant-scoped zip f
 
 Packages are uploaded through `POST /api/integration-packages` as `multipart/form-data`. The zip must contain at least one `.dll`. The same package name and version cannot be uploaded twice for a tenant.
 
-Current operational limitation: uploaded packages are not automatically distributed to runtime agents. Operators still need to copy or extract DLLs and dependencies into the agent's `IntegrationsPath` and restart the agent. Package storage is a foundation for future agent sync, version pinning, and rollback.
+Runtime agents can list and download tenant packages through agent-token endpoints. Downloaded packages are SHA-256 verified, extracted into the agent's `PackagesPath`, and loaded by the runtime agent.
+
+Current operational limitations: packages are not yet pinned to integration definitions, execution records do not store the package version used, packages are not environment-scoped, and rollback is not yet a first-class workflow.
 
 ---
 

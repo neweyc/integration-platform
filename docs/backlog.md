@@ -331,7 +331,7 @@ Acceptance criteria:
 
 ### Agent Package Sync
 
-**Status:** Todo
+**Status:** Done
 
 Connect control-plane package storage to runtime agents.
 
@@ -342,6 +342,21 @@ Acceptance criteria:
 - Package is extracted into an agent-managed directory.
 - Agent can detect new package versions without manual copy.
 - Package activation does not corrupt currently running executions.
+
+Completed notes:
+
+- Agent-facing package list/download endpoints are available under `/api/agent/packages` and authenticated with `X-Agent-Token`.
+- `PackageSyncer` lists packages, downloads missing versions, verifies SHA-256, extracts to `PackagesPath`, and loads extracted assemblies.
+- Package extraction uses a temporary directory before activation to avoid partially written package directories.
+- RuntimeAgent tests cover download/extract, hash mismatch, already-synced packages, control-plane errors, and per-package download failures.
+- ControlPlane integration tests cover agent-token package list and download endpoints.
+
+Remaining limitations:
+
+- Packages are tenant-scoped, not environment-scoped.
+- Integration definitions are not pinned to a package/version yet.
+- Loaded assemblies are still in the default load context and cannot be unloaded.
+- Package deletion in the control plane does not remove local agent cache entries.
 
 ### Integration Version Pinning
 
