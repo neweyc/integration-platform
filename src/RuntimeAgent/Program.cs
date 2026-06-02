@@ -10,6 +10,10 @@ var options = builder.Configuration
 
 builder.Services.AddSingleton(options);
 
+// Extend the host shutdown timeout to cover the full drain window plus a small buffer
+builder.Services.Configure<HostOptions>(o =>
+    o.ShutdownTimeout = TimeSpan.FromSeconds(options.ShutdownDrainSeconds + 10));
+
 // HTTP client for the control plane — attaches the agent token to every request
 builder.Services.AddHttpClient<IControlPlaneClient, ControlPlaneClient>(client =>
 {

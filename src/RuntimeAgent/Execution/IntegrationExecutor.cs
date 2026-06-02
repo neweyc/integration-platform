@@ -22,7 +22,7 @@ public class IntegrationExecutor(
 
         var executionId = await controlPlane.StartExecutionAsync(
             integration.Id, integration.TriggerSource, integration.ManualRunRequestId, ct);
-        var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId, ct);
+        var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId);
         var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(
             executionId, integration.Id, integration.Name,
@@ -37,12 +37,26 @@ public class IntegrationExecutor(
         {
             await instance.RunAsync(context, ct);
 
+            await integrationLogger.FlushAsync(ct);
             await controlPlane.CompleteExecutionAsync(executionId, succeeded: true, errorMessage: null, ct);
             logger.LogInformation("Execution {ExecutionId} succeeded", executionId);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Agent is shutting down — report failure using a fresh token so the report can still reach the control plane
+            logger.LogWarning("Execution {ExecutionId} cancelled — agent is shutting down", executionId);
+            using var reportCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await integrationLogger.FlushAsync(reportCts.Token);
+            await controlPlane.CompleteExecutionAsync(
+                executionId, succeeded: false,
+                errorMessage: "Execution cancelled: agent shutting down",
+                reportCts.Token);
+            throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Execution {ExecutionId} failed", executionId);
+            await integrationLogger.FlushAsync(ct);
             await controlPlane.RecordLogAsync(
                 executionId,
                 new ExecutionLogEntry(

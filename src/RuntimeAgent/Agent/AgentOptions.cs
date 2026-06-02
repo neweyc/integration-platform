@@ -19,4 +19,7 @@ public class AgentOptions
 
     // Maximum number of integrations that can execute concurrently
     public int MaxConcurrentExecutions { get; set; } = 5;
+
+    // Seconds to wait for in-flight executions to finish on shutdown before cancelling them
+    public int ShutdownDrainSeconds { get; set; } = 30;
 }

@@ -146,3 +146,17 @@ public class FailingTestIntegration : IIntegration
         throw new InvalidOperationException("Integration failed intentionally");
     }
 }
+
+// Test integration that blocks until cancelled
+public class SlowTestIntegration : IIntegration
+{
+    // Reset between tests that use this integration
+    public static TaskCompletionSource ExecutionStarted = new();
+
+    public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
+    {
+        ExecutionStarted.TrySetResult();
+        context.Logger.LogInformation("Slow integration started");
+        await Task.Delay(Timeout.Infinite, ct);
+    }
+}

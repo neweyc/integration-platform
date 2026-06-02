@@ -270,12 +270,135 @@ public class WorkerTests
     }
 
     [Fact]
+    public async Task Worker_Shutdown_CancelledExecution_ReportsFailureToControlPlane()
+    {
+        // Arrange
+        SlowTestIntegration.ExecutionStarted = new TaskCompletionSource();
+
+        var controlPlane = Substitute.For<IControlPlaneClient>();
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+        var httpFactory = Substitute.For<IHttpClientFactory>();
+        httpFactory.CreateClient("integration").Returns(new HttpClient());
+
+        var options = new AgentOptions
+        {
+            Environment = "production",
+            PollIntervalSeconds = 1,
+            MaxConcurrentExecutions = 2,
+            IntegrationsPath = AppContext.BaseDirectory,
+            ShutdownDrainSeconds = 0  // immediate cancellation after drain window
+        };
+
+        var executor = new IntegrationExecutor(
+            controlPlane, loader, httpFactory, options,
+            NullLogger<IntegrationExecutor>.Instance);
+
+        var integrationId = Guid.NewGuid();
+        var executionId = Guid.NewGuid();
+
+        var integration = new IntegrationItem(
+            integrationId, "Slow Integration", "slow",
+            "Scheduled", "0 * * * *",
+            typeof(SlowTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+
+        controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<IntegrationItem> { integration });
+        controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>());
+        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+
+        var worker = new Worker(controlPlane, executor, loader, options,
+            NullLogger<Worker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+
+        // Wait until the slow integration has actually started executing
+        await SlowTestIntegration.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Act — trigger shutdown
+        await worker.StopAsync(CancellationToken.None);
+
+        // Assert — execution should be reported as failed with a shutdown message
+        await controlPlane.Received(1).RecordLogAsync(
+            executionId,
+            Arg.Is<ExecutionLogEntry>(log => log.Message.Contains("Slow integration started")),
+            Arg.Any<CancellationToken>());
+        await controlPlane.Received(1).CompleteExecutionAsync(
+            executionId,
+            succeeded: false,
+            Arg.Is<string?>(msg => msg != null && msg.Contains("cancelled")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Worker_Shutdown_InFlightExecution_CompletesWithinDrainWindow()
+    {
+        // Arrange
+        SlowTestIntegration.ExecutionStarted = new TaskCompletionSource();
+
+        var controlPlane = Substitute.For<IControlPlaneClient>();
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+        var httpFactory = Substitute.For<IHttpClientFactory>();
+        httpFactory.CreateClient("integration").Returns(new HttpClient());
+
+        var options = new AgentOptions
+        {
+            Environment = "production",
+            PollIntervalSeconds = 60,
+            MaxConcurrentExecutions = 2,
+            IntegrationsPath = AppContext.BaseDirectory,
+            ShutdownDrainSeconds = 5  // allow time to finish
+        };
+
+        var executor = new IntegrationExecutor(
+            controlPlane, loader, httpFactory, options,
+            NullLogger<IntegrationExecutor>.Instance);
+
+        var integrationId = Guid.NewGuid();
+        var executionId = Guid.NewGuid();
+
+        var integration = new IntegrationItem(
+            integrationId, "Sync Orders", "sync-orders",
+            "Scheduled", "0 * * * *",
+            typeof(SuccessfulTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+
+        controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<IntegrationItem> { integration });
+        controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>());
+        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+
+        var worker = new Worker(controlPlane, executor, loader, options,
+            NullLogger<Worker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+        await Task.Delay(150, CancellationToken.None);
+
+        // Act
+        await worker.StopAsync(CancellationToken.None);
+
+        // Assert — execution completed successfully (not cancelled)
+        await controlPlane.Received().CompleteExecutionAsync(
+            executionId,
+            succeeded: true,
+            errorMessage: null,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void AgentOptions_DefaultValues_AreReasonable()
     {
         var options = new AgentOptions();
 
         Assert.Equal(30, options.PollIntervalSeconds);
         Assert.Equal(5, options.MaxConcurrentExecutions);
+        Assert.Equal(30, options.ShutdownDrainSeconds);
         Assert.Equal("", options.ControlPlaneUrl);
         Assert.Equal("", options.AgentToken);
         Assert.Equal("", options.Environment);

@@ -6,9 +6,10 @@ namespace RuntimeAgent.Execution;
 public class ControlPlaneExecutionLogger(
     ILogger inner,
     IControlPlaneClient controlPlane,
-    Guid executionId,
-    CancellationToken ct) : ILogger
+    Guid executionId) : ILogger
 {
+    private readonly List<ExecutionLogEntry> _buffer = [];
+
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => inner.BeginScope(state);
 
     public bool IsEnabled(LogLevel logLevel) => inner.IsEnabled(logLevel);
@@ -36,7 +37,15 @@ public class ControlPlaneExecutionLogger(
             exception?.ToString(),
             SerializeProperties(state, eventId));
 
-        _ = controlPlane.RecordLogAsync(executionId, log, ct);
+        _buffer.Add(log);
+    }
+
+    public async Task FlushAsync(CancellationToken flushToken)
+    {
+        foreach (var log in _buffer)
+            await controlPlane.RecordLogAsync(executionId, log, flushToken);
+
+        _buffer.Clear();
     }
 
     private static string? SerializeProperties<TState>(TState state, EventId eventId)

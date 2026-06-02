@@ -87,9 +87,9 @@ public class PollRepositoryIntegrationTests
             return;
 
         var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
-        var integration = CreateIntegration(tenant.Id, "scheduled");
         var agentId = Guid.NewGuid();
         var now = DateTime.UtcNow.Date.AddHours(12);
+        var integration = CreateIntegration(tenant.Id, "scheduled", now.AddMinutes(-1));
 
         await using (var db = database.CreateContext())
         {
@@ -125,7 +125,7 @@ public class PollRepositoryIntegrationTests
         }
     }
 
-    private static Integration CreateIntegration(Guid tenantId, string slug) => new()
+    private static Integration CreateIntegration(Guid tenantId, string slug, DateTime? createdAt = null) => new()
     {
         TenantId = tenantId,
         Name = slug,
@@ -134,6 +134,7 @@ public class PollRepositoryIntegrationTests
         Status = IntegrationStatus.Enabled,
         TriggerType = TriggerType.Scheduled,
         CronExpression = "* * * * *",
-        ClassName = $"Tests.{slug}.Integration"
+        ClassName = $"Tests.{slug}.Integration",
+        CreatedAt = createdAt ?? DateTime.UtcNow
     };
 }

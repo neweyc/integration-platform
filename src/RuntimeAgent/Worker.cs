@@ -11,11 +11,10 @@ public class Worker(
     AgentOptions options,
     ILogger<Worker> logger) : BackgroundService
 {
-    // Tracks which integrations are currently executing to prevent overlapping runs
-    private readonly HashSet<Guid> _inFlight = new();
+    // Tracks in-flight executions: integration ID → (task, per-execution CTS)
+    // The CTS is independent of stoppingToken so the drain window can control cancellation.
+    private readonly Dictionary<Guid, (Task Task, CancellationTokenSource Cts)> _inFlight = new();
     private readonly object _inFlightLock = new();
-
-    // Limits concurrent executions
     private SemaphoreSlim? _concurrencySemaphore;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -30,30 +29,75 @@ public class Worker(
         while (!stoppingToken.IsCancellationRequested)
         {
             await PollAndDispatchAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromSeconds(options.PollIntervalSeconds), stoppingToken);
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(options.PollIntervalSeconds), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
     }
 
-    private async Task PollAndDispatchAsync(CancellationToken ct)
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // Stop the polling loop
+        await base.StopAsync(cancellationToken);
+
+        (Task Task, CancellationTokenSource Cts)[] inFlight;
+        lock (_inFlightLock)
+        {
+            inFlight = [.. _inFlight.Values];
+        }
+
+        if (inFlight.Length == 0)
+            return;
+
+        logger.LogInformation(
+            "Draining {Count} in-flight execution(s) — drain window: {Drain}s",
+            inFlight.Length, options.ShutdownDrainSeconds);
+
+        var allTasks = inFlight.Select(x => x.Task).ToArray();
+
+        try
+        {
+            await Task.WhenAll(allTasks)
+                .WaitAsync(TimeSpan.FromSeconds(options.ShutdownDrainSeconds), CancellationToken.None);
+
+            logger.LogInformation("All in-flight executions completed within drain window");
+        }
+        catch (TimeoutException)
+        {
+            var remaining = allTasks.Count(t => !t.IsCompleted);
+            logger.LogWarning("Drain window expired — cancelling {Count} remaining execution(s)", remaining);
+
+            foreach (var (_, cts) in inFlight)
+                cts.Cancel();
+
+            await Task.WhenAll(allTasks);
+        }
+    }
+
+    private async Task PollAndDispatchAsync(CancellationToken stoppingToken)
     {
         try
         {
             // The control plane returns only integrations that are due AND have been claimed with a lease.
-            // Leases prevent duplicate dispatch across multiple agents or poll cycles.
-            var integrations = await controlPlane.GetIntegrationsAsync(ct);
+            var integrations = await controlPlane.GetIntegrationsAsync(stoppingToken);
 
             if (integrations.Count == 0)
                 return;
 
             // Fetch secrets once and share across all executions this cycle
-            var secrets = await controlPlane.GetSecretsAsync(ct);
+            var secrets = await controlPlane.GetSecretsAsync(stoppingToken);
 
             foreach (var integration in integrations)
             {
-                // Check if this integration is already running locally
                 lock (_inFlightLock)
                 {
-                    if (_inFlight.Contains(integration.Id))
+                    if (_inFlight.ContainsKey(integration.Id))
                     {
                         logger.LogDebug("Skipping {Name} — already executing locally", integration.Name);
                         continue;
@@ -68,44 +112,48 @@ public class Worker(
                         integration.LeaseExpiresAt.Value);
                 }
 
-                // Run with concurrency control
-                _ = ExecuteWithConcurrencyControlAsync(integration, secrets, ct);
+                StartExecution(integration, secrets);
             }
         }
-        catch (Exception ex) when (!ct.IsCancellationRequested)
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
             logger.LogError(ex, "Poll cycle failed — will retry in {Interval}s", options.PollIntervalSeconds);
         }
     }
 
-    private async Task ExecuteWithConcurrencyControlAsync(
-        IntegrationItem integration,
-        Dictionary<string, string> secrets,
-        CancellationToken ct)
+    private void StartExecution(IntegrationItem integration, Dictionary<string, string> secrets)
     {
-        // Mark as in-flight before waiting for semaphore
+        var executionCts = new CancellationTokenSource();
+        // Task is created and begins executing synchronously until its first true async point.
+        // It is registered in _inFlight before PollAndDispatchAsync continues.
+        var task = RunExecutionAsync(integration, secrets, executionCts);
+
         lock (_inFlightLock)
         {
-            _inFlight.Add(integration.Id);
+            _inFlight[integration.Id] = (task, executionCts);
         }
+    }
 
+    private async Task RunExecutionAsync(
+        IntegrationItem integration,
+        Dictionary<string, string> secrets,
+        CancellationTokenSource executionCts)
+    {
         try
         {
-            // Wait for a concurrency slot
-            await _concurrencySemaphore!.WaitAsync(ct);
-
+            await _concurrencySemaphore!.WaitAsync(executionCts.Token);
             try
             {
-                await executor.ExecuteAsync(integration, secrets, ct);
+                await executor.ExecuteAsync(integration, secrets, executionCts.Token);
             }
             finally
             {
                 _concurrencySemaphore.Release();
             }
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            // Expected during shutdown
+            // Execution was cancelled after the drain window expired — executor already reported failure
         }
         catch (Exception ex)
         {
@@ -117,6 +165,7 @@ public class Worker(
             {
                 _inFlight.Remove(integration.Id);
             }
+            executionCts.Dispose();
         }
     }
 

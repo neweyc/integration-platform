@@ -103,7 +103,8 @@ Create an `appsettings.json` in the RuntimeAgent project directory:
     "Environment": "production",
     "IntegrationsPath": "./integrations",
     "PollIntervalSeconds": 30,
-    "MaxConcurrentExecutions": 5
+    "MaxConcurrentExecutions": 5,
+    "ShutdownDrainSeconds": 30
   }
 }
 ```

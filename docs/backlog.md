@@ -60,7 +60,7 @@ Completed notes:
 
 ### Graceful Agent Shutdown
 
-**Status:** Todo
+**Status:** Done
 
 Make the runtime agent drain or cancel running work predictably during shutdown.
 
@@ -71,6 +71,14 @@ Acceptance criteria:
 - Cancelled executions are reported to the control plane with a useful failure message.
 - Buffered execution logs are flushed before process exit.
 - Tests cover shutdown during active execution.
+
+Completed notes:
+
+- `Worker.StopAsync` stops polling, drains in-flight executions for `ShutdownDrainSeconds`, then cancels remaining work.
+- The host shutdown timeout is extended to cover the configured drain window plus a buffer.
+- Cancelled executions are completed as failed with an agent-shutdown message.
+- Execution logs are buffered and flushed before success, failure, or shutdown completion.
+- RuntimeAgent tests cover active execution shutdown, drain completion, forced cancellation, and default shutdown options.
 
 ### Manual Run Support
 
@@ -659,6 +667,17 @@ Acceptance criteria:
 ---
 
 ## Technical Debt
+
+### Scheduled Claim Test Stability
+
+**Status:** Done
+
+Keep scheduled polling integration tests deterministic regardless of the current UTC time.
+
+Completed notes:
+
+- `PollRepositoryIntegrationTests.ClaimDueScheduledAsync_AcquiresLeaseAndPersistsScheduleState` now pins the integration `CreatedAt` before the test's fixed `now`.
+- This prevents new `* * * * *` schedules from being evaluated as not due when the test runs after noon UTC.
 
 ### Fix EF Migration Tooling
 
