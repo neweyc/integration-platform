@@ -11,6 +11,36 @@ Status key:
 
 ---
 
+## Product Direction
+
+Build a code-first workflow automation and integration platform that can replace the common 60-70% of Control-M/Boomi usage: scheduled jobs, data movement, API calls, transformations, retries, observability, and environment-safe deployment.
+
+The product should stay code-first. Developers should author real integrations and workflow logic with normal language tooling, tests, packages, and CI/CD. The UI should focus on control, observability, operations, administration, and safe deployment rather than becoming the primary authoring surface.
+
+Principles:
+
+- Real code over low-code lock-in.
+- Versioned package deployment and rollback over copying files to agents.
+- Work items and workflows over one-off execution paths.
+- Agent execution close to systems and data.
+- Operations-grade visibility, retry, audit, and access control.
+- Built-in primitives for the common integration work: schedules, HTTP/API calls, database access, files/SFTP, transformations, secrets, alerts, and environment promotion.
+
+Priority ladder:
+
+1. Version-pinned package execution.
+2. Work item queue.
+3. Workflow DAG foundation.
+4. Retry policy.
+5. Agent heartbeats and agent pools.
+6. Webhook triggers.
+7. Core connectors.
+8. Code-first transform steps.
+9. Environment promotion.
+10. Audit and RBAC.
+
+---
+
 ## P0 — MVP Completion
 
 ### Version-Pinned Package Execution

@@ -1,6 +1,17 @@
 # Roadmap
 
-Features are grouped by the phase in which they should be built. Phase 1 is largely complete. Phases 2–3 enable commercial viability.
+Features are grouped by the phase in which they should be built.
+
+Product goal: replace the common 60-70% of Control-M/Boomi usage that is really scheduled jobs, data movement, API calls, transformations, retries, observability, and environment-safe deployment, while staying code-first.
+
+The product should not become a low-code designer clone. The core authoring model is real code, packages, tests, and CI/CD. The UI should provide operational control, observability, administration, safe deployment, and audit.
+
+The strategic build order is:
+
+1. Make code execution production-safe with versioned packages, rollback, work items, retries, and agent health.
+2. Add workflow orchestration primitives: DAGs, dependencies, calendars, reruns, and agent pools.
+3. Add integration primitives: webhooks, HTTP/API, database, files/SFTP, object storage, notifications, and code-first transforms.
+4. Add enterprise controls: audit, RBAC, quotas, retention, environment promotion, and compliance exports.
 
 ---
 

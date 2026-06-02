@@ -1,6 +1,25 @@
 # Integration Platform
 
-A code-first integration platform. Integrations are written as C# classes rather than configured via low-code drag-and-drop.
+A code-first workflow automation and integration platform. Integrations are written as C# classes rather than configured via low-code drag-and-drop.
+
+## Product direction
+
+The product goal is to replace the common 60-70% of Control-M/Boomi usage that is really scheduled jobs, data movement, API calls, transformations, retries, observability, and environment-safe deployment, while staying code-first.
+
+This is not intended to be a low-code designer clone. The platform should give engineering-led teams real code, tests, packages, versioned deployment, rollback, agent execution close to systems/data, and an operations UI for scheduling, visibility, retries, audit, and administration.
+
+Near-term product priorities:
+
+1. Version-pinned package execution
+2. Work item queue
+3. Workflow DAG foundation
+4. Retry policy
+5. Agent heartbeats and agent pools
+6. Webhook triggers
+7. Core connectors for HTTP, SQL, files/SFTP, object storage, and notifications
+8. Code-first transform steps
+9. Environment promotion
+10. Audit and RBAC
 
 ## Stack
 
