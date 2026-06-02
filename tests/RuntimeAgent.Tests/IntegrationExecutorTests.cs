@@ -38,7 +38,7 @@ public class IntegrationExecutorTests
         await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
 
         await _controlPlane.DidNotReceive().StartExecutionAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -49,15 +49,16 @@ public class IntegrationExecutorTests
         var integration = new IntegrationItem(
             integrationId, "Test Integration", "test-integration",
             "Scheduled", "0 * * * *", typeof(SuccessfulTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            WorkItemId: Guid.NewGuid());
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
         await _executor.ExecuteAsync(integration, new Dictionary<string, string> { ["API_KEY"] = "test-key" }, CancellationToken.None);
 
-        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await _controlPlane.Received(1).StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await _controlPlane.Received(1).CompleteExecutionAsync(
             executionId, succeeded: true, errorMessage: null, Arg.Any<CancellationToken>());
     }
@@ -70,9 +71,10 @@ public class IntegrationExecutorTests
         var integration = new IntegrationItem(
             integrationId, "Failing Integration", "failing-integration",
             "Scheduled", "0 * * * *", typeof(FailingTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            WorkItemId: Guid.NewGuid());
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
@@ -95,9 +97,9 @@ public class IntegrationExecutorTests
             integrationId, "Slow Integration", "slow",
             "Scheduled", "0 * * * *", typeof(SlowTestIntegration).FullName!,
             DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
-            TimeoutSeconds: 1);
+            TimeoutSeconds: 1, WorkItemId: Guid.NewGuid());
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
@@ -119,9 +121,9 @@ public class IntegrationExecutorTests
             integrationId, "Test Integration", "test",
             "Scheduled", "0 * * * *", typeof(SuccessfulTestIntegration).FullName!,
             DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
-            TimeoutSeconds: null);
+            TimeoutSeconds: null, WorkItemId: Guid.NewGuid());
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
@@ -141,9 +143,9 @@ public class IntegrationExecutorTests
             integrationId, "Self Cancelling Integration", "self-cancelling",
             "Scheduled", "0 * * * *", typeof(SelfCancellingTestIntegration).FullName!,
             DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
-            TimeoutSeconds: 60);
+            TimeoutSeconds: 60, WorkItemId: Guid.NewGuid());
 
-        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 

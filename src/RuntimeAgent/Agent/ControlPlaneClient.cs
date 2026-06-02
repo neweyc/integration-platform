@@ -9,7 +9,7 @@ public interface IControlPlaneClient
     Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct);
     Task<List<AgentPackageInfo>> ListPackagesAsync(CancellationToken ct);
     Task<byte[]> DownloadPackageAsync(Guid packageId, CancellationToken ct);
-    Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct);
+    Task<Guid> StartExecutionAsync(Guid workItemId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
     Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false);
 }
@@ -26,7 +26,8 @@ public record IntegrationItem(
     DateTime? LeaseExpiresAt,
     string TriggerSource,
     Guid? ManualRunRequestId,
-    int? TimeoutSeconds = null);
+    int? TimeoutSeconds = null,
+    Guid? WorkItemId = null);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,
@@ -71,11 +72,11 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
-    public async Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct)
+    public async Task<Guid> StartExecutionAsync(Guid workItemId, CancellationToken ct)
     {
         var response = await http.PostAsJsonAsync(
             "/api/agent/executions",
-            new { IntegrationId = integrationId, TriggerSource = triggerSource, ManualRunRequestId = manualRunRequestId },
+            new { WorkItemId = workItemId },
             JsonOptions, ct);
 
         response.EnsureSuccessStatusCode();

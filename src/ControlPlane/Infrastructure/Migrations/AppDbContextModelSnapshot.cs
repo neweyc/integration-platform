@@ -154,6 +154,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WorkItemId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IntegrationId");
@@ -287,12 +290,6 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<DateTime?>("LastDispatchedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("LeaseExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("LeaseOwnerId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("NextRunAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -306,8 +303,6 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("IntegrationId")
                         .IsUnique();
-
-                    b.HasIndex("TenantId", "LeaseExpiresAt");
 
                     b.HasIndex("TenantId", "NextRunAt");
 
@@ -364,6 +359,63 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Environment", "Status");
 
                     b.ToTable("manual_run_requests", (string)null);
+                });
+
+            modelBuilder.Entity("Shared.Domain.WorkItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ClaimExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimOwner")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ManualRunRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TriggerSource")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IntegrationId", "Status");
+
+                    b.HasIndex("TenantId", "Environment", "Status", "AvailableAt");
+
+                    b.ToTable("work_items", (string)null);
                 });
 
             modelBuilder.Entity("Shared.Domain.Secret", b =>
@@ -600,6 +652,25 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.WorkItem", b =>
+                {
+                    b.HasOne("Shared.Domain.Integration", "Integration")
+                        .WithMany()
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Integration");
 
                     b.Navigation("Tenant");
                 });

@@ -33,7 +33,10 @@ public class RequestManualRunHandlerTests
         _repository.HasPendingRunAsync(_tenantId, _integrationId).Returns(false);
         _repository.HasRunningExecutionAsync(_tenantId, _integrationId).Returns(false);
         _repository.CreateAsync(Arg.Any<ManualRunRequest>()).Returns(call =>
-            call.Arg<ManualRunRequest>());
+        {
+            var request = call.Arg<ManualRunRequest>();
+            return request;
+        });
 
         var command = new RequestManualRunCommand(_tenantId, _integrationId);
         var result = await _handler.HandleAsync(command);
@@ -41,6 +44,16 @@ public class RequestManualRunHandlerTests
         Assert.Equal(_integrationId, result.IntegrationId);
         Assert.Equal("Sync Orders", result.IntegrationName);
         Assert.Equal("production", result.Environment);
+
+        await _repository.Received(1).CreateWorkItemAsync(
+            Arg.Is<WorkItem>(w =>
+                w.TenantId == _tenantId
+                && w.IntegrationId == _integrationId
+                && w.Environment == "production"
+                && w.TriggerSource == TriggerSource.Manual
+                && w.Status == WorkItemStatus.Pending
+                && w.ManualRunRequestId == result.RequestId),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

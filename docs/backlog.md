@@ -98,13 +98,13 @@ Acceptance criteria:
 
 Completed notes:
 
-- `integration_schedule_states` now includes `LeaseOwnerId` and `LeaseExpiresAt` columns.
-- When polling, the control plane claims due integrations with a 5-minute lease.
-- Another agent cannot claim work while an active lease exists.
-- Expired leases can be reclaimed by any agent on the next poll.
-- `POST /api/agent/executions` validates lease ownership for scheduled integrations.
-- Lease is cleared when execution completes.
-- Tests cover lease state transitions, ownership validation, and expiry behavior.
+- Lease ownership moved from `integration_schedule_states` to persisted `work_items`.
+- When polling, the control plane claims work items with a 5-minute claim expiry.
+- Another agent cannot start work while an active claim exists.
+- Expired claims can be reclaimed by any agent on the next poll.
+- `POST /api/agent/executions` validates active work-item claim ownership.
+- Work items are marked `Completed`, `Failed`, or `TimedOut` when execution completes.
+- Tests cover claim state transitions, ownership validation, and expiry behavior.
 
 ### Graceful Agent Shutdown
 
@@ -154,7 +154,7 @@ Completed notes:
 
 ### Work Item Execution Queue
 
-**Status:** Todo
+**Status:** Done
 
 Introduce a general persisted work item model so scheduled, manual, webhook, and future event sources all feed the same agent execution path.
 
@@ -173,6 +173,20 @@ Notes:
 - This should become the long-term dispatch model.
 - Durable scheduling state can remain the producer of scheduled work items.
 - This unlocks webhook and queue/event triggers without creating separate execution paths.
+
+Completed notes:
+
+- Added persisted `work_items` table with tenant, integration, environment, trigger source, status, availability, claim owner, claim expiry, manual-run link, and payload fields.
+- Scheduled polling creates and claims scheduled work items instead of returning raw schedule claims.
+- Manual run requests create pending manual work items that agents claim through the same poll path.
+- Agent execution start now validates an active work-item claim and records `WorkItemId` on the execution record.
+- Execution completion mirrors terminal state back to the work item.
+- Expired manual and scheduled claims can be reclaimed.
+- Tests cover claim ownership helpers, scheduled and manual claiming, expired-claim reclaim, running-execution guards, agent API start/complete flow, and runtime-agent work-item execution.
+
+Remaining limitations:
+
+- Webhook and future event triggers are not implemented yet, but the payload and trigger-source fields are in place for them.
 
 ### Webhook Trigger Support
 
@@ -242,13 +256,13 @@ Limitations:
 
 **Status:** Done
 
-Prevent scheduled polling from consuming a due schedule when the integration already has a running execution. The current start path rejects overlap, but the poll path can still advance scheduling state and set a lease before the overlap is discovered.
+Prevent scheduled polling from consuming a due schedule when the integration already has a running execution. The start path rejects overlap, and the poll path also avoids creating or claiming work while an execution is active.
 
 Acceptance criteria:
 
 - `GET /api/agent/integrations` does not claim or advance scheduled work for integrations with an active running execution.
 - Schedule state is not advanced when no execution can start.
-- Existing lease recovery behavior still works for abandoned scheduled claims.
+- Existing work-item claim recovery behavior still works for abandoned scheduled claims.
 - Tests cover scheduled poll behavior when an execution is already running.
 
 Completed notes:

@@ -153,7 +153,7 @@ The agent injects these as environment variables (or via a typed context object)
 
 Scheduling state is stored in `integration_schedule_states` with `last_dispatched_at` and `next_run_at`. New scheduled integrations calculate their first run from the integration creation time. Existing scheduled integrations use the persisted `next_run_at`, so agent restarts do not cause all jobs to run immediately.
 
-Current limitation: schedule claiming advances state before the agent starts execution. If an agent crashes after claiming work but before opening an execution record, that scheduled occurrence may be skipped. A future lease model should allow abandoned claims to expire and be retried.
+Due scheduled integrations create claimed work items. Manual run requests also create pending work items. Agents claim work items with a 5-minute claim expiry, start executions from claimed work items, and completion mirrors the terminal execution state back to the work item. If an agent crashes after claiming work but before opening an execution record, another agent can reclaim the work item after the claim expires.
 
 ---
 

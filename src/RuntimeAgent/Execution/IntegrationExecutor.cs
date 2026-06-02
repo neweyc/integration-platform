@@ -20,8 +20,13 @@ public class IntegrationExecutor(
             return;
         }
 
-        var executionId = await controlPlane.StartExecutionAsync(
-            integration.Id, integration.TriggerSource, integration.ManualRunRequestId, ct);
+        if (!integration.WorkItemId.HasValue)
+        {
+            logger.LogWarning("Skipping {Name} — no work item ID provided", integration.Name);
+            return;
+        }
+
+        var executionId = await controlPlane.StartExecutionAsync(integration.WorkItemId.Value, ct);
         var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId);
         var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(

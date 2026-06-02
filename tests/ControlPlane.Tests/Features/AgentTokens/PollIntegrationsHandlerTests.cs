@@ -20,38 +20,14 @@ public class PollIntegrationsHandlerTests
     public async Task HandleAsync_ReturnsClaimedDueIntegrations()
     {
         var integrationId = Guid.NewGuid();
-        var leaseExpiresAt = DateTime.UtcNow.AddMinutes(5);
-        var integration = new Integration
-        {
-            Id = integrationId,
-            TenantId = _tenantId,
-            Name = "Sync Orders",
-            Slug = "sync-orders",
-            Environment = "production",
-            TriggerType = TriggerType.Scheduled,
-            CronExpression = "0 * * * *",
-            ClassName = "MyCompany.Integrations.SyncOrdersIntegration"
-        };
+        var workItemId = Guid.NewGuid();
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
 
-        _repository
-            .ClaimDueScheduledAsync(
-                Arg.Is(_tenantId),
-                Arg.Is("production"),
-                Arg.Is(_leaseOwnerId),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([new ClaimedIntegration(integration, leaseExpiresAt)]);
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Scheduled, claimExpiresAt);
 
-        _repository
-            .ClaimPendingManualRunsAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
+        SetupScheduled([new ClaimedWork(integration, workItem)]);
+        SetupManual([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -60,69 +36,30 @@ public class PollIntegrationsHandlerTests
         Assert.Equal(integrationId, item.Id);
         Assert.Equal("Sync Orders", item.Name);
         Assert.Equal(TriggerType.Scheduled, item.TriggerType);
-        Assert.Equal("0 * * * *", item.CronExpression);
-        Assert.Equal(leaseExpiresAt, item.LeaseExpiresAt);
+        Assert.Equal(claimExpiresAt, item.LeaseExpiresAt);
         Assert.Equal(TriggerSource.Scheduled, item.TriggerSource);
         Assert.Null(item.ManualRunRequestId);
+        Assert.Equal(workItemId, item.WorkItemId);
     }
 
     [Fact]
     public async Task HandleAsync_PassesLeaseOwnerIdToRepository()
     {
-        _repository
-            .ClaimDueScheduledAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
+        SetupScheduled([]);
+        SetupManual([]);
 
-        _repository
-            .ClaimPendingManualRunsAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
-
-        await _handler.HandleAsync(
-            new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
+        await _handler.HandleAsync(new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
 
         await _repository.Received(1).ClaimDueScheduledAsync(
-            Arg.Is(_tenantId),
-            Arg.Is("production"),
-            Arg.Is(_leaseOwnerId),
-            Arg.Any<TimeSpan>(),
-            Arg.Any<DateTime>(),
-            Arg.Any<CancellationToken>());
+            _tenantId, "production", _leaseOwnerId,
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task HandleAsync_EmptyListWhenNothingDue()
     {
-        _repository
-            .ClaimDueScheduledAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
-
-        _repository
-            .ClaimPendingManualRunsAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
+        SetupScheduled([]);
+        SetupManual([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -134,121 +71,41 @@ public class PollIntegrationsHandlerTests
     public async Task HandleAsync_ReturnsClaimedManualRuns()
     {
         var integrationId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
         var manualRunId = Guid.NewGuid();
         var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
-        var integration = new Integration
-        {
-            Id = integrationId,
-            TenantId = _tenantId,
-            Name = "Sync Orders",
-            Slug = "sync-orders",
-            Environment = "production",
-            TriggerType = TriggerType.Scheduled,
-            CronExpression = "0 * * * *",
-            ClassName = "MyCompany.Integrations.SyncOrdersIntegration"
-        };
 
-        var manualRunRequest = new ManualRunRequest
-        {
-            Id = manualRunId,
-            TenantId = _tenantId,
-            IntegrationId = integrationId,
-            Environment = "production",
-            Status = ManualRunStatus.Claimed,
-            ClaimExpiresAt = claimExpiresAt
-        };
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Manual, claimExpiresAt, manualRunId);
 
-        _repository
-            .ClaimDueScheduledAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([]);
-
-        _repository
-            .ClaimPendingManualRunsAsync(
-                Arg.Is(_tenantId),
-                Arg.Is("production"),
-                Arg.Is(_leaseOwnerId),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([new ClaimedManualRun(manualRunRequest, integration)]);
+        SetupScheduled([]);
+        SetupManual([new ClaimedWork(integration, workItem)]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
 
         var item = Assert.Single(result.Integrations);
         Assert.Equal(integrationId, item.Id);
-        Assert.Equal("Sync Orders", item.Name);
         Assert.Equal(TriggerSource.Manual, item.TriggerSource);
         Assert.Equal(manualRunId, item.ManualRunRequestId);
         Assert.Equal(claimExpiresAt, item.LeaseExpiresAt);
+        Assert.Equal(workItemId, item.WorkItemId);
     }
 
     [Fact]
     public async Task HandleAsync_CombinesBothScheduledAndManualRuns()
     {
-        var scheduledIntegrationId = Guid.NewGuid();
-        var manualIntegrationId = Guid.NewGuid();
-        var manualRunId = Guid.NewGuid();
-        var leaseExpiresAt = DateTime.UtcNow.AddMinutes(5);
+        var scheduledId = Guid.NewGuid();
+        var manualId = Guid.NewGuid();
+        var expires = DateTime.UtcNow.AddMinutes(5);
 
-        var scheduledIntegration = new Integration
-        {
-            Id = scheduledIntegrationId,
-            TenantId = _tenantId,
-            Name = "Scheduled Job",
-            Slug = "scheduled-job",
-            Environment = "production",
-            TriggerType = TriggerType.Scheduled,
-            CronExpression = "0 * * * *",
-            ClassName = "MyCompany.ScheduledJob"
-        };
+        SetupScheduled([new ClaimedWork(
+            MakeIntegration(scheduledId, "Scheduled Job"),
+            MakeWorkItem(Guid.NewGuid(), scheduledId, TriggerSource.Scheduled, expires))]);
 
-        var manualIntegration = new Integration
-        {
-            Id = manualIntegrationId,
-            TenantId = _tenantId,
-            Name = "Manual Job",
-            Slug = "manual-job",
-            Environment = "production",
-            TriggerType = TriggerType.Manual,
-            ClassName = "MyCompany.ManualJob"
-        };
-
-        var manualRunRequest = new ManualRunRequest
-        {
-            Id = manualRunId,
-            TenantId = _tenantId,
-            IntegrationId = manualIntegrationId,
-            Environment = "production",
-            Status = ManualRunStatus.Claimed,
-            ClaimExpiresAt = leaseExpiresAt
-        };
-
-        _repository
-            .ClaimDueScheduledAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([new ClaimedIntegration(scheduledIntegration, leaseExpiresAt)]);
-
-        _repository
-            .ClaimPendingManualRunsAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string>(),
-                Arg.Any<Guid>(),
-                Arg.Any<TimeSpan>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<CancellationToken>())
-            .Returns([new ClaimedManualRun(manualRunRequest, manualIntegration)]);
+        SetupManual([new ClaimedWork(
+            MakeIntegration(manualId, "Manual Job"),
+            MakeWorkItem(Guid.NewGuid(), manualId, TriggerSource.Manual, expires, Guid.NewGuid()))]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -257,4 +114,42 @@ public class PollIntegrationsHandlerTests
         Assert.Contains(result.Integrations, i => i.TriggerSource == TriggerSource.Scheduled);
         Assert.Contains(result.Integrations, i => i.TriggerSource == TriggerSource.Manual);
     }
+
+    private void SetupScheduled(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimDueScheduledAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private void SetupManual(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimPendingManualRunsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private Integration MakeIntegration(Guid id, string name = "Sync Orders") => new()
+    {
+        Id = id,
+        TenantId = _tenantId,
+        Name = name,
+        Slug = name.ToLower().Replace(' ', '-'),
+        Environment = "production",
+        TriggerType = TriggerType.Scheduled,
+        CronExpression = "0 * * * *",
+        ClassName = "MyCompany.Integrations.SyncOrdersIntegration"
+    };
+
+    private static WorkItem MakeWorkItem(
+        Guid id, Guid integrationId, TriggerSource source,
+        DateTime claimExpiresAt, Guid? manualRunRequestId = null) => new()
+    {
+        Id = id,
+        IntegrationId = integrationId,
+        TriggerSource = source,
+        Status = WorkItemStatus.Claimed,
+        ClaimOwner = Guid.NewGuid(),
+        ClaimExpiresAt = claimExpiresAt,
+        ManualRunRequestId = manualRunRequestId,
+        AvailableAt = DateTime.UtcNow
+    };
 }

@@ -57,6 +57,10 @@ internal sealed class IntegrationTestDatabase : IAsyncDisposable
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(ConnectionString)
+            // Snapshot maintenance is manual — suppress the pending-changes warning
+            // that fires when the hand-written snapshot has minor formatting differences
+            .ConfigureWarnings(w => w.Ignore(
+                Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options;
 
         return new AppDbContext(options);

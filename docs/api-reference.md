@@ -536,11 +536,11 @@ Claims and returns work items for the token's environment. This includes both du
 
 Calling this endpoint:
 - Evaluates cron schedules for all enabled scheduled integrations in the token's environment
-- Claims due integrations with a 5-minute lease (prevents duplicate dispatch)
-- Claims pending manual run requests
-- Updates `integration_schedule_states` with `last_dispatched_at`, `next_run_at`, and lease info
-- Skips integrations with active leases held by other agents
-- Can reclaim integrations with expired leases
+- Creates and claims due scheduled work items with a 5-minute claim lease
+- Claims pending manual work items
+- Updates `integration_schedule_states` with `last_dispatched_at` and `next_run_at`
+- Skips integrations with active work items or running executions
+- Can reclaim work items with expired claims
 
 **Response**
 ```json
@@ -555,7 +555,8 @@ Calling this endpoint:
       "className": "MyCompany.Integrations.SyncOrdersIntegration",
       "leaseExpiresAt": "2026-05-31T12:05:00Z",
       "triggerSource": "Scheduled",
-      "manualRunRequestId": null
+      "manualRunRequestId": null,
+      "workItemId": "uuid"
     },
     {
       "id": "uuid",
@@ -564,9 +565,10 @@ Calling this endpoint:
       "triggerType": "Manual",
       "cronExpression": null,
       "className": "MyCompany.Integrations.ManualJobIntegration",
-      "leaseExpiresAt": null,
+      "leaseExpiresAt": "2026-05-31T12:05:00Z",
       "triggerSource": "Manual",
-      "manualRunRequestId": "uuid"
+      "manualRunRequestId": "uuid",
+      "workItemId": "uuid"
     }
   ]
 }
@@ -574,9 +576,10 @@ Calling this endpoint:
 
 | Field | Description |
 |-------|-------------|
-| `leaseExpiresAt` | For scheduled runs, when the claim expires. If the agent crashes, another can reclaim after this time. |
+| `leaseExpiresAt` | When the work-item claim expires. If the agent crashes, another can reclaim after this time. |
 | `triggerSource` | `Scheduled`, `Manual`, or `Webhook` — indicates how this run was triggered |
-| `manualRunRequestId` | For manual runs, the ID of the manual run request. Must be passed to `POST /api/agent/executions`. |
+| `manualRunRequestId` | For manual runs, the ID of the originating manual run request. |
+| `workItemId` | The claimed work item. Must be passed to `POST /api/agent/executions`. |
 
 ---
 
@@ -606,37 +609,24 @@ The token must be scoped to the requested environment — a token for `staging` 
 ### `POST /api/agent/executions`
 
 Opens an execution record before running an integration. The control plane validates:
-- Integration exists and belongs to the token's tenant
-- Integration matches the token's environment
-- Integration is enabled
-- For scheduled integrations: the requesting agent holds an active lease
-- For manual runs: the manual run request exists, was claimed by this agent, and is still in Claimed status
+- Work item exists and belongs to the token's tenant
+- Work item claim is active and owned by this agent token
+- Work item is in `Claimed` status
+- Integration exists, is enabled, and matches the token's environment
+- No other execution is currently running for the integration
 
 **Auth:** `X-Agent-Token`
 
 **Request**
 ```json
 {
-  "integrationId": "uuid",
-  "triggerSource": "Scheduled",
-  "manualRunRequestId": null
-}
-```
-
-For manual runs:
-```json
-{
-  "integrationId": "uuid",
-  "triggerSource": "Manual",
-  "manualRunRequestId": "uuid"
+  "workItemId": "uuid"
 }
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `integrationId` | Required | The integration to execute |
-| `triggerSource` | `"Scheduled"` | `Scheduled`, `Manual`, or `Webhook` |
-| `manualRunRequestId` | `null` | Required when `triggerSource` is `Manual` |
+| `workItemId` | Required | The claimed work item to execute |
 
 **Response:** `201 Created`
 ```json
@@ -648,9 +638,9 @@ For manual runs:
 
 **Errors**
 - `401 Unauthorized` — invalid token
-- `404 Not Found` — integration does not exist or belongs to different tenant
-- `400 Bad Request` — integration is disabled, belongs to different environment, or manual run request validation failed
-- `409 Conflict` — manual run request was claimed by a different agent
+- `404 Not Found` — work item or integration does not exist
+- `400 Bad Request` — claim expired, work item is not claimable, integration is disabled, or integration belongs to a different environment
+- `409 Conflict` — work item is claimed by a different agent or the integration is already running
 
 ---
 

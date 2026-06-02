@@ -68,16 +68,12 @@ public class AgentExecutionApiIntegrationTests
         Assert.Equal(integration.Id, item.Id);
         Assert.Equal("Manual", item.TriggerSource);
         Assert.Equal(manualRun.RequestId, item.ManualRunRequestId);
+        Assert.NotNull(item.WorkItemId);
 
         var started = await PostJsonAsync<StartExecutionResponse>(
             client,
             "/api/agent/executions",
-            new
-            {
-                IntegrationId = integration.Id,
-                TriggerSource = "Manual",
-                ManualRunRequestId = manualRun.RequestId
-            },
+            new { WorkItemId = item.WorkItemId },
             HttpStatusCode.Created);
 
         var completeResponse = await client.PutAsJsonAsync(
@@ -219,6 +215,7 @@ public class AgentExecutionApiIntegrationTests
     private sealed record PollIntegrationResponse(
         Guid Id,
         string TriggerSource,
-        Guid? ManualRunRequestId);
+        Guid? ManualRunRequestId,
+        Guid? WorkItemId);
     private sealed record StartExecutionResponse(Guid ExecutionId);
 }

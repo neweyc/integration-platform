@@ -7,11 +7,11 @@ namespace ControlPlane.Features.AgentTokens;
 
 public class PollRepository(AppDbContext db) : IPollRepository
 {
-    public async Task<IReadOnlyList<ClaimedIntegration>> ClaimDueScheduledAsync(
+    public async Task<IReadOnlyList<ClaimedWork>> ClaimDueScheduledAsync(
         Guid tenantId,
         string environment,
-        Guid leaseOwnerId,
-        TimeSpan leaseDuration,
+        Guid claimOwner,
+        TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default)
     {
@@ -26,10 +26,34 @@ public class PollRepository(AppDbContext db) : IPollRepository
             .ToListAsync(ct);
 
         var integrationIds = integrations.Select(i => i.Id).ToList();
+
         var states = await db.IntegrationScheduleStates
             .Where(s => s.TenantId == tenantId && integrationIds.Contains(s.IntegrationId))
             .ToDictionaryAsync(s => s.IntegrationId, ct);
 
+        var activeWorkItemIntegrations = await db.WorkItems
+            .Where(w => w.TenantId == tenantId
+                     && integrationIds.Contains(w.IntegrationId)
+                     && (w.Status == WorkItemStatus.Pending
+                         || w.Status == WorkItemStatus.Started
+                         || (w.Status == WorkItemStatus.Claimed
+                             && w.ClaimExpiresAt != null
+                             && w.ClaimExpiresAt > now)))
+            .Select(w => w.IntegrationId)
+            .ToHashSetAsync(ct);
+
+        var expiredClaims = await db.WorkItems
+            .Include(w => w.Integration)
+            .Where(w => w.TenantId == tenantId
+                     && w.Environment == environment
+                     && integrationIds.Contains(w.IntegrationId)
+                     && w.TriggerSource == TriggerSource.Scheduled
+                     && w.Status == WorkItemStatus.Claimed
+                     && w.ClaimExpiresAt != null
+                     && w.ClaimExpiresAt <= now)
+            .ToListAsync(ct);
+
+        // Skip integrations that already have a running execution
         var runningIntegrations = await db.ExecutionRecords
             .Where(e => e.TenantId == tenantId
                      && integrationIds.Contains(e.IntegrationId)
@@ -37,22 +61,41 @@ public class PollRepository(AppDbContext db) : IPollRepository
             .Select(e => e.IntegrationId)
             .ToHashSetAsync(ct);
 
-        var claimed = new List<ClaimedIntegration>();
+        var claimed = new List<ClaimedWork>();
+        var claimExpiresAt = now.Add(claimDuration);
+
+        foreach (var workItem in expiredClaims)
+        {
+            if (workItem.Integration.Status != IntegrationStatus.Enabled)
+                continue;
+
+            if (runningIntegrations.Contains(workItem.IntegrationId))
+                continue;
+
+            workItem.ClaimOwner = claimOwner;
+            workItem.ClaimExpiresAt = claimExpiresAt;
+            workItem.UpdatedAt = now;
+
+            claimed.Add(new ClaimedWork(workItem.Integration, workItem));
+        }
+
+        var reclaimedIntegrationIds = claimed.Select(c => c.Integration.Id).ToHashSet();
 
         foreach (var integration in integrations)
         {
+            if (reclaimedIntegrationIds.Contains(integration.Id))
+                continue;
+
+            if (activeWorkItemIntegrations.Contains(integration.Id))
+                continue;
+
+            if (runningIntegrations.Contains(integration.Id))
+                continue;
+
             states.TryGetValue(integration.Id, out var state);
 
             try
             {
-                // Skip if another agent holds an active lease (not expired, not ours)
-                if (state is not null && state.HasActiveLease(now) && state.LeaseOwnerId != leaseOwnerId)
-                    continue;
-
-                // Skip if the integration is already running — don't advance state or claim
-                if (runningIntegrations.Contains(integration.Id))
-                    continue;
-
                 var decision = ScheduleStateCalculator.Evaluate(integration, state, now);
 
                 if (state is null)
@@ -67,19 +110,29 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
                 if (decision.IsDue)
                 {
-                    // Claim this integration with a lease
-                    var leaseExpiresAt = now.Add(leaseDuration);
+                    // Advance schedule state so next poll doesn't re-evaluate this period
                     state.LastDispatchedAt = decision.LastDispatchedAt;
                     state.NextRunAt = decision.NextRunAt;
-                    state.LeaseOwnerId = leaseOwnerId;
-                    state.LeaseExpiresAt = leaseExpiresAt;
                     state.UpdatedAt = now;
 
-                    claimed.Add(new ClaimedIntegration(integration, leaseExpiresAt));
+                    // Create and immediately claim a work item
+                    var workItem = new WorkItem
+                    {
+                        TenantId = tenantId,
+                        IntegrationId = integration.Id,
+                        Environment = environment,
+                        TriggerSource = TriggerSource.Scheduled,
+                        Status = WorkItemStatus.Claimed,
+                        AvailableAt = now,
+                        ClaimOwner = claimOwner,
+                        ClaimExpiresAt = claimExpiresAt
+                    };
+                    db.WorkItems.Add(workItem);
+
+                    claimed.Add(new ClaimedWork(integration, workItem));
                 }
                 else
                 {
-                    // Not due - just update schedule state without claiming
                     state.NextRunAt = decision.NextRunAt;
                     state.UpdatedAt = now;
                 }
@@ -97,27 +150,28 @@ public class PollRepository(AppDbContext db) : IPollRepository
         return claimed;
     }
 
-    public async Task<IReadOnlyList<ClaimedManualRun>> ClaimPendingManualRunsAsync(
+    public async Task<IReadOnlyList<ClaimedWork>> ClaimPendingManualRunsAsync(
         Guid tenantId,
         string environment,
-        Guid agentTokenId,
+        Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
-        // Find pending or expired-claim manual run requests for this environment
-        var claimableRequests = await db.ManualRunRequests
-            .Include(r => r.Integration)
-            .Where(r => r.TenantId == tenantId
-                     && r.Environment == environment
-                     && (r.Status == ManualRunStatus.Pending ||
-                         (r.Status == ManualRunStatus.Claimed && r.ClaimExpiresAt != null && r.ClaimExpiresAt <= now)))
+        // Find pending work items or those with an expired claim
+        var claimable = await db.WorkItems
+            .Include(w => w.Integration)
+            .Where(w => w.TenantId == tenantId
+                     && w.Environment == environment
+                     && w.TriggerSource == TriggerSource.Manual
+                     && (w.Status == WorkItemStatus.Pending
+                         || (w.Status == WorkItemStatus.Claimed && w.ClaimExpiresAt != null && w.ClaimExpiresAt <= now)))
             .ToListAsync(ct);
 
-        // Get integrations that are currently running to prevent overlap
-        var integrationIds = claimableRequests.Select(r => r.IntegrationId).Distinct().ToList();
+        var integrationIds = claimable.Select(w => w.IntegrationId).Distinct().ToList();
+
         var runningIntegrations = await db.ExecutionRecords
             .Where(e => e.TenantId == tenantId
                      && integrationIds.Contains(e.IntegrationId)
@@ -125,31 +179,27 @@ public class PollRepository(AppDbContext db) : IPollRepository
             .Select(e => e.IntegrationId)
             .ToHashSetAsync(ct);
 
-        var claimed = new List<ClaimedManualRun>();
+        var claimed = new List<ClaimedWork>();
         var claimExpiresAt = now.Add(claimDuration);
 
-        foreach (var request in claimableRequests)
+        foreach (var workItem in claimable)
         {
-            // Skip if the integration is not enabled
-            if (request.Integration.Status != IntegrationStatus.Enabled)
+            if (workItem.Integration.Status != IntegrationStatus.Enabled)
                 continue;
 
-            // Skip if the integration is already running (prevents overlap)
-            if (runningIntegrations.Contains(request.IntegrationId))
+            if (runningIntegrations.Contains(workItem.IntegrationId))
                 continue;
 
             // Skip if another agent holds an active claim (not ours, not expired)
-            if (request.HasActiveClaim(now) && request.ClaimedByAgentTokenId != agentTokenId)
+            if (workItem.HasActiveClaim(now) && workItem.ClaimOwner != claimOwner)
                 continue;
 
-            // Claim the request
-            request.Status = ManualRunStatus.Claimed;
-            request.ClaimedByAgentTokenId = agentTokenId;
-            request.ClaimedAt = now;
-            request.ClaimExpiresAt = claimExpiresAt;
-            request.UpdatedAt = now;
+            workItem.Status = WorkItemStatus.Claimed;
+            workItem.ClaimOwner = claimOwner;
+            workItem.ClaimExpiresAt = claimExpiresAt;
+            workItem.UpdatedAt = now;
 
-            claimed.Add(new ClaimedManualRun(request, request.Integration));
+            claimed.Add(new ClaimedWork(workItem.Integration, workItem));
         }
 
         await db.SaveChangesAsync(ct);

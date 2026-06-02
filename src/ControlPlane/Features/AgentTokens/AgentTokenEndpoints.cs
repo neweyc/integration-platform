@@ -146,10 +146,8 @@ public static class AgentTokenEndpoints
                 new StartExecutionCommand(
                     agentToken.TenantId,
                     agentToken.Environment,
-                    request.IntegrationId,
-                    agentToken.Id,
-                    request.TriggerSource,
-                    request.ManualRunRequestId), ct);
+                    request.WorkItemId,
+                    agentToken.Id), ct);
 
             return Results.Created($"/api/agent/executions/{result.ExecutionId}", result);
         });
@@ -232,7 +230,7 @@ public record AgentPackageItem(Guid Id, string Name, string Version, string Sha2
 public record AgentPackagesResponse(IReadOnlyList<AgentPackageItem> Packages);
 
 public record CreateAgentTokenRequest(string Name, string Environment);
-public record StartExecutionRequest(Guid IntegrationId, string TriggerSource = "Scheduled", Guid? ManualRunRequestId = null);
+public record StartExecutionRequest(Guid WorkItemId);
 public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage, bool IsTimeout = false);
 public record RecordExecutionLogRequest(
     DateTime Timestamp,

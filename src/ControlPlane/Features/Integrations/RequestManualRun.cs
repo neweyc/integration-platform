@@ -25,6 +25,7 @@ public interface IManualRunRepository
     Task<bool> HasPendingRunAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
     Task<bool> HasRunningExecutionAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
     Task<ManualRunRequest> CreateAsync(ManualRunRequest request, CancellationToken ct = default);
+    Task<WorkItem> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default);
 }
 
 public class RequestManualRunHandler(IManualRunRepository repository)
@@ -48,16 +49,29 @@ public class RequestManualRunHandler(IManualRunRepository repository)
         if (await repository.HasRunningExecutionAsync(command.TenantId, command.IntegrationId, ct))
             throw new ConflictException($"Integration '{integration.Name}' is already running.");
 
+        var now = DateTime.UtcNow;
         var request = new ManualRunRequest
         {
             TenantId = command.TenantId,
             IntegrationId = command.IntegrationId,
             Environment = integration.Environment,
             Status = ManualRunStatus.Pending,
-            RequestedAt = DateTime.UtcNow
+            RequestedAt = now
         };
 
         var created = await repository.CreateAsync(request, ct);
+
+        // Create a pending work item so agents can pick up this manual run
+        await repository.CreateWorkItemAsync(new WorkItem
+        {
+            TenantId = command.TenantId,
+            IntegrationId = command.IntegrationId,
+            Environment = integration.Environment,
+            TriggerSource = TriggerSource.Manual,
+            Status = WorkItemStatus.Pending,
+            AvailableAt = now,
+            ManualRunRequestId = created.Id
+        }, ct);
 
         return new ManualRunResult(
             created.Id,
@@ -78,10 +92,13 @@ public class ManualRunRepository(AppDbContext db) : IManualRunRepository
 
     public async Task<bool> HasPendingRunAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default)
     {
-        return await db.ManualRunRequests
-            .AnyAsync(r => r.TenantId == tenantId
-                        && r.IntegrationId == integrationId
-                        && (r.Status == ManualRunStatus.Pending || r.Status == ManualRunStatus.Claimed),
+        return await db.WorkItems
+            .AnyAsync(w => w.TenantId == tenantId
+                        && w.IntegrationId == integrationId
+                        && w.TriggerSource == TriggerSource.Manual
+                        && (w.Status == WorkItemStatus.Pending
+                            || w.Status == WorkItemStatus.Claimed
+                            || w.Status == WorkItemStatus.Started),
                 ct);
     }
 
@@ -99,5 +116,12 @@ public class ManualRunRepository(AppDbContext db) : IManualRunRepository
         db.ManualRunRequests.Add(request);
         await db.SaveChangesAsync(ct);
         return request;
+    }
+
+    public async Task<WorkItem> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default)
+    {
+        db.WorkItems.Add(workItem);
+        await db.SaveChangesAsync(ct);
+        return workItem;
     }
 }

@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AssemblyPackage> AssemblyPackages => Set<AssemblyPackage>();
     public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
+    public DbSet<WorkItem> WorkItems => Set<WorkItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +107,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(e => e.Status).HasConversion<string>();
             b.Property(e => e.TriggerSource).HasConversion<string>().HasMaxLength(20);
             b.Property(e => e.ErrorMessage).HasMaxLength(4000);
+            b.Property(e => e.WorkItemId);
 
             b.HasOne(e => e.Integration)
              .WithMany()
@@ -168,7 +170,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             b.HasIndex(s => s.IntegrationId).IsUnique();
             b.HasIndex(s => new { s.TenantId, s.NextRunAt });
-            b.HasIndex(s => new { s.TenantId, s.LeaseExpiresAt });
 
             b.HasOne(s => s.Integration)
              .WithMany()
@@ -178,6 +179,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(s => s.Tenant)
              .WithMany()
              .HasForeignKey(s => s.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkItem>(b =>
+        {
+            b.ToTable("work_items");
+            b.HasKey(w => w.Id);
+            b.Property(w => w.Environment).IsRequired().HasMaxLength(50);
+            b.Property(w => w.TriggerSource).HasConversion<string>().HasMaxLength(20);
+            b.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
+            b.Property(w => w.Payload);
+
+            b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.Status });
+            b.HasIndex(w => new { w.TenantId, w.Environment, w.Status, w.AvailableAt });
+
+            b.HasOne(w => w.Integration)
+             .WithMany()
+             .HasForeignKey(w => w.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(w => w.Tenant)
+             .WithMany()
+             .HasForeignKey(w => w.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

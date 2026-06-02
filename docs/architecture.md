@@ -111,10 +111,11 @@ users             — id, tenant_id, email, password_hash, role
 secrets           — id, tenant_id, environment, key, encrypted_value
 integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name
 agent_tokens      — id, tenant_id, name, environment, token_hash
-execution_records — id, tenant_id, integration_id, environment, status, started_at, completed_at, error_message
+execution_records — id, tenant_id, integration_id, work_item_id, environment, status, started_at, completed_at, error_message
 execution_logs    — id, tenant_id, execution_record_id, timestamp, level, message, exception, properties_json
 assembly_packages — id, tenant_id, name, version, file_name, data, size_bytes, sha256_hash
-integration_schedule_states — id, tenant_id, integration_id, last_dispatched_at, next_run_at, lease_owner_id, lease_expires_at
+integration_schedule_states — id, tenant_id, integration_id, last_dispatched_at, next_run_at
+work_items        — id, tenant_id, integration_id, environment, trigger_source, status, available_at, claim_owner, claim_expires_at, manual_run_request_id, payload
 ```
 
 ---
@@ -185,18 +186,18 @@ The agent implements several safety mechanisms:
 - **Concurrency limit** — A configurable `MaxConcurrentExecutions` setting (default: 5) limits how many integrations can run simultaneously using a semaphore
 - **In-flight tracking** — Each integration is tracked while executing; if a poll cycle fires while an integration is still running, it will be skipped to prevent overlapping executions
 - **Durable cron scheduling** — The control plane evaluates cron schedules and persists `LastDispatchedAt` and `NextRunAt` in `integration_schedule_states`
-- **Lease-based dispatch** — When claiming due work, the control plane sets a lease owner and expiry (5 minutes). Other agents cannot claim the same integration while a lease is active.
+- **Work-item dispatch** — Scheduled and manual triggers create work items. Agents claim work items with a claim owner and expiry (5 minutes), preventing duplicate dispatch while allowing abandoned claims to be reclaimed.
 
-The poll endpoint claims due scheduled integrations inside a serializable transaction. This prevents agent restarts from resetting scheduling state. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
+The poll endpoint creates or claims work items inside a serializable transaction. This prevents agent restarts from resetting scheduling state. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
 
-### Lease recovery
+### Claim recovery
 
-Each schedule claim includes a lease that expires after 5 minutes. This prevents two scenarios:
+Each claimed work item includes a claim expiry after 5 minutes. This prevents two scenarios:
 
-1. **Agent crash after poll** — If an agent polls, claims an integration, then crashes before starting execution, another agent can reclaim the work after the lease expires.
-2. **Duplicate dispatch** — While a lease is active, other agents polling for the same environment will skip the claimed integration.
+1. **Agent crash after poll** — If an agent polls, claims a work item, then crashes before starting execution, another agent can reclaim the work after the claim expires.
+2. **Duplicate dispatch** — While a claim is active, other agents polling for the same environment will skip the claimed work item.
 
-When starting execution (`POST /api/agent/executions`), the control plane validates that the requesting agent holds an active lease for scheduled integrations. When execution completes, the lease is cleared.
+When starting execution (`POST /api/agent/executions`), the control plane validates that the requesting agent holds an active claim for the work item. When execution completes, the work item is marked `Completed`, `Failed`, or `TimedOut`.
 
 ### Agent ↔ Control Plane protocol
 

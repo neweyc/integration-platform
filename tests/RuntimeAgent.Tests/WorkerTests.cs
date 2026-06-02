@@ -96,13 +96,14 @@ public class WorkerTests
             typeof(SuccessfulTestIntegration).FullName!,
             leaseExpires,
             "Scheduled",
-            null);
+            null,
+            WorkItemId: Guid.NewGuid());
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem> { integration });
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string>());
-        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
 
         var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
@@ -123,7 +124,7 @@ public class WorkerTests
         }
 
         // Assert - should have attempted to start execution for the claimed integration
-        await controlPlane.Received().StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await controlPlane.Received().StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -307,13 +308,14 @@ public class WorkerTests
             integrationId, "Slow Integration", "slow",
             "Scheduled", "0 * * * *",
             typeof(SlowTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            WorkItemId: Guid.NewGuid());
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem> { integration });
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string>());
-        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
         var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
@@ -371,13 +373,14 @@ public class WorkerTests
             integrationId, "Sync Orders", "sync-orders",
             "Scheduled", "0 * * * *",
             typeof(SuccessfulTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            WorkItemId: Guid.NewGuid());
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
             .Returns(new List<IntegrationItem> { integration });
         controlPlane.GetSecretsAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string>());
-        controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
 
         var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,

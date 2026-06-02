@@ -23,31 +23,38 @@ public class PollRepositoryIntegrationTests
         {
             db.Tenants.Add(tenant);
             db.Integrations.AddRange(reclaimableIntegration, runningIntegration);
-            db.ManualRunRequests.AddRange(
-                new ManualRunRequest
-                {
-                    TenantId = tenant.Id,
-                    IntegrationId = reclaimableIntegration.Id,
-                    Environment = "production",
-                    Status = ManualRunStatus.Claimed,
-                    ClaimedByAgentTokenId = previousAgentId,
-                    ClaimedAt = now.AddMinutes(-10),
-                    ClaimExpiresAt = now.AddMinutes(-5)
-                },
-                new ManualRunRequest
-                {
-                    TenantId = tenant.Id,
-                    IntegrationId = runningIntegration.Id,
-                    Environment = "production",
-                    Status = ManualRunStatus.Pending
-                });
+
+            // A work item with an expired claim that can be reclaimed
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = reclaimableIntegration.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Manual,
+                Status = WorkItemStatus.Claimed,
+                AvailableAt = now.AddMinutes(-10),
+                ClaimOwner = previousAgentId,
+                ClaimExpiresAt = now.AddMinutes(-5)
+            });
+
+            // A work item that is pending but the integration is running
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = runningIntegration.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Manual,
+                Status = WorkItemStatus.Pending,
+                AvailableAt = now
+            });
+
             db.ExecutionRecords.Add(new ExecutionRecord
             {
                 TenantId = tenant.Id,
                 IntegrationId = runningIntegration.Id,
                 Environment = "production",
                 Status = ExecutionStatus.Running,
-                TriggerSource = TriggerSource.Scheduled
+                TriggerSource = TriggerSource.Manual
             });
             await db.SaveChangesAsync();
         }
@@ -56,31 +63,25 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimPendingManualRunsAsync(
-                tenant.Id,
-                "production",
-                newAgentId,
-                TimeSpan.FromMinutes(5),
-                now,
-                CancellationToken.None);
+                tenant.Id, "production", newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
-            Assert.Equal(reclaimableIntegration.Id, claimed[0].Request.IntegrationId);
-            Assert.Equal(newAgentId, claimed[0].Request.ClaimedByAgentTokenId);
-            Assert.Equal(ManualRunStatus.Claimed, claimed[0].Request.Status);
-            Assert.Equal(now.AddMinutes(5), claimed[0].Request.ClaimExpiresAt);
+            Assert.Equal(reclaimableIntegration.Id, claimed[0].Integration.Id);
+            Assert.Equal(newAgentId, claimed[0].WorkItem.ClaimOwner);
+            Assert.Equal(WorkItemStatus.Claimed, claimed[0].WorkItem.Status);
+            Assert.Equal(now.AddMinutes(5), claimed[0].WorkItem.ClaimExpiresAt);
         }
 
         await using (var db = database.CreateContext())
         {
-            var runningRequest = db.ManualRunRequests.Single(r => r.IntegrationId == runningIntegration.Id);
-
-            Assert.Equal(ManualRunStatus.Pending, runningRequest.Status);
-            Assert.Null(runningRequest.ClaimedByAgentTokenId);
+            var runningWorkItem = db.WorkItems.Single(w => w.IntegrationId == runningIntegration.Id);
+            Assert.Equal(WorkItemStatus.Pending, runningWorkItem.Status);
+            Assert.Null(runningWorkItem.ClaimOwner);
         }
     }
 
     [Fact]
-    public async Task ClaimDueScheduledAsync_AcquiresLeaseAndPersistsScheduleState()
+    public async Task ClaimDueScheduledAsync_AcquiresWorkItemAndPersistsScheduleState()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();
         if (database is null)
@@ -102,26 +103,24 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id,
-                "production",
-                agentId,
-                TimeSpan.FromMinutes(5),
-                now,
-                CancellationToken.None);
+                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
             Assert.Equal(integration.Id, claimed[0].Integration.Id);
-            Assert.Equal(now.AddMinutes(5), claimed[0].LeaseExpiresAt);
+            Assert.Equal(WorkItemStatus.Claimed, claimed[0].WorkItem.Status);
+            Assert.Equal(agentId, claimed[0].WorkItem.ClaimOwner);
+            Assert.Equal(now.AddMinutes(5), claimed[0].WorkItem.ClaimExpiresAt);
         }
 
         await using (var db = database.CreateContext())
         {
             var state = db.IntegrationScheduleStates.Single(s => s.IntegrationId == integration.Id);
-
-            Assert.Equal(agentId, state.LeaseOwnerId);
-            Assert.Equal(now.AddMinutes(5), state.LeaseExpiresAt);
             Assert.NotNull(state.LastDispatchedAt);
             Assert.NotNull(state.NextRunAt);
+
+            var workItem = db.WorkItems.Single(w => w.IntegrationId == integration.Id);
+            Assert.Equal(WorkItemStatus.Claimed, workItem.Status);
+            Assert.Equal(agentId, workItem.ClaimOwner);
         }
     }
 
@@ -135,8 +134,6 @@ public class PollRepositoryIntegrationTests
         var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
         var agentId = Guid.NewGuid();
         var now = DateTime.UtcNow.Date.AddHours(12);
-
-        // Both integrations are due
         var runningIntegration = CreateIntegration(tenant.Id, "running-job", now.AddMinutes(-1));
         var freeIntegration = CreateIntegration(tenant.Id, "free-job", now.AddMinutes(-1));
 
@@ -144,7 +141,6 @@ public class PollRepositoryIntegrationTests
         {
             db.Tenants.Add(tenant);
             db.Integrations.AddRange(runningIntegration, freeIntegration);
-            // Mark one integration as already running
             db.ExecutionRecords.Add(new ExecutionRecord
             {
                 TenantId = tenant.Id,
@@ -162,16 +158,107 @@ public class PollRepositoryIntegrationTests
             var claimed = await repository.ClaimDueScheduledAsync(
                 tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
-            // Only the free integration should be claimed
             Assert.Single(claimed);
             Assert.Equal(freeIntegration.Id, claimed[0].Integration.Id);
         }
 
         await using (var db = database.CreateContext())
         {
-            // Running integration's schedule state should not have been advanced
-            var state = db.IntegrationScheduleStates.SingleOrDefault(s => s.IntegrationId == runningIntegration.Id);
-            Assert.Null(state);
+            Assert.False(db.WorkItems.Any(w => w.IntegrationId == runningIntegration.Id));
+        }
+    }
+
+    [Fact]
+    public async Task ClaimDueScheduledAsync_SkipsIntegrationWithActiveWorkItem()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var agentId = Guid.NewGuid();
+        var now = DateTime.UtcNow.Date.AddHours(12);
+        var integration = CreateIntegration(tenant.Id, "job", now.AddMinutes(-1));
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            db.Integrations.Add(integration);
+            // Pre-existing active work item (another agent already claimed this period)
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = integration.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Scheduled,
+                Status = WorkItemStatus.Started,
+                AvailableAt = now,
+                ClaimOwner = Guid.NewGuid(),
+                ClaimExpiresAt = now.AddMinutes(5)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimDueScheduledAsync(
+                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+
+            Assert.Empty(claimed);
+        }
+    }
+
+    [Fact]
+    public async Task ClaimDueScheduledAsync_ReclaimsExpiredScheduledWorkItem()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var previousAgentId = Guid.NewGuid();
+        var newAgentId = Guid.NewGuid();
+        var now = DateTime.UtcNow.Date.AddHours(12);
+        var integration = CreateIntegration(tenant.Id, "expired-claim-job", now.AddMinutes(-10));
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            db.Integrations.Add(integration);
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = integration.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Scheduled,
+                Status = WorkItemStatus.Claimed,
+                AvailableAt = now.AddMinutes(-10),
+                ClaimOwner = previousAgentId,
+                ClaimExpiresAt = now.AddMinutes(-1)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimDueScheduledAsync(
+                tenant.Id, "production", newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+
+            Assert.Single(claimed);
+            Assert.Equal(integration.Id, claimed[0].Integration.Id);
+            Assert.Equal(newAgentId, claimed[0].WorkItem.ClaimOwner);
+            Assert.Equal(now.AddMinutes(5), claimed[0].WorkItem.ClaimExpiresAt);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var workItem = db.WorkItems.Single(w => w.IntegrationId == integration.Id);
+
+            Assert.Equal(WorkItemStatus.Claimed, workItem.Status);
+            Assert.Equal(newAgentId, workItem.ClaimOwner);
+            Assert.Equal(now.AddMinutes(5), workItem.ClaimExpiresAt);
         }
     }
 
@@ -205,17 +292,14 @@ public class PollRepositoryIntegrationTests
             await db.SaveChangesAsync();
         }
 
-        // Poll while running — should not be claimed
         await using (var db = database.CreateContext())
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
                 tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
-
             Assert.Empty(claimed);
         }
 
-        // Complete the execution
         await using (var db = database.CreateContext())
         {
             var record = db.ExecutionRecords.Single(e => e.Id == execution.Id);
@@ -223,13 +307,11 @@ public class PollRepositoryIntegrationTests
             await db.SaveChangesAsync();
         }
 
-        // Poll again — now it should be claimed
         await using (var db = database.CreateContext())
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
                 tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
-
             Assert.Single(claimed);
             Assert.Equal(integration.Id, claimed[0].Integration.Id);
         }

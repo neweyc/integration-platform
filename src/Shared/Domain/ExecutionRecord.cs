@@ -14,6 +14,9 @@ public class ExecutionRecord : Entity
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
     public string? ErrorMessage { get; set; }
+
+    // The work item that triggered this execution
+    public Guid? WorkItemId { get; set; }
 }
 
 public enum ExecutionStatus

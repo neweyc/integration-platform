@@ -22,61 +22,47 @@ public record AgentIntegrationItem(
     DateTime? LeaseExpiresAt,
     TriggerSource TriggerSource,
     Guid? ManualRunRequestId,
-    int? TimeoutSeconds = null);
+    int? TimeoutSeconds = null,
+    Guid? WorkItemId = null);
 
 public interface IPollRepository
 {
-    Task<IReadOnlyList<ClaimedIntegration>> ClaimDueScheduledAsync(
+    Task<IReadOnlyList<ClaimedWork>> ClaimDueScheduledAsync(
         Guid tenantId,
         string environment,
-        Guid leaseOwnerId,
-        TimeSpan leaseDuration,
+        Guid claimOwner,
+        TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default);
 
-    Task<IReadOnlyList<ClaimedManualRun>> ClaimPendingManualRunsAsync(
+    Task<IReadOnlyList<ClaimedWork>> ClaimPendingManualRunsAsync(
         Guid tenantId,
         string environment,
-        Guid agentTokenId,
+        Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default);
 }
 
-public record ClaimedIntegration(Integration Integration, DateTime LeaseExpiresAt);
-public record ClaimedManualRun(ManualRunRequest Request, Integration Integration);
+public record ClaimedWork(Integration Integration, WorkItem WorkItem);
 
 public class PollIntegrationsHandler(IPollRepository repository)
     : ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>
 {
-    // Leases expire after 5 minutes by default. If an agent crashes, work can be reclaimed.
-    private static readonly TimeSpan DefaultLeaseDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultClaimDuration = TimeSpan.FromMinutes(5);
 
     public async Task<PollIntegrationsResult> HandleAsync(PollIntegrationsCommand command, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
 
-        // Claim due scheduled integrations
         var scheduled = await repository.ClaimDueScheduledAsync(
-            command.TenantId,
-            command.Environment,
-            command.LeaseOwnerId,
-            DefaultLeaseDuration,
-            now,
-            ct);
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
-        // Claim pending manual run requests (uses same lease duration)
         var manualRuns = await repository.ClaimPendingManualRunsAsync(
-            command.TenantId,
-            command.Environment,
-            command.LeaseOwnerId,
-            DefaultLeaseDuration,
-            now,
-            ct);
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var items = new List<AgentIntegrationItem>();
 
-        // Add scheduled integrations
         foreach (var c in scheduled)
         {
             items.Add(new AgentIntegrationItem(
@@ -86,13 +72,13 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 c.Integration.TriggerType,
                 c.Integration.CronExpression,
                 c.Integration.ClassName,
-                c.LeaseExpiresAt,
+                c.WorkItem.ClaimExpiresAt,
                 TriggerSource.Scheduled,
                 null,
-                c.Integration.TimeoutSeconds));
+                c.Integration.TimeoutSeconds,
+                c.WorkItem.Id));
         }
 
-        // Add manual runs
         foreach (var m in manualRuns)
         {
             items.Add(new AgentIntegrationItem(
@@ -102,10 +88,11 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 m.Integration.TriggerType,
                 m.Integration.CronExpression,
                 m.Integration.ClassName,
-                m.Request.ClaimExpiresAt,
+                m.WorkItem.ClaimExpiresAt,
                 TriggerSource.Manual,
-                m.Request.Id,
-                m.Integration.TimeoutSeconds));
+                m.WorkItem.ManualRunRequestId,
+                m.Integration.TimeoutSeconds,
+                m.WorkItem.Id));
         }
 
         return new PollIntegrationsResult(items);
