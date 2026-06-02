@@ -30,6 +30,13 @@ public class PollRepository(AppDbContext db) : IPollRepository
             .Where(s => s.TenantId == tenantId && integrationIds.Contains(s.IntegrationId))
             .ToDictionaryAsync(s => s.IntegrationId, ct);
 
+        var runningIntegrations = await db.ExecutionRecords
+            .Where(e => e.TenantId == tenantId
+                     && integrationIds.Contains(e.IntegrationId)
+                     && e.Status == ExecutionStatus.Running)
+            .Select(e => e.IntegrationId)
+            .ToHashSetAsync(ct);
+
         var claimed = new List<ClaimedIntegration>();
 
         foreach (var integration in integrations)
@@ -40,6 +47,10 @@ public class PollRepository(AppDbContext db) : IPollRepository
             {
                 // Skip if another agent holds an active lease (not expired, not ours)
                 if (state is not null && state.HasActiveLease(now) && state.LeaseOwnerId != leaseOwnerId)
+                    continue;
+
+                // Skip if the integration is already running — don't advance state or claim
+                if (runningIntegrations.Contains(integration.Id))
                     continue;
 
                 var decision = ScheduleStateCalculator.Evaluate(integration, state, now);

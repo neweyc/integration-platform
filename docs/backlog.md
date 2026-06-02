@@ -180,7 +180,7 @@ Acceptance criteria:
 
 ### Scheduled Claim Running-Execution Guard
 
-**Status:** Todo
+**Status:** Done
 
 Prevent scheduled polling from consuming a due schedule when the integration already has a running execution. The current start path rejects overlap, but the poll path can still advance scheduling state and set a lease before the overlap is discovered.
 
@@ -190,6 +190,13 @@ Acceptance criteria:
 - Schedule state is not advanced when no execution can start.
 - Existing lease recovery behavior still works for abandoned scheduled claims.
 - Tests cover scheduled poll behavior when an execution is already running.
+
+Completed notes:
+
+- `PollRepository.ClaimDueScheduledAsync` now checks active running executions before schedule evaluation.
+- Due scheduled integrations with running executions are skipped without creating or advancing schedule state.
+- Once the running execution completes, the next poll can claim the due integration normally.
+- Integration tests cover skipping a running integration, preserving its schedule state, and claiming it after completion.
 
 ### Manual Run Claim Failure Handling
 
