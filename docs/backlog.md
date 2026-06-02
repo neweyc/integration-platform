@@ -13,6 +13,24 @@ Status key:
 
 ## P0 — MVP Completion
 
+### Version-Pinned Package Execution
+
+**Status:** Todo
+
+Make package-backed execution deterministic and operable by tying every integration run to an explicit package version. This is the highest-priority product gap because developers should upload packages through the control plane without needing access to agent hosts, and operators need to know exactly what code ran.
+
+Acceptance criteria:
+
+- Integration record can reference a specific package version.
+- Create/edit integration UI can select an uploaded package version.
+- Agent resolves the integration class from the pinned package, with local `IntegrationsPath` kept as a development fallback.
+- Execution record stores package id, package name, and package version used.
+- Execution history shows the package version for each run.
+- Updating an integration to a new package version affects only future executions.
+- Previous execution history remains tied to the original package version.
+- Rollback can be performed by repointing the integration to a previous package version.
+- Tests cover pinned execution, package version changes, rollback selection, and execution-history version retention.
+
 ### Durable Scheduling State
 
 **Status:** Done
@@ -364,19 +382,6 @@ Remaining limitations:
 - Integration definitions are not pinned to a package/version yet.
 - Loaded assemblies are still in the default load context and cannot be unloaded.
 - Package deletion in the control plane does not remove local agent cache entries.
-
-### Integration Version Pinning
-
-**Status:** Todo
-
-Tie integration definitions to a package/version.
-
-Acceptance criteria:
-
-- Integration record can reference a package version.
-- Agent resolves class name from the pinned package.
-- Execution record stores package id/version used.
-- UI shows package/version on integration detail and execution history.
 
 ### Package Rollback
 
