@@ -33,7 +33,8 @@ public class ListIntegrationsHandlerTests
                 Status = IntegrationStatus.Enabled,
                 TriggerType = TriggerType.Scheduled,
                 CronExpression = "0 * * * *",
-                ClassName = "MyCompany.Integrations.SyncOrdersIntegration"
+                ClassName = "MyCompany.Integrations.SyncOrdersIntegration",
+                TimeoutSeconds = 300
             }
         ]);
 
@@ -62,5 +63,6 @@ public class ListIntegrationsHandlerTests
         Assert.NotNull(integration.LastExecution);
         Assert.Equal(executionId, integration.LastExecution.Id);
         Assert.Equal("Failed", integration.LastExecution.Status);
+        Assert.Equal(300, integration.TimeoutSeconds);
     }
 }

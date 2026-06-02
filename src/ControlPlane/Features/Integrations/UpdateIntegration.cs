@@ -10,7 +10,8 @@ public record UpdateIntegrationCommand(
     string Name,
     string? Description,
     IntegrationStatus Status,
-    string? CronExpression) : ICommand<CreateIntegrationResult>;
+    string? CronExpression,
+    int? TimeoutSeconds = null) : ICommand<CreateIntegrationResult>;
 
 public interface IIntegrationUpdateRepository
 {
@@ -34,6 +35,7 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
         integration.Description = command.Description;
         integration.Status = command.Status;
         integration.CronExpression = command.CronExpression;
+        integration.TimeoutSeconds = command.TimeoutSeconds;
         integration.UpdatedAt = DateTime.UtcNow;
 
         var updated = await repository.UpdateAsync(integration, ct);
@@ -45,6 +47,9 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
     {
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Name is required.");
+
+        if (command.TimeoutSeconds is <= 0)
+            throw new ValidationException("Timeout must be greater than zero seconds.");
 
         // Cron expression is only relevant for scheduled integrations
         if (triggerType == TriggerType.Scheduled)

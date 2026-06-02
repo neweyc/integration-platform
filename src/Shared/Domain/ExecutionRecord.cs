@@ -20,7 +20,8 @@ public enum ExecutionStatus
 {
     Running,
     Succeeded,
-    Failed
+    Failed,
+    TimedOut
 }
 
 public enum TriggerSource

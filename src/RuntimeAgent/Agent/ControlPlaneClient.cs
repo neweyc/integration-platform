@@ -11,7 +11,7 @@ public interface IControlPlaneClient
     Task<byte[]> DownloadPackageAsync(Guid packageId, CancellationToken ct);
     Task<Guid> StartExecutionAsync(Guid integrationId, string triggerSource, Guid? manualRunRequestId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
-    Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct);
+    Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false);
 }
 
 public record AgentPackageInfo(Guid Id, string Name, string Version, string Sha256Hash);
@@ -25,7 +25,8 @@ public record IntegrationItem(
     string ClassName,
     DateTime? LeaseExpiresAt,
     string TriggerSource,
-    Guid? ManualRunRequestId);
+    Guid? ManualRunRequestId,
+    int? TimeoutSeconds = null);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,
@@ -83,11 +84,11 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
         return result!.ExecutionId;
     }
 
-    public async Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct)
+    public async Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false)
     {
         var response = await http.PutAsJsonAsync(
             $"/api/agent/executions/{executionId}",
-            new { Succeeded = succeeded, ErrorMessage = errorMessage },
+            new { Succeeded = succeeded, ErrorMessage = errorMessage, IsTimeout = isTimeout },
             JsonOptions, ct);
 
         if (!response.IsSuccessStatusCode)

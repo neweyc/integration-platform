@@ -33,13 +33,32 @@ public class IntegrationExecutor(
 
         logger.LogInformation("Starting execution {ExecutionId} for integration {Name}", executionId, integration.Name);
 
+        // Create a per-execution CTS that also enforces the configured timeout.
+        // Linked to ct so that agent shutdown still cancels this CTS.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        if (integration.TimeoutSeconds.HasValue)
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(integration.TimeoutSeconds.Value));
+
         try
         {
-            await instance.RunAsync(context, ct);
+            await instance.RunAsync(context, timeoutCts.Token);
 
             await integrationLogger.FlushAsync(ct);
             await controlPlane.CompleteExecutionAsync(executionId, succeeded: true, errorMessage: null, ct);
             logger.LogInformation("Execution {ExecutionId} succeeded", executionId);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested && timeoutCts.IsCancellationRequested && integration.TimeoutSeconds.HasValue)
+        {
+            // Timeout fired before agent shutdown — report as a distinct timed-out status
+            logger.LogWarning("Execution {ExecutionId} timed out after {Timeout}s",
+                executionId, integration.TimeoutSeconds.Value);
+            using var reportCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await integrationLogger.FlushAsync(reportCts.Token);
+            await controlPlane.CompleteExecutionAsync(
+                executionId, succeeded: false,
+                errorMessage: $"Execution timed out after {integration.TimeoutSeconds.Value}s",
+                reportCts.Token,
+                isTimeout: true);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

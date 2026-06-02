@@ -12,7 +12,8 @@ public record CreateIntegrationCommand(
     string Environment,
     TriggerType TriggerType,
     string? CronExpression,
-    string ClassName) : ICommand<CreateIntegrationResult>;
+    string ClassName,
+    int? TimeoutSeconds = null) : ICommand<CreateIntegrationResult>;
 
 public record CreateIntegrationResult(
     Guid Id,
@@ -22,7 +23,8 @@ public record CreateIntegrationResult(
     string Status,
     string TriggerType,
     string? CronExpression,
-    string ClassName);
+    string ClassName,
+    int? TimeoutSeconds = null);
 
 public interface IIntegrationRepository
 {
@@ -50,6 +52,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
             TriggerType = command.TriggerType,
             CronExpression = command.CronExpression,
             ClassName = command.ClassName,
+            TimeoutSeconds = command.TimeoutSeconds,
             Status = IntegrationStatus.Enabled
         };
 
@@ -79,6 +82,9 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
         if (!System.Text.RegularExpressions.Regex.IsMatch(command.ClassName, @"^[\w]+(?:\.[\w]+)*$"))
             throw new ValidationException("Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').");
 
+        if (command.TimeoutSeconds is <= 0)
+            throw new ValidationException("Timeout must be greater than zero seconds.");
+
         if (command.TriggerType == TriggerType.Scheduled)
         {
             if (string.IsNullOrWhiteSpace(command.CronExpression))
@@ -103,5 +109,5 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
     }
 
     internal static CreateIntegrationResult ToResult(Integration i) =>
-        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(), i.CronExpression, i.ClassName);
+        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(), i.CronExpression, i.ClassName, i.TimeoutSeconds);
 }

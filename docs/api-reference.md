@@ -123,6 +123,7 @@ Register a new user within the current tenant. First user automatically becomes 
       "triggerType": "Scheduled",
       "cronExpression": "0 * * * *",
       "className": "MyCompany.Integrations.SyncOrdersIntegration",
+      "timeoutSeconds": 300,
       "lastExecution": {
         "id": "uuid",
         "status": "Succeeded",
@@ -152,7 +153,8 @@ Register a new user within the current tenant. First user automatically becomes 
   "environment": "production",
   "triggerType": "Scheduled",
   "cronExpression": "0 * * * *",
-  "className": "MyCompany.Integrations.SyncOrdersIntegration"
+  "className": "MyCompany.Integrations.SyncOrdersIntegration",
+  "timeoutSeconds": 300
 }
 ```
 
@@ -164,6 +166,7 @@ Register a new user within the current tenant. First user automatically becomes 
 | `triggerType` | Yes | `Scheduled`, `Webhook`, or `Manual` |
 | `cronExpression` | When Scheduled | Cron expression for scheduling |
 | `className` | Yes | Fully-qualified .NET type name that implements `IIntegration` |
+| `timeoutSeconds` | No | Maximum execution duration in seconds. Must be greater than zero when provided. |
 
 **Response:** `201 Created` with integration object
 
@@ -238,9 +241,12 @@ Returns structured logs recorded for a single execution, oldest first.
   "name": "Sync Orders",
   "description": "Updated description",
   "status": "Disabled",
-  "cronExpression": "*/30 * * * *"
+  "cronExpression": "*/30 * * * *",
+  "timeoutSeconds": 300
 }
 ```
+
+Set `timeoutSeconds` to `null` or omit it to run without a timeout. Timed-out executions are recorded with status `TimedOut`.
 
 **Response:** Updated integration object
 

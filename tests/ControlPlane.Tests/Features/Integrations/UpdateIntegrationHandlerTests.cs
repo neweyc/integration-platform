@@ -45,6 +45,32 @@ public class UpdateIntegrationHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ValidTimeout_UpdatesTimeoutSeconds()
+    {
+        var existing = new Integration
+        {
+            Id = _integrationId,
+            TenantId = _tenantId,
+            Name = "Integration",
+            Slug = "integration",
+            Environment = "production",
+            TriggerType = TriggerType.Manual,
+            Status = IntegrationStatus.Enabled
+        };
+
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
+
+        var command = new UpdateIntegrationCommand(
+            _tenantId, _integrationId, "Integration", null,
+            IntegrationStatus.Enabled, null, TimeoutSeconds: 120);
+
+        var result = await _handler.HandleAsync(command);
+
+        Assert.Equal(120, result.TimeoutSeconds);
+        Assert.Equal(120, existing.TimeoutSeconds);
+    }
+
+    [Fact]
     public async Task HandleAsync_IntegrationNotFound_ThrowsNotFoundException()
     {
         _repository.GetByIdAsync(_tenantId, _integrationId).Returns((Integration?)null);
@@ -98,5 +124,28 @@ public class UpdateIntegrationHandlerTests
             IntegrationStatus.Enabled, "not-valid");
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task HandleAsync_InvalidTimeout_ThrowsValidationException(int timeoutSeconds)
+    {
+        var existing = new Integration
+        {
+            Id = _integrationId,
+            TenantId = _tenantId,
+            TriggerType = TriggerType.Manual
+        };
+
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
+
+        var command = new UpdateIntegrationCommand(
+            _tenantId, _integrationId, "Integration", null,
+            IntegrationStatus.Enabled, null, TimeoutSeconds: timeoutSeconds);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+
+        Assert.Equal("Timeout must be greater than zero seconds.", ex.Message);
     }
 }

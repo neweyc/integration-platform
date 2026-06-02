@@ -185,7 +185,7 @@ Acceptance criteria:
 
 ### Execution Timeouts
 
-**Status:** Todo
+**Status:** Done
 
 Prevent integrations from running forever.
 
@@ -195,6 +195,18 @@ Acceptance criteria:
 - Timeout cancels the integration through `CancellationToken`.
 - Timeout is recorded distinctly in execution history.
 - Logs include timeout context.
+
+Completed notes:
+
+- Integrations can configure `TimeoutSeconds` through API and UI.
+- Runtime agent links each execution token to the configured timeout and cancels timed-out runs.
+- Timed-out executions are reported to the control plane with status `TimedOut` and a timeout error message.
+- Timeout values are validated to be greater than zero when provided.
+- Tests cover timeout reporting, no-timeout execution, timeout validation, list response round-tripping, and cancellation that is not caused by timeout.
+
+Limitations:
+
+- Timeout enforcement depends on integration code honoring the provided `CancellationToken`.
 
 ### Scheduled Claim Running-Execution Guard
 

@@ -30,98 +30,131 @@ public class IntegrationExecutorTests
     [Fact]
     public async Task ExecuteAsync_UnknownClassName_SkipsExecution()
     {
-        // Arrange
         var integration = new IntegrationItem(
-            Guid.NewGuid(),
-            "Test Integration",
-            "test-integration",
-            "Scheduled",
-            "0 * * * *",
-            "Unknown.ClassName",
-            DateTime.UtcNow.AddMinutes(5),
-            "Scheduled",
-            null);
-        var secrets = new Dictionary<string, string>();
+            Guid.NewGuid(), "Test Integration", "test-integration",
+            "Scheduled", "0 * * * *", "Unknown.ClassName",
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
 
-        // Act
-        await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
 
-        // Assert - should not call StartExecutionAsync since class was not found
-        await _controlPlane.DidNotReceive().StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await _controlPlane.DidNotReceive().StartExecutionAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_SuccessfulRun_ReportsSuccess()
     {
-        // Arrange
         var executionId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var integration = new IntegrationItem(
-            integrationId,
-            "Test Integration",
-            "test-integration",
-            "Scheduled",
-            "0 * * * *",
-            typeof(SuccessfulTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5),
-            "Scheduled",
-            null);
-
-        var secrets = new Dictionary<string, string> { ["API_KEY"] = "test-key" };
+            integrationId, "Test Integration", "test-integration",
+            "Scheduled", "0 * * * *", typeof(SuccessfulTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
 
         _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
-
-        // Load the test assembly so the loader can find our test integration
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
-        // Act
-        await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string> { ["API_KEY"] = "test-key" }, CancellationToken.None);
 
-        // Assert
         await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
         await _controlPlane.Received(1).CompleteExecutionAsync(
-            executionId,
-            succeeded: true,
-            errorMessage: null,
-            Arg.Any<CancellationToken>());
+            executionId, succeeded: true, errorMessage: null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ExecuteAsync_FailingRun_ReportsFailure()
     {
-        // Arrange
         var executionId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var integration = new IntegrationItem(
-            integrationId,
-            "Failing Integration",
-            "failing-integration",
-            "Scheduled",
-            "0 * * * *",
-            typeof(FailingTestIntegration).FullName!,
-            DateTime.UtcNow.AddMinutes(5),
-            "Scheduled",
-            null);
-
-        var secrets = new Dictionary<string, string>();
+            integrationId, "Failing Integration", "failing-integration",
+            "Scheduled", "0 * * * *", typeof(FailingTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null);
 
         _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(executionId);
-
-        // Load the test assembly
         _loader.LoadFromDirectory(AppContext.BaseDirectory);
 
-        // Act
-        await _executor.ExecuteAsync(integration, secrets, CancellationToken.None);
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
 
-        // Assert
-        await _controlPlane.Received(1).StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
         await _controlPlane.Received(1).CompleteExecutionAsync(
-            executionId,
-            succeeded: false,
+            executionId, succeeded: false,
             Arg.Is<string>(msg => msg.Contains("Integration failed intentionally")),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TimeoutExpires_ReportsTimedOut()
+    {
+        SlowTestIntegration.ExecutionStarted = new TaskCompletionSource();
+
+        var executionId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
+        var integration = new IntegrationItem(
+            integrationId, "Slow Integration", "slow",
+            "Scheduled", "0 * * * *", typeof(SlowTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            TimeoutSeconds: 1);
+
+        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+        _loader.LoadFromDirectory(AppContext.BaseDirectory);
+
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
+
+        await _controlPlane.Received(1).CompleteExecutionAsync(
+            executionId, succeeded: false,
+            Arg.Is<string?>(msg => msg != null && msg.Contains("timed out")),
+            Arg.Any<CancellationToken>(),
+            isTimeout: true);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NoTimeoutConfigured_CompletesNormally()
+    {
+        var executionId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
+        var integration = new IntegrationItem(
+            integrationId, "Test Integration", "test",
+            "Scheduled", "0 * * * *", typeof(SuccessfulTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            TimeoutSeconds: null);
+
+        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+        _loader.LoadFromDirectory(AppContext.BaseDirectory);
+
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
+
+        await _controlPlane.Received(1).CompleteExecutionAsync(
+            executionId, succeeded: true, errorMessage: null,
+            Arg.Any<CancellationToken>(), isTimeout: false);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_IntegrationCancelsBeforeTimeout_DoesNotReportTimedOut()
+    {
+        var executionId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
+        var integration = new IntegrationItem(
+            integrationId, "Self Cancelling Integration", "self-cancelling",
+            "Scheduled", "0 * * * *", typeof(SelfCancellingTestIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Scheduled", null,
+            TimeoutSeconds: 60);
+
+        _controlPlane.StartExecutionAsync(integrationId, Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+        _loader.LoadFromDirectory(AppContext.BaseDirectory);
+
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
+
+        await _controlPlane.DidNotReceive().CompleteExecutionAsync(
+            executionId,
+            Arg.Any<bool>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>(),
+            isTimeout: true);
     }
 }
 
@@ -130,7 +163,6 @@ public class SuccessfulTestIntegration : IIntegration
 {
     public Task RunAsync(IIntegrationContext context, CancellationToken ct)
     {
-        // Verify context is properly populated
         if (string.IsNullOrEmpty(context.Execution.Environment))
             throw new InvalidOperationException("Environment should be set");
 
@@ -147,10 +179,17 @@ public class FailingTestIntegration : IIntegration
     }
 }
 
+public class SelfCancellingTestIntegration : IIntegration
+{
+    public Task RunAsync(IIntegrationContext context, CancellationToken ct)
+    {
+        throw new OperationCanceledException(new CancellationToken(canceled: true));
+    }
+}
+
 // Test integration that blocks until cancelled
 public class SlowTestIntegration : IIntegration
 {
-    // Reset between tests that use this integration
     public static TaskCompletionSource ExecutionStarted = new();
 
     public async Task RunAsync(IIntegrationContext context, CancellationToken ct)

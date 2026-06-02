@@ -18,6 +18,9 @@ public class Integration : Entity
     // The runtime agent uses this to locate and instantiate the integration class.
     public string ClassName { get; set; } = string.Empty;
 
+    // Maximum seconds an execution may run before being cancelled. Null means no timeout.
+    public int? TimeoutSeconds { get; set; }
+
     public Tenant Tenant { get; set; } = null!;
 }
 

@@ -50,6 +50,21 @@ public class CreateIntegrationHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ValidTimeout_StoresTimeoutSeconds()
+    {
+        var command = new CreateIntegrationCommand(
+            _tenantId, "Sync Orders", "sync-orders", null,
+            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration",
+            TimeoutSeconds: 300);
+
+        _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
+
+        var result = await _handler.HandleAsync(command);
+
+        Assert.Equal(300, result.TimeoutSeconds);
+    }
+
+    [Fact]
     public async Task HandleAsync_DuplicateSlug_ThrowsConflictException()
     {
         var command = new CreateIntegrationCommand(
@@ -103,5 +118,20 @@ public class CreateIntegrationHandlerTests
         _repository.SlugExistsAsync(_tenantId, "report").Returns(false);
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task HandleAsync_InvalidTimeout_ThrowsValidationException(int timeoutSeconds)
+    {
+        var command = new CreateIntegrationCommand(
+            _tenantId, "Sync Orders", "sync-orders", null,
+            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration",
+            TimeoutSeconds: timeoutSeconds);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+
+        Assert.Equal("Timeout must be greater than zero seconds.", ex.Message);
     }
 }

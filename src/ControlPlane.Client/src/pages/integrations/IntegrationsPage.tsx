@@ -42,6 +42,7 @@ interface FormState {
   triggerType: TriggerType
   cronExpression: string
   className: string
+  timeoutSeconds: string
   status: 'Enabled' | 'Disabled'
 }
 
@@ -53,6 +54,7 @@ const emptyForm: FormState = {
   triggerType: 'Scheduled',
   cronExpression: '',
   className: '',
+  timeoutSeconds: '',
   status: 'Enabled',
 }
 
@@ -147,6 +149,7 @@ export function IntegrationsPage() {
       triggerType: integration.triggerType,
       cronExpression: integration.cronExpression ?? '',
       className: integration.className,
+      timeoutSeconds: integration.timeoutSeconds?.toString() ?? '',
       status: integration.status,
     })
     setFormError(null)
@@ -167,6 +170,7 @@ export function IntegrationsPage() {
         triggerType: form.triggerType,
         cronExpression: form.triggerType === 'Scheduled' ? form.cronExpression : undefined,
         className: form.className,
+        timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
       })
     } else if (editingId) {
       updateIntegration.mutate({
@@ -176,6 +180,7 @@ export function IntegrationsPage() {
           description: form.description || undefined,
           status: form.status,
           cronExpression: form.triggerType === 'Scheduled' ? form.cronExpression : undefined,
+          timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
         },
       })
     }
@@ -385,6 +390,19 @@ export function IntegrationsPage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="timeoutSeconds">Timeout seconds</Label>
+              <Input
+                id="timeoutSeconds"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="No timeout"
+                value={form.timeoutSeconds}
+                onChange={e => setForm(prev => ({ ...prev, timeoutSeconds: e.target.value }))}
+              />
+            </div>
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 

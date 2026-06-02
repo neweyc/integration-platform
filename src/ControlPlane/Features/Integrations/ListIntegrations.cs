@@ -15,6 +15,7 @@ public record ListIntegrationItem(
     string TriggerType,
     string? CronExpression,
     string ClassName,
+    int? TimeoutSeconds,
     ExecutionSummary? LastExecution);
 
 public class ListIntegrationsHandler(
@@ -44,6 +45,7 @@ public class ListIntegrationsHandler(
                     i.TriggerType.ToString(),
                     i.CronExpression,
                     i.ClassName,
+                    i.TimeoutSeconds,
                     lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution));
             })
             .ToList();

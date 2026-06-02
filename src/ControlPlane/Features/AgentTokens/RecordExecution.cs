@@ -21,7 +21,8 @@ public record CompleteExecutionCommand(
     Guid TenantId,
     Guid ExecutionId,
     bool Succeeded,
-    string? ErrorMessage) : ICommand<bool>;
+    string? ErrorMessage,
+    bool IsTimeout = false) : ICommand<bool>;
 
 public interface IExecutionRepository
 {
@@ -153,7 +154,11 @@ public class CompleteExecutionHandler(IExecutionRepository repository, ISchedule
         if (record is null)
             throw new NotFoundException("Execution record not found.");
 
-        record.Status = command.Succeeded ? ExecutionStatus.Succeeded : ExecutionStatus.Failed;
+        record.Status = command.Succeeded
+            ? ExecutionStatus.Succeeded
+            : command.IsTimeout
+                ? ExecutionStatus.TimedOut
+                : ExecutionStatus.Failed;
         record.CompletedAt = DateTime.UtcNow;
         record.ErrorMessage = command.ErrorMessage;
         record.UpdatedAt = DateTime.UtcNow;

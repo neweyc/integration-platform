@@ -254,6 +254,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("TimeoutSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TriggerType")
                         .IsRequired()
                         .HasColumnType("text");

@@ -13,10 +13,11 @@ export interface Integration {
   triggerType: TriggerType
   cronExpression?: string
   className: string
+  timeoutSeconds?: number | null
   lastExecution?: ExecutionSummary | null
 }
 
-export type ExecutionStatus = 'Running' | 'Succeeded' | 'Failed'
+export type ExecutionStatus = 'Running' | 'Succeeded' | 'Failed' | 'TimedOut'
 
 export interface ExecutionSummary {
   id: string
@@ -45,6 +46,7 @@ export interface CreateIntegrationRequest {
   triggerType: TriggerType
   cronExpression?: string
   className: string
+  timeoutSeconds?: number
 }
 
 export interface UpdateIntegrationRequest {
@@ -52,6 +54,7 @@ export interface UpdateIntegrationRequest {
   description?: string
   status: IntegrationStatus
   cronExpression?: string
+  timeoutSeconds?: number
 }
 
 export interface ListIntegrationsResponse {

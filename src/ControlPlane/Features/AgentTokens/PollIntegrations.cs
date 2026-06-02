@@ -21,7 +21,8 @@ public record AgentIntegrationItem(
     string ClassName,
     DateTime? LeaseExpiresAt,
     TriggerSource TriggerSource,
-    Guid? ManualRunRequestId);
+    Guid? ManualRunRequestId,
+    int? TimeoutSeconds = null);
 
 public interface IPollRepository
 {
@@ -87,7 +88,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 c.Integration.ClassName,
                 c.LeaseExpiresAt,
                 TriggerSource.Scheduled,
-                null));
+                null,
+                c.Integration.TimeoutSeconds));
         }
 
         // Add manual runs
@@ -100,9 +102,10 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 m.Integration.TriggerType,
                 m.Integration.CronExpression,
                 m.Integration.ClassName,
-                m.Request.ClaimExpiresAt, // Manual runs also have claim expiry
+                m.Request.ClaimExpiresAt,
                 TriggerSource.Manual,
-                m.Request.Id));
+                m.Request.Id,
+                m.Integration.TimeoutSeconds));
         }
 
         return new PollIntegrationsResult(items);

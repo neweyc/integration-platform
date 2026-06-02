@@ -171,7 +171,7 @@ public static class AgentTokenEndpoints
             if (agentToken is null) return Results.Unauthorized();
 
             await dispatcher.SendAsync(
-                new CompleteExecutionCommand(agentToken.TenantId, id, request.Succeeded, request.ErrorMessage), ct);
+                new CompleteExecutionCommand(agentToken.TenantId, id, request.Succeeded, request.ErrorMessage, request.IsTimeout), ct);
 
             return Results.NoContent();
         });
@@ -233,7 +233,7 @@ public record AgentPackagesResponse(IReadOnlyList<AgentPackageItem> Packages);
 
 public record CreateAgentTokenRequest(string Name, string Environment);
 public record StartExecutionRequest(Guid IntegrationId, string TriggerSource = "Scheduled", Guid? ManualRunRequestId = null);
-public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage);
+public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage, bool IsTimeout = false);
 public record RecordExecutionLogRequest(
     DateTime Timestamp,
     string Level,
