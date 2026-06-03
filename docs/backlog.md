@@ -256,6 +256,27 @@ Design rule:
 
 - Triggers produce `WorkItem`; agents execute `WorkItem`; integration code receives normalized context through `IIntegrationContext`.
 
+### Core Connectors
+
+**Status:** Todo
+
+Provide reusable code-first helpers for common external-system work without bloating the SDK runtime contract.
+
+Acceptance criteria:
+
+- Connector boundary is documented separately from SDK and trigger adapters.
+- HTTP/API connector supports auth from secrets, JSON requests, pagination, retry classification, and rate-limit handling.
+- SQL connector supports connections from secrets, query/command helpers, transactions, batching, and bulk upsert patterns.
+- File/SFTP connector supports list, download, upload, move/archive/error folders, checksums, and idempotency keys.
+- Object storage connector supports S3/Azure Blob/GCS list, upload, download, metadata, and etag/lease handling.
+- Notification connector supports email, Slack, Teams, and generic webhook notifications.
+- Connector operations accept cancellation and emit execution-aware logs.
+- Tests cover connector behavior with fake transports or local test services.
+
+Design rule:
+
+- SDK defines how code runs; connectors define reusable ways to talk to systems; trigger adapters define how work is created; integrations compose these pieces into business-specific logic.
+
 ### Retry Policy
 
 **Status:** Done

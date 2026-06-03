@@ -165,6 +165,12 @@ public interface IIntegration
 
 The agent discovers integration classes by scanning a directory for `.dll` files and finding all types that implement `IIntegration`. The control plane stores the fully-qualified class name (e.g. `MyCompany.Integrations.SyncOrdersIntegration`) which the agent uses for exact type lookup.
 
+### SDK, connectors, and integrations
+
+The SDK is the runtime contract: it defines how integration code plugs into the platform. Connectors are optional reusable libraries for common external-system work such as HTTP/API calls, SQL, SFTP/files, object storage, and notifications. Integrations are customer-specific business logic that composes the SDK and connectors.
+
+This boundary keeps `IntegrationPlatform.Sdk` small and stable while still making common integration chores consistent, observable, retry-aware, and easy to test. See [SDK, Connectors, Trigger Adapters, And Integrations](sdk-connectors-and-adapters.md).
+
 ### Assembly packages
 
 The control plane has an integration package API for tenant-scoped zip archives:

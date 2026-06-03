@@ -64,6 +64,7 @@ The strategic build order is:
 
 ### Integration authoring
 - [ ] Integration SDK NuGet package (`IntegrationPlatform.Sdk`)
+- [ ] Core connector libraries for HTTP/API, SQL, files/SFTP, object storage, and notifications
 - [ ] Example integration project (template)
 - [x] Documentation: writing and deploying your first integration
 
