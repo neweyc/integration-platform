@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: devuser
+          POSTGRES_PASSWORD: devpassword
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U devuser -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      INTEGRATION_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=postgres;Username=devuser;Password=devpassword
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check patch hygiene
+        run: git diff --check
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore .NET
+        run: dotnet restore IntegrationPlatform.slnx
+
+      - name: Build .NET with warnings as errors
+        run: dotnet build IntegrationPlatform.slnx --configuration Release --no-restore -warnaserror /nr:false
+
+      - name: Test .NET
+        run: dotnet test IntegrationPlatform.slnx --configuration Release --no-build --logger trx --results-directory TestResults /nr:false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: src/ControlPlane.Client/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: src/ControlPlane.Client
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: src/ControlPlane.Client
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: src/ControlPlane.Client
+

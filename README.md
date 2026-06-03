@@ -198,10 +198,12 @@ For production, use Docker Compose or Kubernetes with proper secrets management.
 ## Running tests
 
 ```bash
-dotnet test
+scripts/validate.sh
 ```
 
-Currently 125 tests covering control plane features, SDK, runtime agent behavior, and database-backed integration paths.
+This runs patch hygiene checks, .NET restore/build/test, and frontend lint/build when `node_modules` is present.
+
+Currently 180 tests cover control plane features, SDK behavior, runtime agent behavior, and database-backed integration paths.
 
 The control plane integration tests use a temporary PostgreSQL database when one is available. By default they try the local development database server at `127.0.0.1:5433` with `devuser` / `devpassword`. To point them at a different server, set:
 
@@ -211,3 +213,5 @@ dotnet test
 ```
 
 The test harness creates and drops isolated databases named `integration_platform_test_*`.
+
+See [docs/correctness-controls.md](docs/correctness-controls.md) for the CI gates and review checklist used to keep feature work honest.
