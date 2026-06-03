@@ -14,6 +14,13 @@ public class IntegrationRepository(AppDbContext db)
     public Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default) =>
         db.AssemblyPackages.AnyAsync(p => p.TenantId == tenantId && p.Id == packageId, ct);
 
+    public async Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        var tenant = await db.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+        return tenant?.Slug;
+    }
+
     public async Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default)
     {
         db.Integrations.Add(integration);

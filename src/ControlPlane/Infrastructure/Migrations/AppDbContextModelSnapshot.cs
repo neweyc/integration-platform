@@ -274,6 +274,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<Guid?>("PackageId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("EncryptedWebhookSecret")
+                        .HasColumnType("text");
+
                     b.Property<string>("TriggerType")
                         .IsRequired()
                         .HasColumnType("text");
@@ -407,6 +410,10 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<string>("Payload")
                         .HasColumnType("text");
 
+                    b.Property<string>("DeliveryId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -429,7 +436,53 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Environment", "Status", "AvailableAt");
 
+                    b.HasIndex("TenantId", "DeliveryId")
+                        .IsUnique()
+                        .HasFilter("\"DeliveryId\" IS NOT NULL");
+
                     b.ToTable("work_items", (string)null);
+                });
+
+            modelBuilder.Entity("Shared.Domain.WebhookDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeliveryId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "IntegrationId", "ReceivedAt");
+
+                    b.HasIndex("IntegrationId");
+
+                    b.ToTable("webhook_deliveries", (string)null);
                 });
 
             modelBuilder.Entity("Shared.Domain.Secret", b =>
@@ -676,6 +729,25 @@ namespace ControlPlane.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Shared.Domain.WorkItem", b =>
+                {
+                    b.HasOne("Shared.Domain.Integration", "Integration")
+                        .WithMany()
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Integration");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.WebhookDelivery", b =>
                 {
                     b.HasOne("Shared.Domain.Integration", "Integration")
                         .WithMany()

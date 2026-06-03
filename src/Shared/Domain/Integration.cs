@@ -24,6 +24,9 @@ public class Integration : Entity
     // Pinned package. Null means the agent resolves from its local IntegrationsPath in dev mode.
     public Guid? PackageId { get; set; }
 
+    // AES-encrypted webhook secret. Only set for TriggerType=Webhook.
+    public string? EncryptedWebhookSecret { get; set; }
+
     public Tenant Tenant { get; set; } = null!;
 }
 

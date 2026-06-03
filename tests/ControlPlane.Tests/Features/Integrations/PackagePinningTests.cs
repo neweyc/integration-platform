@@ -13,6 +13,7 @@ namespace ControlPlane.Tests.Features.Integrations;
 public class PackagePinningTests
 {
     private readonly Guid _tenantId = Guid.NewGuid();
+    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
 
     // CreateIntegration with package pin
 
@@ -20,7 +21,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithValidPackagePin_StoresPackageId()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo);
+        var handler = new CreateIntegrationHandler(repo, _encryption);
         var packageId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -39,7 +40,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithUnknownPackage_Throws()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo);
+        var handler = new CreateIntegrationHandler(repo, _encryption);
         var unknownId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -56,7 +57,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithNoPackage_PackageIdIsNull()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo);
+        var handler = new CreateIntegrationHandler(repo, _encryption);
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
         repo.CreateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());

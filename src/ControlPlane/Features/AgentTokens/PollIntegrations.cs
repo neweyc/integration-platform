@@ -24,7 +24,8 @@ public record AgentIntegrationItem(
     Guid? ManualRunRequestId,
     int? TimeoutSeconds = null,
     Guid? WorkItemId = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    string? Payload = null);
 
 public interface IPollRepository
 {
@@ -37,6 +38,14 @@ public interface IPollRepository
         CancellationToken ct = default);
 
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingManualRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<ClaimedWork>> ClaimPendingWebhookRunsAsync(
         Guid tenantId,
         string environment,
         Guid claimOwner,
@@ -62,6 +71,9 @@ public class PollIntegrationsHandler(IPollRepository repository)
         var manualRuns = await repository.ClaimPendingManualRunsAsync(
             command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
+        var webhookRuns = await repository.ClaimPendingWebhookRunsAsync(
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+
         var items = new List<AgentIntegrationItem>();
 
         foreach (var c in scheduled)
@@ -78,7 +90,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 null,
                 c.Integration.TimeoutSeconds,
                 c.WorkItem.Id,
-                c.Integration.PackageId));
+                c.Integration.PackageId,
+                c.WorkItem.Payload));
         }
 
         foreach (var m in manualRuns)
@@ -95,7 +108,26 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 m.WorkItem.ManualRunRequestId,
                 m.Integration.TimeoutSeconds,
                 m.WorkItem.Id,
-                m.Integration.PackageId));
+                m.Integration.PackageId,
+                m.WorkItem.Payload));
+        }
+
+        foreach (var w in webhookRuns)
+        {
+            items.Add(new AgentIntegrationItem(
+                w.Integration.Id,
+                w.Integration.Name,
+                w.Integration.Slug,
+                w.Integration.TriggerType,
+                w.Integration.CronExpression,
+                w.Integration.ClassName,
+                w.WorkItem.ClaimExpiresAt,
+                TriggerSource.Webhook,
+                null,
+                w.Integration.TimeoutSeconds,
+                w.WorkItem.Id,
+                w.Integration.PackageId,
+                w.WorkItem.Payload));
         }
 
         return new PollIntegrationsResult(items);

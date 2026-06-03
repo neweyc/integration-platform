@@ -22,8 +22,11 @@ public class WorkItem : Entity
     // For Manual trigger: links back to the originating ManualRunRequest
     public Guid? ManualRunRequestId { get; set; }
 
-    // Reserved for future webhook payloads
+    // Request body for Webhook triggers; null for Scheduled and Manual
     public string? Payload { get; set; }
+
+    // Webhook delivery ID for idempotency. Prevents double-processing if the sender retries.
+    public string? DeliveryId { get; set; }
 
     public bool HasActiveClaim(DateTime now) =>
         ClaimOwner.HasValue && ClaimExpiresAt.HasValue && ClaimExpiresAt.Value > now;

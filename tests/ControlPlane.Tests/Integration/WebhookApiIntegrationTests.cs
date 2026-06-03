@@ -1,0 +1,214 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using Shared.Domain;
+
+namespace ControlPlane.Tests.IntegrationTests;
+
+public class WebhookApiIntegrationTests
+{
+    [Fact]
+    public async Task Webhook_FullFlow_DeliversVerifiesQueuesAndAgentPollsWithPayload()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", new
+        {
+            TenantName = "Acme",
+            TenantSlug = $"acme-{Guid.NewGuid():N}",
+            AdminEmail = "admin@example.com",
+            AdminPassword = "Password123!"
+        });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        // Response carries the one-time secret, URL, and signing scheme.
+        var integration = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Incoming Orders",
+            Slug = $"incoming-orders-{Guid.NewGuid():N}",
+            Environment = "production",
+            TriggerType = "Webhook",
+            ClassName = "Acme.IncomingOrders"
+        }, HttpStatusCode.Created);
+
+        Assert.NotNull(integration.WebhookSecret);
+        Assert.StartsWith("whs_", integration.WebhookSecret);
+        Assert.NotNull(integration.WebhookUrl);
+        Assert.NotNull(integration.WebhookSigning);
+        Assert.Equal("HMAC-SHA256", integration.WebhookSigning!.Algorithm);
+        Assert.Equal("X-Integration-Signature", integration.WebhookSigning.SignatureHeader);
+
+        var agentToken = await PostJsonAsync<AgentTokenResponse>(client, "/api/agent-tokens",
+            new { Name = "Production agent", Environment = "production" }, HttpStatusCode.Created);
+
+        // Deliver a webhook with a valid signature
+        client.DefaultRequestHeaders.Authorization = null;
+        var body = """{"orderId":42,"total":19.99}""";
+        var deliveryId = Guid.NewGuid().ToString();
+
+        var firstDelivery = await PostWebhookAsync(
+            client, integration.WebhookUrl!, body, integration.WebhookSecret!, deliveryId);
+        Assert.Equal(HttpStatusCode.Accepted, firstDelivery.StatusCode);
+
+        // Agent polls and sees the webhook work item with the raw payload
+        client.DefaultRequestHeaders.Add("X-Agent-Token", agentToken.Token);
+        var poll = await GetJsonAsync<PollResponse>(client, "/api/agent/integrations");
+        var item = Assert.Single(poll.Integrations);
+        Assert.Equal(integration.Id, item.Id);
+        Assert.Equal("Webhook", item.TriggerSource);
+        Assert.Equal(body, item.Payload);
+        Assert.NotNull(item.WorkItemId);
+
+        // Verify the work item persisted with the delivery id
+        await using var db = database.CreateContext();
+        var workItem = db.WorkItems.Single(w => w.IntegrationId == integration.Id);
+        Assert.Equal(TriggerSource.Webhook, workItem.TriggerSource);
+        Assert.Equal(deliveryId, workItem.DeliveryId);
+        Assert.Equal(body, workItem.Payload);
+    }
+
+    [Fact]
+    public async Task Webhook_DuplicateDeliveryId_IsIdempotent()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var (_, integration) = await SetupWebhookIntegrationAsync(client);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        var body = """{"x":1}""";
+        var deliveryId = Guid.NewGuid().ToString();
+
+        var first = await PostWebhookAsync(client, integration.WebhookUrl!, body, integration.WebhookSecret!, deliveryId);
+        var second = await PostWebhookAsync(client, integration.WebhookUrl!, body, integration.WebhookSecret!, deliveryId);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+        await using var db = database.CreateContext();
+        Assert.Equal(1, db.WorkItems.Count(w => w.IntegrationId == integration.Id));
+    }
+
+    [Fact]
+    public async Task Webhook_BadSignature_Returns401AndQueuesNothing()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var (_, integration) = await SetupWebhookIntegrationAsync(client);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        using var content = new StringContent("""{"x":1}""", Encoding.UTF8);
+        content.Headers.Add("X-Integration-Signature", "sha256=deadbeef");
+        var response = await client.PostAsync(integration.WebhookUrl, content);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        await using var db = database.CreateContext();
+        Assert.Equal(0, db.WorkItems.Count(w => w.IntegrationId == integration.Id));
+    }
+
+    [Fact]
+    public async Task Webhook_UnknownIntegration_Returns404()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", new
+        {
+            TenantName = "Acme",
+            TenantSlug = $"acme-{Guid.NewGuid():N}",
+            AdminEmail = "admin@example.com",
+            AdminPassword = "Password123!"
+        });
+
+        using var content = new StringContent("{}", Encoding.UTF8);
+        content.Headers.Add("X-Integration-Signature", "sha256=x");
+        var response = await client.PostAsync($"/webhooks/{setup.TenantId}/ghost-integration", content);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private static async Task<(SetupResponse Setup, IntegrationResponse Integration)> SetupWebhookIntegrationAsync(HttpClient client)
+    {
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", new
+        {
+            TenantName = "Acme",
+            TenantSlug = $"acme-{Guid.NewGuid():N}",
+            AdminEmail = "admin@example.com",
+            AdminPassword = "Password123!"
+        });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        var integration = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Hook",
+            Slug = $"hook-{Guid.NewGuid():N}",
+            Environment = "production",
+            TriggerType = "Webhook",
+            ClassName = "Acme.Hook"
+        }, HttpStatusCode.Created);
+
+        return (setup, integration);
+    }
+
+    private static async Task<HttpResponseMessage> PostWebhookAsync(
+        HttpClient client, string url, string body, string secret, string deliveryId)
+    {
+        var bodyBytes = Encoding.UTF8.GetBytes(body);
+        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), bodyBytes);
+        var signature = "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
+
+        using var content = new ByteArrayContent(bodyBytes);
+        content.Headers.Add("X-Integration-Signature", signature);
+        content.Headers.Add("X-Integration-Delivery", deliveryId);
+
+        return await client.PostAsync(url, content);
+    }
+
+    private static async Task<T> GetJsonAsync<T>(HttpClient client, string url)
+    {
+        var response = await client.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<T>())!;
+    }
+
+    private static async Task<T> PostJsonAsync<T>(
+        HttpClient client, string url, object body, HttpStatusCode expected = HttpStatusCode.OK)
+    {
+        var response = await client.PostAsJsonAsync(url, body);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == expected,
+            $"Expected {expected}, got {response.StatusCode}. Body: {content}");
+        return (await response.Content.ReadFromJsonAsync<T>())!;
+    }
+
+    private sealed record SetupResponse(Guid TenantId, string Token);
+    private sealed record IntegrationResponse(
+        Guid Id, string? WebhookSecret, string? WebhookUrl, WebhookSigningResponse? WebhookSigning);
+    private sealed record WebhookSigningResponse(
+        string Algorithm, string SignatureHeader, string SignatureFormat, string DeliveryIdHeader);
+    private sealed record AgentTokenResponse(Guid Id, string Token);
+    private sealed record PollResponse(IReadOnlyList<PollIntegrationResponse> Integrations);
+    private sealed record PollIntegrationResponse(
+        Guid Id, string TriggerSource, Guid? WorkItemId, string? Payload);
+}

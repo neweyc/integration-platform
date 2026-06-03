@@ -45,7 +45,7 @@ Priority ladder:
 
 ### Version-Pinned Package Execution
 
-**Status:** Todo
+**Status:** Done
 
 Make package-backed execution deterministic and operable by tying every integration run to an explicit package version. This is the highest-priority product gap because developers should upload packages through the control plane without needing access to agent hosts, and operators need to know exactly what code ran.
 
@@ -186,11 +186,11 @@ Completed notes:
 
 Remaining limitations:
 
-- Webhook and future event triggers are not implemented yet, but the payload and trigger-source fields are in place for them.
+- Future event triggers are not implemented yet. Webhook triggers now use the work-item payload and trigger-source fields.
 
 ### Webhook Trigger Support
 
-**Status:** Todo
+**Status:** Done
 
 Allow external systems to trigger integrations through tenant/integration-specific webhook endpoints.
 
@@ -208,6 +208,21 @@ Notes:
 
 - The control plane should receive and validate webhooks, but the runtime agent should still execute the integration.
 - Replay support can follow after the first webhook implementation.
+
+Completed notes:
+
+- Webhook integrations get a generated shared secret and stable `/webhooks/{tenantSlug}/{integrationSlug}` URL.
+- Webhook delivery verifies `X-Integration-Signature` as an HMAC-SHA256 signature over the request body.
+- Optional `X-Integration-Delivery` provides idempotency and prevents duplicate work item creation.
+- Valid webhook requests create pending webhook work items with payload and delivery ID.
+- Agent polling claims webhook work items through the same work-item queue path as scheduled and manual runs.
+- Runtime agent passes webhook payload into `IIntegrationContext.Payload`.
+- Execution records use `TriggerSource.Webhook` because execution start reads the trigger from the claimed work item.
+- Tests cover valid webhook delivery, invalid signature, disabled integration, duplicate delivery IDs, environment-scoped claiming, and payload handoff.
+
+Remaining limitations:
+
+- Replay support is not implemented yet.
 
 ---
 

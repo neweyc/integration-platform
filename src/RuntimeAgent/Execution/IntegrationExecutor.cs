@@ -25,14 +25,14 @@ public class IntegrationExecutor(
 
         if (instance is null)
         {
-            logger.LogWarning("Skipping {Name} — no matching integration class found for '{ClassName}'",
+            logger.LogWarning("Skipping {Name}: no matching integration class found for '{ClassName}'",
                 integration.Name, integration.ClassName);
             return;
         }
 
         if (!integration.WorkItemId.HasValue)
         {
-            logger.LogWarning("Skipping {Name} — no work item ID provided", integration.Name);
+            logger.LogWarning("Skipping {Name}: no work item ID provided", integration.Name);
             return;
         }
 
@@ -44,7 +44,7 @@ public class IntegrationExecutor(
             Environment: options.Environment,
             ScheduledAt: DateTime.UtcNow);
 
-        var context = new ExecutionContext(secrets, integrationLogger, http, metadata);
+        var context = new ExecutionContext(secrets, integrationLogger, http, metadata, integration.Payload);
 
         logger.LogInformation("Starting execution {ExecutionId} for integration {Name}", executionId, integration.Name);
 
@@ -64,7 +64,7 @@ public class IntegrationExecutor(
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested && timeoutCts.IsCancellationRequested && integration.TimeoutSeconds.HasValue)
         {
-            // Timeout fired before agent shutdown — report as a distinct timed-out status
+            // Timeout fired before agent shutdown; report as a distinct timed-out status.
             logger.LogWarning("Execution {ExecutionId} timed out after {Timeout}s",
                 executionId, integration.TimeoutSeconds.Value);
             using var reportCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -77,8 +77,8 @@ public class IntegrationExecutor(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Agent is shutting down — report failure using a fresh token so the report can still reach the control plane
-            logger.LogWarning("Execution {ExecutionId} cancelled — agent is shutting down", executionId);
+            // Agent is shutting down; use a fresh token so the report can still reach the control plane.
+            logger.LogWarning("Execution {ExecutionId} cancelled: agent is shutting down", executionId);
             using var reportCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await integrationLogger.FlushAsync(reportCts.Token);
             await controlPlane.CompleteExecutionAsync(

@@ -161,7 +161,7 @@
   <text class="label" x="124" y="470">Trigger Sources</text>
   <text class="small" x="124" y="497">Scheduled cron</text>
   <text class="small" x="124" y="522">Manual run</text>
-  <text class="small" x="124" y="547">Webhook planned</text>
+  <text class="small" x="124" y="547">Webhook</text>
 
   <!-- Lines -->
   <path class="greenLine" d="M342 252 C370 252 382 252 420 252"/>

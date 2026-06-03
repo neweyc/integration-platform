@@ -154,7 +154,8 @@ Register a new user within the current tenant. First user automatically becomes 
   "triggerType": "Scheduled",
   "cronExpression": "0 * * * *",
   "className": "MyCompany.Integrations.SyncOrdersIntegration",
-  "timeoutSeconds": 300
+  "timeoutSeconds": 300,
+  "packageId": "uuid"
 }
 ```
 
@@ -167,8 +168,9 @@ Register a new user within the current tenant. First user automatically becomes 
 | `cronExpression` | When Scheduled | Cron expression for scheduling |
 | `className` | Yes | Fully-qualified .NET type name that implements `IIntegration` |
 | `timeoutSeconds` | No | Maximum execution duration in seconds. Must be greater than zero when provided. |
+| `packageId` | No | Uploaded package version to execute. `null` keeps local agent path fallback. |
 
-**Response:** `201 Created` with integration object
+**Response:** `201 Created` with integration object. Webhook integrations also return `webhookUrl` and one-time `webhookSecret`.
 
 ---
 
@@ -177,6 +179,28 @@ Register a new user within the current tenant. First user automatically becomes 
 **Auth:** JWT
 
 **Response:** Integration object or `404`
+
+---
+
+### `POST /webhooks/{tenantSlug}/{integrationSlug}`
+
+Receives an external webhook and queues a work item for the runtime agent.
+
+**Auth:** HMAC signature
+
+**Headers**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Integration-Signature` | Yes | `sha256={hex_hmac}` where the HMAC is SHA-256 over the raw request body using the integration's webhook secret. |
+| `X-Integration-Delivery` | No | Sender delivery ID for idempotency. Repeated IDs are acknowledged without creating another work item. |
+
+**Response**
+
+- `202 Accepted` when a new webhook work item is queued.
+- `200 OK` when a duplicate delivery ID was already queued.
+- `401 Unauthorized` for invalid signatures.
+- `404 Not Found` for unknown, non-webhook, or disabled integrations.
 
 ---
 
@@ -537,7 +561,7 @@ Claims and returns work items for the token's environment. This includes both du
 Calling this endpoint:
 - Evaluates cron schedules for all enabled scheduled integrations in the token's environment
 - Creates and claims due scheduled work items with a 5-minute claim lease
-- Claims pending manual work items
+- Claims pending manual and webhook work items
 - Updates `integration_schedule_states` with `last_dispatched_at` and `next_run_at`
 - Skips integrations with active work items or running executions
 - Can reclaim work items with expired claims
@@ -569,6 +593,19 @@ Calling this endpoint:
       "triggerSource": "Manual",
       "manualRunRequestId": "uuid",
       "workItemId": "uuid"
+    },
+    {
+      "id": "uuid",
+      "name": "Webhook Job",
+      "slug": "webhook-job",
+      "triggerType": "Webhook",
+      "cronExpression": null,
+      "className": "MyCompany.Integrations.WebhookJobIntegration",
+      "leaseExpiresAt": "2026-05-31T12:05:00Z",
+      "triggerSource": "Webhook",
+      "manualRunRequestId": null,
+      "workItemId": "uuid",
+      "payload": "{\"event\":\"created\"}"
     }
   ]
 }
@@ -580,6 +617,7 @@ Calling this endpoint:
 | `triggerSource` | `Scheduled`, `Manual`, or `Webhook` — indicates how this run was triggered |
 | `manualRunRequestId` | For manual runs, the ID of the originating manual run request. |
 | `workItemId` | The claimed work item. Must be passed to `POST /api/agent/executions`. |
+| `payload` | For webhook runs, the raw request body passed to `IIntegrationContext.Payload`. |
 
 ---
 

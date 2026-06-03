@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ControlPlane.Infrastructure;
@@ -10,8 +11,11 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         var (status, title) = exception switch
         {
             ValidationException => (StatusCodes.Status400BadRequest, "Validation Error"),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
+            // Kestrel aborts oversized request bodies with this — surface as 413, not 500
+            BadHttpRequestException bad => (bad.StatusCode, "Bad Request"),
             _ => (StatusCodes.Status500InternalServerError, "Server Error")
         };
 

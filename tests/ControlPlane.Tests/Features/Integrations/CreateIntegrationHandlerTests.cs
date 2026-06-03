@@ -8,12 +8,13 @@ namespace ControlPlane.Tests.Features.Integrations;
 public class CreateIntegrationHandlerTests
 {
     private readonly IIntegrationRepository _repository = Substitute.For<IIntegrationRepository>();
+    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly CreateIntegrationHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public CreateIntegrationHandlerTests()
     {
-        _handler = new CreateIntegrationHandler(_repository);
+        _handler = new CreateIntegrationHandler(_repository, _encryption);
         _repository.CreateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
     }
 

@@ -7,10 +7,12 @@ public class ExecutionContext(
     IReadOnlyDictionary<string, string> secrets,
     ILogger logger,
     HttpClient http,
-    ExecutionMetadata metadata) : IIntegrationContext
+    ExecutionMetadata metadata,
+    string? payload = null) : IIntegrationContext
 {
     public IReadOnlyDictionary<string, string> Secrets { get; } = secrets;
     public ILogger Logger { get; } = logger;
     public HttpClient Http { get; } = http;
     public ExecutionMetadata Execution { get; } = metadata;
+    public string? Payload { get; } = payload;
 }

@@ -18,6 +18,11 @@ public interface IIntegrationContext
 
     /// <summary>Metadata about the current execution.</summary>
     ExecutionMetadata Execution { get; }
+
+    /// <summary>
+    /// Raw request body for Webhook-triggered executions. Null for Scheduled and Manual triggers.
+    /// </summary>
+    string? Payload { get; }
 }
 
 public record ExecutionMetadata(

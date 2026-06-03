@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using Cronos;
 using Shared.Domain;
@@ -26,16 +28,31 @@ public record CreateIntegrationResult(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    // Webhook integrations only. The secret is shown once; the URL is the stable delivery path.
+    string? WebhookSecret = null,
+    string? WebhookUrl = null,
+    // Self-documenting signing instructions so integrators don't have to guess
+    WebhookSigning? WebhookSigning = null);
+
+/// <summary>
+/// Tells a webhook integrator exactly how to sign their requests.
+/// </summary>
+public record WebhookSigning(
+    string Algorithm,          // "HMAC-SHA256"
+    string SignatureHeader,    // "X-Integration-Signature"
+    string SignatureFormat,    // "sha256=<lowercase hex digest of the raw request body>"
+    string DeliveryIdHeader);  // "X-Integration-Delivery"; optional, enables idempotent retries.
 
 public interface IIntegrationRepository
 {
     Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default);
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
+    Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
     Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default);
 }
 
-public class CreateIntegrationHandler(IIntegrationRepository repository)
+public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>
 {
     public async Task<CreateIntegrationResult> HandleAsync(CreateIntegrationCommand command, CancellationToken ct = default)
@@ -49,6 +66,16 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
             && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
             throw new NotFoundException($"Package '{command.PackageId}' not found.");
 
+        // Generate a webhook secret for Webhook integrations. It is shown once and never retrievable again.
+        string? plainWebhookSecret = null;
+        string? encryptedWebhookSecret = null;
+        if (command.TriggerType == TriggerType.Webhook)
+        {
+            var secretBytes = RandomNumberGenerator.GetBytes(32);
+            plainWebhookSecret = "whs_" + Convert.ToHexString(secretBytes).ToLowerInvariant();
+            encryptedWebhookSecret = encryption.Encrypt(plainWebhookSecret);
+        }
+
         var integration = new Integration
         {
             TenantId = command.TenantId,
@@ -61,12 +88,28 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
             ClassName = command.ClassName,
             TimeoutSeconds = command.TimeoutSeconds,
             PackageId = command.PackageId,
+            EncryptedWebhookSecret = encryptedWebhookSecret,
             Status = IntegrationStatus.Enabled
         };
 
         var created = await repository.CreateAsync(integration, ct);
 
-        return ToResult(created);
+        string? webhookUrl = null;
+        WebhookSigning? signing = null;
+        if (created.TriggerType == TriggerType.Webhook)
+        {
+            var tenantSlug = await repository.GetTenantSlugAsync(command.TenantId, ct);
+            if (tenantSlug is not null)
+                webhookUrl = $"/webhooks/{tenantSlug}/{created.Slug}";
+
+            signing = new WebhookSigning(
+                WebhookHeaders.Algorithm,
+                WebhookHeaders.Signature,
+                WebhookHeaders.SignatureFormat,
+                WebhookHeaders.Delivery);
+        }
+
+        return ToResult(created, plainWebhookSecret, webhookUrl, signing);
     }
 
     private static void ValidateCommand(CreateIntegrationCommand command)
@@ -86,7 +129,6 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
         if (string.IsNullOrWhiteSpace(command.ClassName))
             throw new ValidationException("Class name is required.");
 
-        // Class name should look like a valid fully-qualified .NET type name
         if (!System.Text.RegularExpressions.Regex.IsMatch(command.ClassName, @"^[\w]+(?:\.[\w]+)*$"))
             throw new ValidationException("Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').");
 
@@ -116,7 +158,12 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
         }
     }
 
-    internal static CreateIntegrationResult ToResult(Integration i) =>
+    internal static CreateIntegrationResult ToResult(
+        Integration i,
+        string? webhookSecret = null,
+        string? webhookUrl = null,
+        WebhookSigning? webhookSigning = null) =>
         new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(),
-            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.PackageId);
+            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.PackageId,
+            webhookSecret, webhookUrl, webhookSigning);
 }

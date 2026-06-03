@@ -28,7 +28,8 @@ public record IntegrationItem(
     Guid? ManualRunRequestId,
     int? TimeoutSeconds = null,
     Guid? WorkItemId = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    string? Payload = null);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,

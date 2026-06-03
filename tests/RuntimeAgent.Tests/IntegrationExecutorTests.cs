@@ -158,6 +158,31 @@ public class IntegrationExecutorTests
             Arg.Any<CancellationToken>(),
             isTimeout: true);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WebhookRun_PassesPayloadToIntegrationContext()
+    {
+        PayloadCapturingIntegration.LastPayload = null;
+
+        var executionId = Guid.NewGuid();
+        var integration = new IntegrationItem(
+            Guid.NewGuid(), "Webhook Integration", "webhook",
+            "Webhook", null, typeof(PayloadCapturingIntegration).FullName!,
+            DateTime.UtcNow.AddMinutes(5), "Webhook", null,
+            WorkItemId: Guid.NewGuid(),
+            Payload: """{"event":"created"}""");
+
+        _controlPlane.StartExecutionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(executionId);
+        _loader.LoadFromDirectory(AppContext.BaseDirectory);
+
+        await _executor.ExecuteAsync(integration, new Dictionary<string, string>(), CancellationToken.None);
+
+        Assert.Equal("""{"event":"created"}""", PayloadCapturingIntegration.LastPayload);
+        await _controlPlane.Received(1).CompleteExecutionAsync(
+            executionId, succeeded: true, errorMessage: null,
+            Arg.Any<CancellationToken>(), isTimeout: false);
+    }
 }
 
 // Test integration that succeeds
@@ -199,5 +224,16 @@ public class SlowTestIntegration : IIntegration
         ExecutionStarted.TrySetResult();
         context.Logger.LogInformation("Slow integration started");
         await Task.Delay(Timeout.Infinite, ct);
+    }
+}
+
+public class PayloadCapturingIntegration : IIntegration
+{
+    public static string? LastPayload { get; set; }
+
+    public Task RunAsync(IIntegrationContext context, CancellationToken ct)
+    {
+        LastPayload = context.Payload;
+        return Task.CompletedTask;
     }
 }

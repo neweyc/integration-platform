@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,6 +74,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.CronExpression).HasMaxLength(100);
             b.Property(i => i.ClassName).IsRequired().HasMaxLength(500);
             b.Property(i => i.PackageId);
+            b.Property(i => i.EncryptedWebhookSecret);
 
             // Slug must be unique within a tenant
             b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();
@@ -200,9 +202,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(w => w.TriggerSource).HasConversion<string>().HasMaxLength(20);
             b.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
             b.Property(w => w.Payload);
+            b.Property(w => w.DeliveryId).HasMaxLength(200);
 
             b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.Status });
             b.HasIndex(w => new { w.TenantId, w.Environment, w.Status, w.AvailableAt });
+
+            // Idempotent webhook delivery — unique per tenant where a delivery ID is present
+            b.HasIndex(w => new { w.TenantId, w.DeliveryId })
+             .IsUnique()
+             .HasFilter("\"DeliveryId\" IS NOT NULL");
 
             b.HasOne(w => w.Integration)
              .WithMany()
@@ -212,6 +220,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(w => w.Tenant)
              .WithMany()
              .HasForeignKey(w => w.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WebhookDelivery>(b =>
+        {
+            b.ToTable("webhook_deliveries");
+            b.HasKey(d => d.Id);
+            b.Property(d => d.DeliveryId).HasMaxLength(200);
+            b.Property(d => d.Outcome).HasConversion<string>().HasMaxLength(20);
+
+            b.HasIndex(d => new { d.TenantId, d.IntegrationId, d.ReceivedAt });
+
+            b.HasOne(d => d.Integration)
+             .WithMany()
+             .HasForeignKey(d => d.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(d => d.Tenant)
+             .WithMany()
+             .HasForeignKey(d => d.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

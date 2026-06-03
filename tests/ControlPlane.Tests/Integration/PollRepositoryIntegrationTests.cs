@@ -125,6 +125,75 @@ public class PollRepositoryIntegrationTests
     }
 
     [Fact]
+    public async Task ClaimPendingWebhookRunsAsync_ClaimsOnlyMatchingEnvironmentAndPreservesPayload()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var productionIntegration = CreateIntegration(tenant.Id, "webhook-production");
+        productionIntegration.TriggerType = TriggerType.Webhook;
+        productionIntegration.CronExpression = null;
+
+        var stagingIntegration = CreateIntegration(tenant.Id, "webhook-staging");
+        stagingIntegration.TriggerType = TriggerType.Webhook;
+        stagingIntegration.CronExpression = null;
+        stagingIntegration.Environment = "staging";
+
+        var agentId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            db.Integrations.AddRange(productionIntegration, stagingIntegration);
+            db.WorkItems.AddRange(
+                new WorkItem
+                {
+                    TenantId = tenant.Id,
+                    IntegrationId = productionIntegration.Id,
+                    Environment = "production",
+                    TriggerSource = TriggerSource.Webhook,
+                    Status = WorkItemStatus.Pending,
+                    AvailableAt = now,
+                    Payload = """{"env":"production"}"""
+                },
+                new WorkItem
+                {
+                    TenantId = tenant.Id,
+                    IntegrationId = stagingIntegration.Id,
+                    Environment = "staging",
+                    TriggerSource = TriggerSource.Webhook,
+                    Status = WorkItemStatus.Pending,
+                    AvailableAt = now,
+                    Payload = """{"env":"staging"}"""
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimPendingWebhookRunsAsync(
+                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+
+            var item = Assert.Single(claimed);
+            Assert.Equal(productionIntegration.Id, item.Integration.Id);
+            Assert.Equal(WorkItemStatus.Claimed, item.WorkItem.Status);
+            Assert.Equal(agentId, item.WorkItem.ClaimOwner);
+            Assert.Equal("""{"env":"production"}""", item.WorkItem.Payload);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var stagingWorkItem = db.WorkItems.Single(w => w.IntegrationId == stagingIntegration.Id);
+            Assert.Equal(WorkItemStatus.Pending, stagingWorkItem.Status);
+            Assert.Null(stagingWorkItem.ClaimOwner);
+        }
+    }
+
+    [Fact]
     public async Task ClaimDueScheduledAsync_SkipsIntegrationWithRunningExecution()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();

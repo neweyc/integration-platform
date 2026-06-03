@@ -207,4 +207,77 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
         return claimed;
     }
+
+    public Task<IReadOnlyList<ClaimedWork>> ClaimPendingWebhookRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default) =>
+        ClaimPendingWorkItemsAsync(
+            tenantId,
+            environment,
+            TriggerSource.Webhook,
+            claimOwner,
+            claimDuration,
+            now,
+            ct);
+
+    private async Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkItemsAsync(
+        Guid tenantId,
+        string environment,
+        TriggerSource triggerSource,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        var claimable = await db.WorkItems
+            .Include(w => w.Integration)
+            .Where(w => w.TenantId == tenantId
+                     && w.Environment == environment
+                     && w.TriggerSource == triggerSource
+                     && (w.Status == WorkItemStatus.Pending
+                         || (w.Status == WorkItemStatus.Claimed && w.ClaimExpiresAt != null && w.ClaimExpiresAt <= now)))
+            .ToListAsync(ct);
+
+        var integrationIds = claimable.Select(w => w.IntegrationId).Distinct().ToList();
+
+        var runningIntegrations = await db.ExecutionRecords
+            .Where(e => e.TenantId == tenantId
+                     && integrationIds.Contains(e.IntegrationId)
+                     && e.Status == ExecutionStatus.Running)
+            .Select(e => e.IntegrationId)
+            .ToHashSetAsync(ct);
+
+        var claimed = new List<ClaimedWork>();
+        var claimExpiresAt = now.Add(claimDuration);
+
+        foreach (var workItem in claimable)
+        {
+            if (workItem.Integration.Status != IntegrationStatus.Enabled)
+                continue;
+
+            if (runningIntegrations.Contains(workItem.IntegrationId))
+                continue;
+
+            if (workItem.HasActiveClaim(now) && workItem.ClaimOwner != claimOwner)
+                continue;
+
+            workItem.Status = WorkItemStatus.Claimed;
+            workItem.ClaimOwner = claimOwner;
+            workItem.ClaimExpiresAt = claimExpiresAt;
+            workItem.UpdatedAt = now;
+
+            claimed.Add(new ClaimedWork(workItem.Integration, workItem));
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return claimed;
+    }
 }

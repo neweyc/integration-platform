@@ -7,6 +7,7 @@ using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
+using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -95,6 +96,10 @@ builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, Lis
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
 builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
+
+// Webhooks feature
+builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+builder.Services.AddScoped<ICommandHandler<DeliverWebhookCommand, DeliverWebhookResult>, DeliverWebhookHandler>();
 
 // Integration packages feature
 builder.Services.AddScoped<PackageRepository>();
@@ -185,6 +190,7 @@ app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
 app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
+app.MapWebhookEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.
