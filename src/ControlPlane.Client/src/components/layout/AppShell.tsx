@@ -15,16 +15,23 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { clearToken } from '@/api/client'
+import { getCurrentUser, hasPermission, type Permission } from '@/lib/rbac'
 
 const navItems = [
-  { label: 'Integrations', path: '/integrations' },
-  { label: 'Secrets', path: '/secrets' },
-  { label: 'Agent tokens', path: '/agent-tokens' },
-]
+  { label: 'Integrations', path: '/integrations', permission: 'ViewIntegrations' },
+  { label: 'Secrets', path: '/secrets', permission: 'ViewSecrets' },
+  { label: 'Agent tokens', path: '/agent-tokens', permission: 'ManageAgentTokens' },
+] satisfies {
+  label: string
+  path: string
+  permission: Permission
+}[]
 
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
+  const user = getCurrentUser()
+  const visibleNavItems = navItems.filter(item => hasPermission(item.permission, user))
 
   function handleSignOut() {
     clearToken()
@@ -45,7 +52,7 @@ export function AppShell() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {navItems.map(item => (
+                  {visibleNavItems.map(item => (
                     <SidebarMenuItem key={item.path}>
                       <SidebarMenuButton
                         isActive={location.pathname.startsWith(item.path)}
@@ -61,6 +68,12 @@ export function AppShell() {
           </SidebarContent>
 
           <SidebarFooter className="p-4">
+            {user && (
+              <div className="mb-3 px-2">
+                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                <p className="text-xs font-medium">{user.role}</p>
+              </div>
+            )}
             <Button variant="ghost" className="w-full justify-start" onClick={handleSignOut}>
               Sign out
             </Button>

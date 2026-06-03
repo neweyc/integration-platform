@@ -31,6 +31,8 @@ import {
   SheetDescription,
   SheetFooter,
 } from '@/components/ui/sheet'
+import { AccessDenied } from '@/components/layout/AccessDenied'
+import { getCurrentUser, hasPermission } from '@/lib/rbac'
 
 type FormMode = 'create' | 'edit'
 
@@ -60,6 +62,11 @@ const emptyForm: FormState = {
 
 export function IntegrationsPage() {
   const queryClient = useQueryClient()
+  const user = getCurrentUser()
+  const canViewIntegrations = hasPermission('ViewIntegrations', user)
+  const canManageIntegrations = hasPermission('ManageIntegrations', user)
+  const canTriggerManualRun = hasPermission('TriggerManualRun', user)
+  const canViewExecutions = hasPermission('ViewExecutions', user)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [formMode, setFormMode] = useState<FormMode>('create')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -72,6 +79,7 @@ export function IntegrationsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['integrations'],
     queryFn: () => integrationsApi.list(),
+    enabled: canViewIntegrations,
   })
 
   const createIntegration = useMutation({
@@ -118,7 +126,7 @@ export function IntegrationsPage() {
   } = useQuery({
     queryKey: ['integration-executions', historyIntegration?.id],
     queryFn: () => integrationsApi.executions(historyIntegration!.id),
-    enabled: historyIntegration !== null,
+    enabled: canViewExecutions && historyIntegration !== null,
   })
 
   const {
@@ -128,10 +136,11 @@ export function IntegrationsPage() {
   } = useQuery({
     queryKey: ['execution-logs', historyIntegration?.id, selectedExecution?.id],
     queryFn: () => integrationsApi.logs(historyIntegration!.id, selectedExecution!.id),
-    enabled: historyIntegration !== null && selectedExecution !== null,
+    enabled: canViewExecutions && historyIntegration !== null && selectedExecution !== null,
   })
 
   function handleOpenCreate() {
+    if (!canManageIntegrations) return
     setFormMode('create')
     setForm(emptyForm)
     setFormError(null)
@@ -140,6 +149,7 @@ export function IntegrationsPage() {
   }
 
   function handleOpenEdit(integration: Integration) {
+    if (!canManageIntegrations) return
     setFormMode('edit')
     setForm({
       name: integration.name,
@@ -159,6 +169,7 @@ export function IntegrationsPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!canManageIntegrations) return
     setFormError(null)
 
     if (formMode === 'create') {
@@ -197,6 +208,10 @@ export function IntegrationsPage() {
 
   const isPending = createIntegration.isPending || updateIntegration.isPending
 
+  if (!canViewIntegrations) {
+    return <AccessDenied title="Integrations unavailable" />
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -206,7 +221,7 @@ export function IntegrationsPage() {
             Manage your integration definitions.
           </p>
         </div>
-        <Button onClick={handleOpenCreate}>New integration</Button>
+        {canManageIntegrations && <Button onClick={handleOpenCreate}>New integration</Button>}
       </div>
 
       {error && (
@@ -234,6 +249,9 @@ export function IntegrationsPage() {
           onRun={id => runManual.mutate(id)}
           isRunPending={runManual.isPending}
           onDelete={id => deleteIntegration.mutate(id)}
+          canManageIntegrations={canManageIntegrations}
+          canTriggerManualRun={canTriggerManualRun}
+          canViewExecutions={canViewExecutions}
         />
       )}
 
@@ -498,6 +516,9 @@ function IntegrationsTable({
   onRun,
   isRunPending,
   onDelete,
+  canManageIntegrations,
+  canTriggerManualRun,
+  canViewExecutions,
 }: {
   integrations: Integration[]
   onEdit: (integration: Integration) => void
@@ -505,12 +526,17 @@ function IntegrationsTable({
   onRun: (id: string) => void
   isRunPending: boolean
   onDelete: (id: string) => void
+  canManageIntegrations: boolean
+  canTriggerManualRun: boolean
+  canViewExecutions: boolean
 }) {
   if (integrations.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground border rounded-lg">
         <p className="text-sm">No integrations yet.</p>
-        <p className="text-sm mt-1">Create your first one to get started.</p>
+        {canManageIntegrations && (
+          <p className="text-sm mt-1">Create your first one to get started.</p>
+        )}
       </div>
     )
   }
@@ -557,28 +583,36 @@ function IntegrationsTable({
                 <LastRun execution={integration.lastExecution} />
               </TableCell>
               <TableCell className="text-right space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={integration.status === 'Disabled' || isRunPending}
-                  onClick={() => onRun(integration.id)}
-                >
-                  Run now
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration)}>
-                  History
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => onEdit(integration)}>
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => onDelete(integration.id)}
-                >
-                  Delete
-                </Button>
+                {canTriggerManualRun && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={integration.status === 'Disabled' || isRunPending}
+                    onClick={() => onRun(integration.id)}
+                  >
+                    Run now
+                  </Button>
+                )}
+                {canViewExecutions && (
+                  <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration)}>
+                    History
+                  </Button>
+                )}
+                {canManageIntegrations && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => onEdit(integration)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => onDelete(integration.id)}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
               </TableCell>
             </TableRow>
           ))}

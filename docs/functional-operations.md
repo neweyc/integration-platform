@@ -185,7 +185,7 @@ Integrations can be pinned to uploaded package versions, and execution records r
 | Operator | View integrations, executions, and logs; trigger manual runs; cannot view secrets or deploy code |
 | Member | Legacy read-only role; can view integrations and execution history |
 
-Server-side role enforcement is active through endpoint permission filters. The UI still needs role-aware hiding or disabling of unavailable actions; until that is complete, disallowed UI actions receive `403 Forbidden` from the API.
+Server-side role enforcement is active through endpoint permission filters. The UI uses the same role/permission model to hide unavailable navigation items and actions. Disallowed direct API calls still receive `403 Forbidden`.
 
 ---
 

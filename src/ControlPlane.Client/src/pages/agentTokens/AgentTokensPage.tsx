@@ -21,9 +21,13 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
+import { AccessDenied } from '@/components/layout/AccessDenied'
+import { getCurrentUser, hasPermission } from '@/lib/rbac'
 
 export function AgentTokensPage() {
   const queryClient = useQueryClient()
+  const user = getCurrentUser()
+  const canManageAgentTokens = hasPermission('ManageAgentTokens', user)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [form, setForm] = useState({ name: '', environment: '' })
   const [formError, setFormError] = useState<string | null>(null)
@@ -32,6 +36,7 @@ export function AgentTokensPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['agent-tokens'],
     queryFn: agentTokensApi.list,
+    enabled: canManageAgentTokens,
   })
 
   const createToken = useMutation({
@@ -65,6 +70,10 @@ export function AgentTokensPage() {
     e.preventDefault()
     setFormError(null)
     createToken.mutate()
+  }
+
+  if (!canManageAgentTokens) {
+    return <AccessDenied title="Agent tokens unavailable" />
   }
 
   return (

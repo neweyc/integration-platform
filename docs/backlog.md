@@ -813,7 +813,7 @@ Acceptance criteria:
 
 - Admin-only operations are enforced server-side. ✓ (see RBAC above)
 - Member role has read-only access where appropriate. ✓
-- UI hides unavailable actions for non-admin users. — **still Todo** (server returns 403; the dashboard should also hide actions the role can't perform).
+- UI hides unavailable actions for non-admin users. ✓
 - Tests cover authorization failures. ✓
 
 ### Rate Limiting

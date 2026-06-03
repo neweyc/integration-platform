@@ -20,11 +20,16 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
+import { AccessDenied } from '@/components/layout/AccessDenied'
+import { getCurrentUser, hasPermission } from '@/lib/rbac'
 
 const ENVIRONMENT = 'production'
 
 export function SecretsPage() {
   const queryClient = useQueryClient()
+  const user = getCurrentUser()
+  const canViewSecrets = hasPermission('ViewSecrets', user)
+  const canManageSecrets = hasPermission('ManageSecrets', user)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [form, setForm] = useState({ key: '', value: '' })
   const [formError, setFormError] = useState<string | null>(null)
@@ -32,6 +37,7 @@ export function SecretsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['secrets', ENVIRONMENT],
     queryFn: () => secretsApi.list(ENVIRONMENT),
+    enabled: canViewSecrets,
   })
 
   const setSecret = useMutation({
@@ -61,6 +67,10 @@ export function SecretsPage() {
     setSecret.mutate()
   }
 
+  if (!canViewSecrets) {
+    return <AccessDenied title="Secrets unavailable" />
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -70,7 +80,7 @@ export function SecretsPage() {
             Encrypted key/value pairs. Values are write-only and never returned by the API.
           </p>
         </div>
-        <Button onClick={handleOpenSheet}>New secret</Button>
+        {canManageSecrets && <Button onClick={handleOpenSheet}>New secret</Button>}
       </div>
 
       {error && (
@@ -85,6 +95,7 @@ export function SecretsPage() {
         <SecretsTable
           secrets={data?.secrets ?? []}
           onDelete={key => deleteSecret.mutate(key)}
+          canManageSecrets={canManageSecrets}
         />
       )}
 
@@ -142,9 +153,11 @@ export function SecretsPage() {
 function SecretsTable({
   secrets,
   onDelete,
+  canManageSecrets,
 }: {
   secrets: SecretSummary[]
   onDelete: (key: string) => void
+  canManageSecrets: boolean
 }) {
   if (secrets.length === 0) {
     return (
@@ -175,14 +188,16 @@ function SecretsTable({
                 {new Date(secret.updatedAt).toLocaleString()}
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => onDelete(secret.key)}
-                >
-                  Delete
-                </Button>
+                {canManageSecrets && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => onDelete(secret.key)}
+                  >
+                    Delete
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))}
