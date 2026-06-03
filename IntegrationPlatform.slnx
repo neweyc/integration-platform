@@ -10,6 +10,7 @@
     <Project Path="src/Testing/Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Cli.Tests/Cli.Tests.csproj" />
     <Project Path="tests/ControlPlane.Tests/ControlPlane.Tests.csproj" />
     <Project Path="tests/RuntimeAgent.Tests/RuntimeAgent.Tests.csproj" />
     <Project Path="tests/Sdk.Tests/Sdk.Tests.csproj" />

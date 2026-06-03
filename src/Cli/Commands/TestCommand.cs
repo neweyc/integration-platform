@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Text.Json;
 using IntegrationPlatform.Sdk;
 using IntegrationPlatform.Testing;
 using Microsoft.Extensions.Logging;
@@ -82,6 +83,7 @@ public sealed class TestCommand : AsyncCommand<TestCommand.Settings>
         var testContext = new TestIntegrationContext
         {
             Logger = logger,
+            Secrets = await LoadSecretsAsync(settings.SecretsPath, ct),
             Payload = settings.Payload
         };
 
@@ -94,5 +96,22 @@ public sealed class TestCommand : AsyncCommand<TestCommand.Settings>
         AnsiConsole.MarkupLine("[green]Local test run completed.[/]");
 
         return 0;
+    }
+
+    public static async Task<IReadOnlyDictionary<string, string>> LoadSecretsAsync(string? secretsPath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(secretsPath))
+        {
+            return new Dictionary<string, string>();
+        }
+
+        if (!File.Exists(secretsPath))
+        {
+            throw new FileNotFoundException("Secrets file not found.", secretsPath);
+        }
+
+        await using var stream = File.OpenRead(secretsPath);
+        var secrets = await JsonSerializer.DeserializeAsync<Dictionary<string, string>>(stream, cancellationToken: ct);
+        return secrets ?? new Dictionary<string, string>();
     }
 }

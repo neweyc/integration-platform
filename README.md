@@ -166,9 +166,18 @@ The runtime agent loads assemblies from the local filesystem and can sync upload
      -F "file=@integrations.zip"
    ```
 3. The agent will download and extract the package on startup or at the next package sync interval
-4. Register the integration in the control plane UI with the fully qualified class name
+4. Register or update the integration in the control plane with the fully qualified class name and package version
 
-You can still copy published DLLs directly to the agent's `IntegrationsPath` for local development. Package sync avoids manual copying, but integrations are not yet pinned to package versions and rollback is still manual.
+The CLI can package and upload the current integration project:
+
+```bash
+IP_API_TOKEN=<personal-access-token> dotnet run --project src/Cli -- deploy \
+  --url http://localhost:5000 \
+  --name MyCompany.Integrations \
+  --version 1.0.0
+```
+
+If `--version` is omitted, `ip deploy` uses `PackageVersion` or `Version` from the project file and falls back to a timestamped development version. You can still copy published DLLs directly to the agent's `IntegrationsPath` for local development. Package sync avoids manual copying; integrations can be pinned to uploaded package versions, and rollback is performed by repointing the integration to a previous package version.
 
 See [docs/writing-integrations.md](docs/writing-integrations.md) for details.
 
@@ -208,7 +217,7 @@ scripts/validate.sh
 
 This runs patch hygiene checks, .NET restore/build/test, and frontend lint/build when `node_modules` is present.
 
-Currently 186 tests cover control plane features, SDK behavior, runtime agent behavior, API contracts, security boundaries, commercial API surfaces, and database-backed integration paths.
+Currently 197 tests cover control plane features, SDK behavior, runtime agent behavior, CLI behavior, API contracts, security boundaries, commercial API surfaces, and database-backed integration paths.
 
 The control plane integration tests use a temporary PostgreSQL database when one is available. By default they try the local development database server at `127.0.0.1:5433` with `devuser` / `devpassword`. To point them at a different server, set:
 
