@@ -16,6 +16,8 @@ public record CreateIntegrationCommand(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds = null,
+    int RetryMaxAttempts = 0,
+    int? RetryBackoffSeconds = null,
     Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
 
 public record CreateIntegrationResult(
@@ -28,6 +30,8 @@ public record CreateIntegrationResult(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds = null,
+    int RetryMaxAttempts = 0,
+    int? RetryBackoffSeconds = null,
     Guid? PackageId = null,
     // Webhook integrations only. The secret is shown once; the URL is the stable delivery path.
     string? WebhookSecret = null,
@@ -87,6 +91,8 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
             CronExpression = command.CronExpression,
             ClassName = command.ClassName,
             TimeoutSeconds = command.TimeoutSeconds,
+            RetryMaxAttempts = command.RetryMaxAttempts,
+            RetryBackoffSeconds = command.RetryBackoffSeconds,
             PackageId = command.PackageId,
             EncryptedWebhookSecret = encryptedWebhookSecret,
             Status = IntegrationStatus.Enabled
@@ -135,6 +141,12 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
         if (command.TimeoutSeconds is <= 0)
             throw new ValidationException("Timeout must be greater than zero seconds.");
 
+        if (command.RetryMaxAttempts < 0)
+            throw new ValidationException("Retry max attempts cannot be negative.");
+
+        if (command.RetryBackoffSeconds is < 0)
+            throw new ValidationException("Retry backoff cannot be negative.");
+
         if (command.TriggerType == TriggerType.Scheduled)
         {
             if (string.IsNullOrWhiteSpace(command.CronExpression))
@@ -164,6 +176,6 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
         string? webhookUrl = null,
         WebhookSigning? webhookSigning = null) =>
         new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(),
-            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.PackageId,
+            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.RetryMaxAttempts, i.RetryBackoffSeconds, i.PackageId,
             webhookSecret, webhookUrl, webhookSigning);
 }

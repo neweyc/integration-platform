@@ -27,6 +27,8 @@ public static class IntegrationEndpoints
                     request.CronExpression,
                     request.ClassName,
                     request.TimeoutSeconds,
+                    request.RetryMaxAttempts,
+                    request.RetryBackoffSeconds,
                     request.PackageId), ct);
 
             return Results.Created($"/api/integrations/{result.Id}", result);
@@ -98,6 +100,8 @@ public static class IntegrationEndpoints
                     request.Status,
                     request.CronExpression,
                     request.TimeoutSeconds,
+                    request.RetryMaxAttempts,
+                    request.RetryBackoffSeconds,
                     request.PackageId), ct);
 
             return Results.Ok(result);
@@ -138,6 +142,8 @@ public record CreateIntegrationRequest(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds = null,
+    int RetryMaxAttempts = 0,
+    int? RetryBackoffSeconds = null,
     Guid? PackageId = null);
 
 public record UpdateIntegrationRequest(
@@ -146,4 +152,6 @@ public record UpdateIntegrationRequest(
     IntegrationStatus Status,
     string? CronExpression,
     int? TimeoutSeconds = null,
+    int RetryMaxAttempts = 0,
+    int? RetryBackoffSeconds = null,
     Guid? PackageId = null);

@@ -12,6 +12,8 @@ public record UpdateIntegrationCommand(
     IntegrationStatus Status,
     string? CronExpression,
     int? TimeoutSeconds = null,
+    int RetryMaxAttempts = 0,
+    int? RetryBackoffSeconds = null,
     Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
 
 public interface IIntegrationUpdateRepository
@@ -42,6 +44,8 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
         integration.Status = command.Status;
         integration.CronExpression = command.CronExpression;
         integration.TimeoutSeconds = command.TimeoutSeconds;
+        integration.RetryMaxAttempts = command.RetryMaxAttempts;
+        integration.RetryBackoffSeconds = command.RetryBackoffSeconds;
         integration.PackageId = command.PackageId;
         integration.UpdatedAt = DateTime.UtcNow;
 
@@ -57,6 +61,12 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
 
         if (command.TimeoutSeconds is <= 0)
             throw new ValidationException("Timeout must be greater than zero seconds.");
+
+        if (command.RetryMaxAttempts < 0)
+            throw new ValidationException("Retry max attempts cannot be negative.");
+
+        if (command.RetryBackoffSeconds is < 0)
+            throw new ValidationException("Retry backoff cannot be negative.");
 
         // Cron expression is only relevant for scheduled integrations
         if (triggerType == TriggerType.Scheduled)

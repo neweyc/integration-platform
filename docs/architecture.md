@@ -109,13 +109,14 @@ Schema:
 tenants           — id, name, slug, status
 users             — id, tenant_id, email, password_hash, role
 secrets           — id, tenant_id, environment, key, encrypted_value
-integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, package_id, encrypted_webhook_secret
+integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, timeout_seconds, retry_max_attempts, retry_backoff_seconds, package_id, encrypted_webhook_secret
 agent_tokens      — id, tenant_id, name, environment, token_hash
-execution_records — id, tenant_id, integration_id, work_item_id, environment, status, package_id, package_name, package_version, started_at, completed_at, error_message
+agent_heartbeats  — id, tenant_id, agent_token_id, environment, version, hostname, current_concurrency, max_concurrency, last_seen_at
+execution_records — id, tenant_id, integration_id, work_item_id, environment, status, attempt_number, parent_execution_id, root_execution_id, package_id, package_name, package_version, started_at, completed_at, error_message
 execution_logs    — id, tenant_id, execution_record_id, timestamp, level, message, exception, properties_json
 assembly_packages — id, tenant_id, name, version, file_name, data, size_bytes, sha256_hash
 integration_schedule_states — id, tenant_id, integration_id, last_dispatched_at, next_run_at
-work_items        — id, tenant_id, integration_id, environment, trigger_source, status, available_at, claim_owner, claim_expires_at, manual_run_request_id, payload, delivery_id
+work_items        — id, tenant_id, integration_id, environment, trigger_source, status, available_at, claim_owner, claim_expires_at, manual_run_request_id, payload, delivery_id, attempt_number, parent_execution_id, root_execution_id
 webhook_deliveries — id, tenant_id, integration_id, delivery_id, outcome, work_item_id, received_at
 ```
 
@@ -130,6 +131,7 @@ The agent is a .NET Worker Service deployed by the customer. It:
 3. Fetches the secret bundle for its environment
 4. Loads and executes the integration C# class with secrets injected
 5. Reports execution status and any errors back to the control plane
+6. Sends heartbeat telemetry with host, version, and concurrency data
 
 ### Configuration
 
@@ -207,6 +209,20 @@ The agent implements several safety mechanisms:
 
 The poll endpoint creates due scheduled work and claims available work items inside serializable transactions. This prevents agent restarts from resetting scheduling state and keeps scheduled, manual, webhook, and future trigger sources on the same dispatch path. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
 
+### Retry policy
+
+Retries are modeled as normal work items. When an execution fails and the completion request is retryable, the control plane checks the integration's `RetryMaxAttempts` and `RetryBackoffSeconds`. If attempts remain, it creates a `Retry` work item with a future `AvailableAt`, increments `AttemptNumber`, and records `ParentExecutionId` plus `RootExecutionId`.
+
+The retry work item is claimed by `GET /api/agent/integrations` after its backoff has elapsed. This keeps retries on the same dispatch, lease, overlap guard, execution history, and observability path as scheduled, manual, and webhook triggers.
+
+Agent shutdown cancellation reports completion as non-retryable so shutdown does not create retry loops.
+
+### Agent heartbeats
+
+Runtime agents post heartbeat telemetry with their token, environment, assembly version, hostname, current concurrency, and max concurrency. The control plane stores one heartbeat row per tenant and agent token and exposes a JWT-protected list endpoint for operators. Agents are considered stale when the latest heartbeat is older than two minutes.
+
+Heartbeats currently provide observability only. They do not yet drive agent pool routing, capacity-aware claim assignment, or package compatibility enforcement.
+
 ### Claim recovery
 
 Each claimed work item includes a claim expiry after 5 minutes. This prevents two scenarios:
@@ -220,6 +236,9 @@ When starting execution (`POST /api/agent/executions`), the control plane valida
 
 ```
 Agent                              Control Plane
+  │                                      │
+  │── POST /api/agent/heartbeat ───────►│  (report host/version/capacity)
+  │◄─ 204 No Content ───────────────────│
   │                                      │
   │── GET /api/agent/integrations ──────►│  (claim due scheduled integrations)
   │◄─ { integrations: [...] } ───────────│

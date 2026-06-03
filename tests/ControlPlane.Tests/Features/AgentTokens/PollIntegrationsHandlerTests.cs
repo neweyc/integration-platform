@@ -29,6 +29,7 @@ public class PollIntegrationsHandlerTests
         SetupScheduled([new ClaimedWork(integration, workItem)]);
         SetupManual([]);
         SetupWebhook([]);
+        SetupRetry([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -49,6 +50,7 @@ public class PollIntegrationsHandlerTests
         SetupScheduled([]);
         SetupManual([]);
         SetupWebhook([]);
+        SetupRetry([]);
 
         await _handler.HandleAsync(new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
 
@@ -63,6 +65,7 @@ public class PollIntegrationsHandlerTests
         SetupScheduled([]);
         SetupManual([]);
         SetupWebhook([]);
+        SetupRetry([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -84,6 +87,7 @@ public class PollIntegrationsHandlerTests
         SetupScheduled([]);
         SetupManual([new ClaimedWork(integration, workItem)]);
         SetupWebhook([]);
+        SetupRetry([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -111,6 +115,7 @@ public class PollIntegrationsHandlerTests
             MakeIntegration(manualId, "Manual Job"),
             MakeWorkItem(Guid.NewGuid(), manualId, TriggerSource.Manual, expires, Guid.NewGuid()))]);
         SetupWebhook([]);
+        SetupRetry([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -137,6 +142,7 @@ public class PollIntegrationsHandlerTests
         SetupScheduled([]);
         SetupManual([]);
         SetupWebhook([new ClaimedWork(integration, workItem)]);
+        SetupRetry([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -147,6 +153,30 @@ public class PollIntegrationsHandlerTests
         Assert.Null(item.ManualRunRequestId);
         Assert.Equal(workItemId, item.WorkItemId);
         Assert.Equal("""{"event":"created"}""", item.Payload);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsClaimedRetryRuns()
+    {
+        var integrationId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
+
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Retry, claimExpiresAt);
+
+        SetupScheduled([]);
+        SetupManual([]);
+        SetupWebhook([]);
+        SetupRetry([new ClaimedWork(integration, workItem)]);
+
+        var result = await _handler.HandleAsync(
+            new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
+
+        var item = Assert.Single(result.Integrations);
+        Assert.Equal(integrationId, item.Id);
+        Assert.Equal(TriggerSource.Retry, item.TriggerSource);
+        Assert.Equal(workItemId, item.WorkItemId);
     }
 
     private void SetupScheduled(IReadOnlyList<ClaimedWork> result) =>
@@ -163,6 +193,12 @@ public class PollIntegrationsHandlerTests
 
     private void SetupWebhook(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingWebhookRunsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private void SetupRetry(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimPendingRetryRunsAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);

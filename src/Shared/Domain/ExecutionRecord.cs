@@ -22,6 +22,10 @@ public class ExecutionRecord : Entity
     public Guid? PackageId { get; set; }
     public string? PackageName { get; set; }
     public string? PackageVersion { get; set; }
+
+    public int AttemptNumber { get; set; } = 1;
+    public Guid? ParentExecutionId { get; set; }
+    public Guid? RootExecutionId { get; set; }
 }
 
 public enum ExecutionStatus
@@ -36,5 +40,6 @@ public enum TriggerSource
 {
     Scheduled,
     Manual,
-    Webhook
+    Webhook,
+    Retry
 }

@@ -19,7 +19,8 @@ public record CompleteExecutionCommand(
     Guid ExecutionId,
     bool Succeeded,
     string? ErrorMessage,
-    bool IsTimeout = false) : ICommand<bool>;
+    bool IsTimeout = false,
+    bool Retryable = true) : ICommand<bool>;
 
 public interface IExecutionRepository
 {
@@ -110,7 +111,10 @@ public class StartExecutionHandler(
             WorkItemId = command.WorkItemId,
             PackageId = integration.PackageId,
             PackageName = packageName,
-            PackageVersion = packageVersion
+            PackageVersion = packageVersion,
+            AttemptNumber = workItem.AttemptNumber,
+            ParentExecutionId = workItem.ParentExecutionId,
+            RootExecutionId = workItem.RootExecutionId
         };
 
         var created = await repository.CreateAsync(record, ct);
@@ -130,7 +134,8 @@ public class StartExecutionHandler(
 
 public class CompleteExecutionHandler(
     IExecutionRepository repository,
-    IWorkItemRepository workItemRepository)
+    IWorkItemRepository workItemRepository,
+    IIntegrationValidationRepository integrationRepository)
     : ICommandHandler<CompleteExecutionCommand, bool>
 {
     public async Task<bool> HandleAsync(CompleteExecutionCommand command, CancellationToken ct = default)
@@ -149,12 +154,14 @@ public class CompleteExecutionHandler(
         record.ErrorMessage = command.ErrorMessage;
         record.UpdatedAt = DateTime.UtcNow;
 
+        var integration = await integrationRepository.GetByIdAsync(command.TenantId, record.IntegrationId, ct);
         await repository.UpdateAsync(record, ct);
 
         // Mirror terminal status onto the work item
+        WorkItem? workItem = null;
         if (record.WorkItemId.HasValue)
         {
-            var workItem = await workItemRepository.GetByIdAsync(command.TenantId, record.WorkItemId.Value, ct);
+            workItem = await workItemRepository.GetByIdAsync(command.TenantId, record.WorkItemId.Value, ct);
             if (workItem is not null)
             {
                 workItem.Status = command.Succeeded
@@ -165,6 +172,30 @@ public class CompleteExecutionHandler(
                 workItem.UpdatedAt = DateTime.UtcNow;
                 await workItemRepository.UpdateAsync(workItem, ct);
             }
+        }
+
+        if (!command.Succeeded
+            && command.Retryable
+            && integration is not null
+            && integration.RetryMaxAttempts > 0
+            && record.AttemptNumber <= integration.RetryMaxAttempts)
+        {
+            var retry = new WorkItem
+            {
+                TenantId = record.TenantId,
+                IntegrationId = record.IntegrationId,
+                Environment = record.Environment,
+                TriggerSource = TriggerSource.Retry,
+                Status = WorkItemStatus.Pending,
+                AvailableAt = DateTime.UtcNow.AddSeconds(integration.RetryBackoffSeconds ?? 0),
+                Payload = workItem?.Payload,
+                ManualRunRequestId = workItem?.ManualRunRequestId,
+                AttemptNumber = record.AttemptNumber + 1,
+                ParentExecutionId = record.Id,
+                RootExecutionId = record.RootExecutionId ?? record.Id
+            };
+
+            await workItemRepository.CreateAsync(retry, ct);
         }
 
         return true;

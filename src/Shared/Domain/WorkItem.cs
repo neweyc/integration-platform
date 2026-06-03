@@ -28,6 +28,10 @@ public class WorkItem : Entity
     // Webhook delivery ID for idempotency. Prevents double-processing if the sender retries.
     public string? DeliveryId { get; set; }
 
+    public int AttemptNumber { get; set; } = 1;
+    public Guid? ParentExecutionId { get; set; }
+    public Guid? RootExecutionId { get; set; }
+
     public bool HasActiveClaim(DateTime now) =>
         ClaimOwner.HasValue && ClaimExpiresAt.HasValue && ClaimExpiresAt.Value > now;
 

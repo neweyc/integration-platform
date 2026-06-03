@@ -28,7 +28,8 @@ The strategic build order is:
 - [x] Concurrency limits (`MaxConcurrentExecutions`)
 - [x] In-flight tracking to prevent overlapping executions
 - [x] Control-plane backed durable scheduling state
-- [ ] Graceful shutdown and cancellation (partial)
+- [x] Graceful shutdown and cancellation
+- [x] Agent heartbeat reporting
 
 ### Control plane (done)
 - [x] `GET /api/agent/integrations` — claims due scheduled integrations for an environment
@@ -68,11 +69,13 @@ The strategic build order is:
 
 ### Agent improvements
 - [x] Webhook trigger support: control plane receives signed webhooks and enqueues work items
+- [x] Retry policy: configurable retry count and backoff per integration
+- [x] Lease-based scheduling recovery for abandoned claims
+- [x] Graceful shutdown with execution draining
+- [x] Agent heartbeat API with version, host, and concurrency reporting
+- [ ] Agent pools and capacity-aware routing
 - [ ] Trigger adapter framework for queue, file, database, dependency, dataset, and API-event triggers
-- [ ] Retry policy: configurable retry count and backoff per integration
-- [ ] Agent version reporting (for compatibility checking)
-- [ ] Lease-based scheduling recovery for abandoned claims
-- [ ] Graceful shutdown with execution draining
+- [ ] Agent version compatibility checking
 
 ### Security
 - [ ] Token expiry / rotation support
@@ -111,9 +114,9 @@ The strategic build order is:
 - [ ] Environment promotion: copy secrets from staging → production
 
 ### Integration management
-- [ ] Agent package sync from control-plane package storage
-- [ ] Integration versioning (record which assembly/package version ran)
-- [ ] Rollback to a previous version
+- [x] Agent package sync from control-plane package storage
+- [x] Integration versioning (record which assembly/package version ran)
+- [x] Rollback to a previous version
 - [ ] Staging/production promotion workflow
 
 ### Marketplace (longer term)
@@ -128,5 +131,6 @@ The strategic build order is:
 - Secrets page is hardcoded to `production` environment — needs an environment selector
 - No pagination on list endpoints — will become a problem at scale
 - No input sanitisation beyond basic validation — add a global sanitisation layer
-- Scheduling state is in-memory only — agent restart re-evaluates all cron expressions
+- No agent health UI yet, although heartbeat API data is available
+- Retry attempts are visible through API fields, but the UI does not yet group attempt chains
 - `ICurrentUser` throws if called outside a JWT context — agent endpoints use separate token validation

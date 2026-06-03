@@ -17,6 +17,8 @@ public record ListIntegrationItem(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds,
+    int RetryMaxAttempts,
+    int? RetryBackoffSeconds,
     Guid? PackageId,
     ExecutionSummary? LastExecution,
     string? WebhookUrl = null);
@@ -50,7 +52,8 @@ public class ListIntegrationsHandler(
                 return new ListIntegrationItem(
                     i.Id, i.Name, i.Slug, i.Environment,
                     i.Status.ToString(), i.TriggerType.ToString(),
-                    i.CronExpression, i.ClassName, i.TimeoutSeconds, i.PackageId,
+                    i.CronExpression, i.ClassName, i.TimeoutSeconds,
+                    i.RetryMaxAttempts, i.RetryBackoffSeconds, i.PackageId,
                     lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution),
                     webhookUrl);
             })

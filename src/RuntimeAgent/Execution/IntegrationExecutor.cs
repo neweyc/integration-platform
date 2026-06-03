@@ -84,7 +84,8 @@ public class IntegrationExecutor(
             await controlPlane.CompleteExecutionAsync(
                 executionId, succeeded: false,
                 errorMessage: "Execution cancelled: agent shutting down",
-                reportCts.Token);
+                reportCts.Token,
+                retryable: false);
             throw;
         }
         catch (Exception ex)

@@ -131,6 +131,9 @@ builder.Services.AddScoped<IAgentTokenLookupRepository>(sp => sp.GetRequiredServ
 builder.Services.AddScoped<ICommandHandler<CreateAgentTokenCommand, CreateAgentTokenResult>, CreateAgentTokenHandler>();
 builder.Services.AddScoped<ICommandHandler<ListAgentTokensCommand, ListAgentTokensResult>, ListAgentTokensHandler>();
 builder.Services.AddScoped<ICommandHandler<RevokeAgentTokenCommand, bool>, RevokeAgentTokenHandler>();
+builder.Services.AddScoped<IAgentHeartbeatRepository, AgentHeartbeatRepository>();
+builder.Services.AddScoped<ICommandHandler<AgentHeartbeatCommand, bool>, AgentHeartbeatHandler>();
+builder.Services.AddScoped<ICommandHandler<ListAgentHeartbeatsCommand, ListAgentHeartbeatsResult>, ListAgentHeartbeatsHandler>();
 builder.Services.AddScoped<PollRepository>();
 builder.Services.AddScoped<IPollRepository>(sp => sp.GetRequiredService<PollRepository>());
 builder.Services.AddScoped<ICommandHandler<PollIntegrationsCommand, PollIntegrationsResult>, PollIntegrationsHandler>();

@@ -21,6 +21,12 @@ public class Integration : Entity
     // Maximum seconds an execution may run before being cancelled. Null means no timeout.
     public int? TimeoutSeconds { get; set; }
 
+    // Number of retry attempts after the initial attempt. Zero disables retries.
+    public int RetryMaxAttempts { get; set; }
+
+    // Delay before the next retry attempt. Null means retry immediately.
+    public int? RetryBackoffSeconds { get; set; }
+
     // Pinned package. Null means the agent resolves from its local IntegrationsPath in dev mode.
     public Guid? PackageId { get; set; }
 

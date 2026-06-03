@@ -33,6 +33,15 @@ public static class AgentTokenEndpoints
             return Results.Ok(result);
         });
 
+        mgmt.MapGet("/heartbeats", async (
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new ListAgentHeartbeatsCommand(currentUser.TenantId), ct);
+            return Results.Ok(result);
+        });
+
         mgmt.MapDelete("/{id:guid}", async (
             Guid id,
             IDispatcher dispatcher,
@@ -82,6 +91,35 @@ public static class AgentTokenEndpoints
                 new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment, agentToken.Id), ct);
 
             return Results.Ok(result);
+        });
+
+        agent.MapPost("/heartbeat", async (
+            [FromBody] AgentHeartbeatRequest request,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            await dispatcher.SendAsync(
+                new AgentHeartbeatCommand(
+                    agentToken.TenantId,
+                    agentToken.Id,
+                    agentToken.Environment,
+                    request.Version,
+                    request.Hostname,
+                    request.CurrentConcurrency,
+                    request.MaxConcurrency),
+                ct);
+
+            return Results.NoContent();
         });
 
         agent.MapGet("/packages", async (
@@ -169,7 +207,14 @@ public static class AgentTokenEndpoints
             if (agentToken is null) return Results.Unauthorized();
 
             await dispatcher.SendAsync(
-                new CompleteExecutionCommand(agentToken.TenantId, id, request.Succeeded, request.ErrorMessage, request.IsTimeout), ct);
+                new CompleteExecutionCommand(
+                    agentToken.TenantId,
+                    id,
+                    request.Succeeded,
+                    request.ErrorMessage,
+                    request.IsTimeout,
+                    request.Retryable),
+                ct);
 
             return Results.NoContent();
         });
@@ -230,8 +275,17 @@ public record AgentPackageItem(Guid Id, string Name, string Version, string Sha2
 public record AgentPackagesResponse(IReadOnlyList<AgentPackageItem> Packages);
 
 public record CreateAgentTokenRequest(string Name, string Environment);
+public record AgentHeartbeatRequest(
+    string? Version,
+    string? Hostname,
+    int CurrentConcurrency,
+    int MaxConcurrency);
 public record StartExecutionRequest(Guid WorkItemId);
-public record CompleteExecutionRequest(bool Succeeded, string? ErrorMessage, bool IsTimeout = false);
+public record CompleteExecutionRequest(
+    bool Succeeded,
+    string? ErrorMessage,
+    bool IsTimeout = false,
+    bool Retryable = true);
 public record RecordExecutionLogRequest(
     DateTime Timestamp,
     string Level,

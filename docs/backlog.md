@@ -29,16 +29,15 @@ Principles:
 
 Priority ladder:
 
-1. Version-pinned package execution.
-2. Work item queue.
-3. Workflow DAG foundation.
-4. Retry policy.
-5. Agent heartbeats and agent pools.
-6. Trigger adapter framework.
-7. Core connectors.
-8. Code-first transform steps.
-9. Environment promotion.
-10. Audit and RBAC.
+1. Workflow DAG foundation.
+2. Agent pools and routing.
+3. Trigger adapter framework.
+4. Core connectors.
+5. Code-first transform steps.
+6. Environment promotion.
+7. Audit and RBAC.
+8. Execution token scoping.
+9. Retention and quotas.
 
 ---
 
@@ -259,7 +258,7 @@ Design rule:
 
 ### Retry Policy
 
-**Status:** Todo
+**Status:** Done
 
 Add configurable retry behavior for failed integrations.
 
@@ -270,6 +269,15 @@ Acceptance criteria:
 - Execution history shows original attempt and retries clearly.
 - Retry exhaustion produces a final failed state.
 - Tests cover retry success, retry exhaustion, and non-retryable cancellation.
+
+Completed notes:
+
+- Integrations can configure `RetryMaxAttempts` and `RetryBackoffSeconds`.
+- Failed retryable executions create a delayed retry work item using the same agent claim path as scheduled, manual, and webhook work.
+- Retry work items carry `AttemptNumber`, `ParentExecutionId`, and `RootExecutionId` so execution history can distinguish initial attempts from retries.
+- Retry exhaustion leaves the final attempt failed without queuing more work.
+- Agent shutdown cancellation is reported as non-retryable, so graceful shutdown does not create retry loops.
+- Tests cover retry creation, retry exhaustion, non-retryable cancellation, retry polling, and agent API retry queueing.
 
 ### Execution Timeouts
 
@@ -332,7 +340,7 @@ Acceptance criteria:
 
 ### Agent Heartbeats
 
-**Status:** Todo
+**Status:** Done
 
 Track runtime agent presence and health in the control plane.
 
@@ -343,9 +351,22 @@ Acceptance criteria:
 - UI shows active/stale agents.
 - Agent token revocation is reflected in heartbeat failure behavior.
 
+Completed notes:
+
+- Runtime agents send heartbeat data from the poll loop with environment, assembly version, hostname, current concurrency, and max concurrency.
+- The control plane upserts heartbeat state per tenant and agent token.
+- User API can list heartbeats and marks agents stale after two minutes without a heartbeat.
+- Agent-token revocation naturally prevents future heartbeat posts because heartbeat uses the same `X-Agent-Token` validation path.
+- Tests cover heartbeat upsert, stale detection, and API post/list behavior.
+
+Remaining limitations:
+
+- There is no UI health page yet.
+- Heartbeats do not yet drive dispatch routing, pool membership, or capacity-aware claim assignment.
+
 ### Agent Version Reporting
 
-**Status:** Todo
+**Status:** In Progress
 
 Report agent version and SDK compatibility to the control plane.
 
@@ -355,6 +376,16 @@ Acceptance criteria:
 - Control plane records version per agent.
 - UI shows version and stale/unsupported state.
 - Compatibility checks can warn when packages require a newer agent.
+
+Completed notes:
+
+- Runtime agents report their assembly version as part of heartbeat.
+- The control plane stores the reported version on the agent heartbeat record.
+
+Remaining limitations:
+
+- SDK/package compatibility requirements are not modeled yet.
+- UI does not yet show unsupported or stale-version warnings.
 
 ### Execution Token Scoping
 

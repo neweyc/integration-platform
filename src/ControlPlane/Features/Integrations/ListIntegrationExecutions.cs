@@ -18,6 +18,9 @@ public record ExecutionSummary(
     DateTime? CompletedAt,
     int? DurationMs,
     string? ErrorMessage,
+    int AttemptNumber = 1,
+    Guid? ParentExecutionId = null,
+    Guid? RootExecutionId = null,
     string? PackageName = null,
     string? PackageVersion = null);
 
@@ -80,6 +83,9 @@ public class ListIntegrationExecutionsHandler(
             execution.CompletedAt,
             duration,
             execution.ErrorMessage,
+            execution.AttemptNumber,
+            execution.ParentExecutionId,
+            execution.RootExecutionId,
             execution.PackageName,
             execution.PackageVersion);
     }

@@ -339,7 +339,8 @@ public class WorkerTests
             executionId,
             succeeded: false,
             Arg.Is<string?>(msg => msg != null && msg.Contains("cancelled")),
-            Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>(),
+            retryable: false);
     }
 
     [Fact]

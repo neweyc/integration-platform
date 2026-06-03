@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+    public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,6 +74,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.TriggerType).HasConversion<string>();
             b.Property(i => i.CronExpression).HasMaxLength(100);
             b.Property(i => i.ClassName).IsRequired().HasMaxLength(500);
+            b.Property(i => i.RetryMaxAttempts);
+            b.Property(i => i.RetryBackoffSeconds);
             b.Property(i => i.PackageId);
             b.Property(i => i.EncryptedWebhookSecret);
 
@@ -120,6 +123,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(e => e.PackageId);
             b.Property(e => e.PackageName).HasMaxLength(200);
             b.Property(e => e.PackageVersion).HasMaxLength(50);
+            b.Property(e => e.AttemptNumber);
+            b.Property(e => e.ParentExecutionId);
+            b.Property(e => e.RootExecutionId);
 
             b.HasOne(e => e.Integration)
              .WithMany()
@@ -203,6 +209,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
             b.Property(w => w.Payload);
             b.Property(w => w.DeliveryId).HasMaxLength(200);
+            b.Property(w => w.AttemptNumber);
+            b.Property(w => w.ParentExecutionId);
+            b.Property(w => w.RootExecutionId);
 
             b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.Status });
             b.HasIndex(w => new { w.TenantId, w.Environment, w.Status, w.AvailableAt });
@@ -261,6 +270,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(r => r.Tenant)
              .WithMany()
              .HasForeignKey(r => r.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AgentHeartbeat>(b =>
+        {
+            b.ToTable("agent_heartbeats");
+            b.HasKey(h => h.Id);
+            b.Property(h => h.Environment).IsRequired().HasMaxLength(50);
+            b.Property(h => h.Version).HasMaxLength(100);
+            b.Property(h => h.Hostname).HasMaxLength(200);
+
+            b.HasIndex(h => new { h.TenantId, h.AgentTokenId }).IsUnique();
+            b.HasIndex(h => new { h.TenantId, h.Environment, h.LastSeenAt });
+
+            b.HasOne(h => h.Tenant)
+             .WithMany()
+             .HasForeignKey(h => h.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(h => h.AgentToken)
+             .WithMany()
+             .HasForeignKey(h => h.AgentTokenId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

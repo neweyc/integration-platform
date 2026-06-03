@@ -62,6 +62,58 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("agent_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.AgentHeartbeat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AgentTokenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CurrentConcurrency")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Hostname")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("MaxConcurrency")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentTokenId");
+
+                    b.HasIndex("TenantId", "AgentTokenId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Environment", "LastSeenAt");
+
+                    b.ToTable("agent_heartbeats", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.AssemblyPackage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -133,7 +185,16 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ParentExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RootExecutionId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("StartedAt")
@@ -271,6 +332,12 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<int?>("TimeoutSeconds")
                         .HasColumnType("integer");
 
+                    b.Property<int>("RetryMaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RetryBackoffSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("PackageId")
                         .HasColumnType("uuid");
 
@@ -387,6 +454,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<DateTime>("AvailableAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("ClaimExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -407,8 +477,14 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<Guid?>("ManualRunRequestId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ParentExecutionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Payload")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("RootExecutionId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("DeliveryId")
                         .HasMaxLength(200)
@@ -599,6 +675,25 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.AgentHeartbeat", b =>
+                {
+                    b.HasOne("Shared.Domain.AgentToken", "AgentToken")
+                        .WithMany()
+                        .HasForeignKey("AgentTokenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AgentToken");
 
                     b.Navigation("Tenant");
                 });

@@ -124,6 +124,8 @@ Register a new user within the current tenant. First user automatically becomes 
       "cronExpression": "0 * * * *",
       "className": "MyCompany.Integrations.SyncOrdersIntegration",
       "timeoutSeconds": 300,
+      "retryMaxAttempts": 2,
+      "retryBackoffSeconds": 60,
       "lastExecution": {
         "id": "uuid",
         "status": "Succeeded",
@@ -155,6 +157,8 @@ Register a new user within the current tenant. First user automatically becomes 
   "cronExpression": "0 * * * *",
   "className": "MyCompany.Integrations.SyncOrdersIntegration",
   "timeoutSeconds": 300,
+  "retryMaxAttempts": 2,
+  "retryBackoffSeconds": 60,
   "packageId": "uuid"
 }
 ```
@@ -168,6 +172,8 @@ Register a new user within the current tenant. First user automatically becomes 
 | `cronExpression` | When Scheduled | Cron expression for scheduling |
 | `className` | Yes | Fully-qualified .NET type name that implements `IIntegration` |
 | `timeoutSeconds` | No | Maximum execution duration in seconds. Must be greater than zero when provided. |
+| `retryMaxAttempts` | No | Number of retry attempts after the initial attempt. Defaults to `0`. Must be non-negative. |
+| `retryBackoffSeconds` | No | Delay before a retry work item becomes available. Defaults to immediate retry. Must be non-negative when provided. |
 | `packageId` | No | Uploaded package version to execute. `null` keeps local agent path fallback. |
 
 **Response:** `201 Created` with integration object. Webhook integrations also return `webhookUrl` and one-time `webhookSecret`.
@@ -223,11 +229,16 @@ Returns recent executions for an integration, newest first.
       "startedAt": "2026-05-31T12:00:00Z",
       "completedAt": "2026-05-31T12:00:05Z",
       "durationMs": 5000,
-      "errorMessage": null
+      "errorMessage": null,
+      "attemptNumber": 1,
+      "parentExecutionId": null,
+      "rootExecutionId": null
     }
   ]
 }
 ```
+
+Retry executions use `attemptNumber` greater than `1`. `parentExecutionId` points to the immediately previous failed attempt, and `rootExecutionId` points to the original failed execution in the retry chain.
 
 ---
 
@@ -513,6 +524,35 @@ Downloads a package archive for the authenticated agent's tenant.
 
 ---
 
+### `GET /api/agent-tokens/heartbeats`
+
+Lists latest heartbeat state for runtime agents in the tenant.
+
+**Auth:** JWT
+
+**Response**
+```json
+{
+  "heartbeats": [
+    {
+      "id": "uuid",
+      "agentTokenId": "uuid",
+      "environment": "production",
+      "version": "1.0.0.0",
+      "hostname": "worker-01",
+      "currentConcurrency": 1,
+      "maxConcurrency": 5,
+      "lastSeenAt": "2026-05-31T12:00:00Z",
+      "isStale": false
+    }
+  ]
+}
+```
+
+Agents are considered stale when the latest heartbeat is older than two minutes.
+
+---
+
 ### `POST /api/agent-tokens`
 
 **Auth:** JWT
@@ -554,14 +594,14 @@ All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (
 
 ### `GET /api/agent/integrations`
 
-Claims and returns work items for the token's environment. Built-in work producers currently include due scheduled integrations, manual run requests, and signed webhook deliveries. Future trigger adapters should use the same work-item dispatch path.
+Claims and returns work items for the token's environment. Built-in work producers currently include due scheduled integrations, manual run requests, signed webhook deliveries, and retry attempts. Future trigger adapters should use the same work-item dispatch path.
 
 **Auth:** `X-Agent-Token`
 
 Calling this endpoint:
 - Evaluates cron schedules for all enabled scheduled integrations in the token's environment
 - Creates and claims due scheduled work items with a 5-minute claim lease
-- Claims pending manual and webhook work items
+- Claims pending manual, webhook, and retry work items
 - Updates `integration_schedule_states` with `last_dispatched_at` and `next_run_at`
 - Skips integrations with active work items or running executions
 - Can reclaim work items with expired claims
@@ -614,10 +654,30 @@ Calling this endpoint:
 | Field | Description |
 |-------|-------------|
 | `leaseExpiresAt` | When the work-item claim expires. If the agent crashes, another can reclaim after this time. |
-| `triggerSource` | `Scheduled`, `Manual`, or `Webhook` — indicates how this run was triggered |
+| `triggerSource` | `Scheduled`, `Manual`, `Webhook`, or `Retry` — indicates how this run was triggered |
 | `manualRunRequestId` | For manual runs, the ID of the originating manual run request. |
 | `workItemId` | The claimed work item. Must be passed to `POST /api/agent/executions`. |
 | `payload` | For webhook runs, the raw request body passed to `IIntegrationContext.Payload`. |
+
+---
+
+### `POST /api/agent/heartbeat`
+
+Records runtime agent presence and capacity for the authenticated agent token.
+
+**Auth:** `X-Agent-Token`
+
+**Request**
+```json
+{
+  "version": "1.0.0.0",
+  "hostname": "worker-01",
+  "currentConcurrency": 1,
+  "maxConcurrency": 5
+}
+```
+
+**Response:** `204 No Content`
 
 ---
 
@@ -692,7 +752,9 @@ Closes an execution record with the outcome.
 ```json
 {
   "succeeded": true,
-  "errorMessage": null
+  "errorMessage": null,
+  "isTimeout": false,
+  "retryable": true
 }
 ```
 
@@ -700,9 +762,13 @@ Or for failures:
 ```json
 {
   "succeeded": false,
-  "errorMessage": "Connection timeout after 30 seconds"
+  "errorMessage": "Connection timeout after 30 seconds",
+  "isTimeout": false,
+  "retryable": true
 }
 ```
+
+When `retryable` is true and the integration still has retry attempts remaining, the control plane queues a retry work item. Agent shutdown cancellation should report `retryable: false`.
 
 **Response:** `204 No Content`
 

@@ -33,6 +33,8 @@ public class Worker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            await SendHeartbeatAsync(stoppingToken);
+
             if (DateTime.UtcNow - _lastPackageSync >= TimeSpan.FromSeconds(options.PackageSyncIntervalSeconds))
                 await SyncPackagesAsync(stoppingToken);
 
@@ -92,6 +94,30 @@ public class Worker(
     {
         await syncer.SyncAsync(stoppingToken);
         _lastPackageSync = DateTime.UtcNow;
+    }
+
+    private async Task SendHeartbeatAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await controlPlane.SendHeartbeatAsync(new AgentHeartbeatInfo(
+                Version: typeof(Worker).Assembly.GetName().Version?.ToString(),
+                Hostname: Environment.MachineName,
+                CurrentConcurrency: GetInFlightCount(),
+                MaxConcurrency: options.MaxConcurrentExecutions), stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            logger.LogDebug(ex, "Heartbeat failed");
+        }
+    }
+
+    private int GetInFlightCount()
+    {
+        lock (_inFlightLock)
+        {
+            return _inFlight.Count;
+        }
     }
 
     private async Task PollAndDispatchAsync(CancellationToken stoppingToken)

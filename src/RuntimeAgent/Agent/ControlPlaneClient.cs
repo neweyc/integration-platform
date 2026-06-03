@@ -9,12 +9,14 @@ public interface IControlPlaneClient
     Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct);
     Task<List<AgentPackageInfo>> ListPackagesAsync(CancellationToken ct);
     Task<byte[]> DownloadPackageAsync(Guid packageId, CancellationToken ct);
+    Task SendHeartbeatAsync(AgentHeartbeatInfo heartbeat, CancellationToken ct);
     Task<Guid> StartExecutionAsync(Guid workItemId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
-    Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false);
+    Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false, bool retryable = true);
 }
 
 public record AgentPackageInfo(Guid Id, string Name, string Version, string Sha256Hash);
+public record AgentHeartbeatInfo(string? Version, string? Hostname, int CurrentConcurrency, int MaxConcurrency);
 
 public record IntegrationItem(
     Guid Id,
@@ -74,6 +76,18 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
         return await response.Content.ReadAsByteArrayAsync(ct);
     }
 
+    public async Task SendHeartbeatAsync(AgentHeartbeatInfo heartbeat, CancellationToken ct)
+    {
+        var response = await http.PostAsJsonAsync(
+            "/api/agent/heartbeat",
+            heartbeat,
+            JsonOptions,
+            ct);
+
+        if (!response.IsSuccessStatusCode)
+            logger.LogDebug("Failed to send heartbeat: {Status}", response.StatusCode);
+    }
+
     public async Task<Guid> StartExecutionAsync(Guid workItemId, CancellationToken ct)
     {
         var response = await http.PostAsJsonAsync(
@@ -87,11 +101,11 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
         return result!.ExecutionId;
     }
 
-    public async Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false)
+    public async Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false, bool retryable = true)
     {
         var response = await http.PutAsJsonAsync(
             $"/api/agent/executions/{executionId}",
-            new { Succeeded = succeeded, ErrorMessage = errorMessage, IsTimeout = isTimeout },
+            new { Succeeded = succeeded, ErrorMessage = errorMessage, IsTimeout = isTimeout, Retryable = retryable },
             JsonOptions, ct);
 
         if (!response.IsSuccessStatusCode)

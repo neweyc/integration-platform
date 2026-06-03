@@ -52,6 +52,14 @@ public interface IPollRepository
         TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default);
+
+    Task<IReadOnlyList<ClaimedWork>> ClaimPendingRetryRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default);
 }
 
 public record ClaimedWork(Integration Integration, WorkItem WorkItem);
@@ -72,6 +80,9 @@ public class PollIntegrationsHandler(IPollRepository repository)
             command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var webhookRuns = await repository.ClaimPendingWebhookRunsAsync(
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+
+        var retryRuns = await repository.ClaimPendingRetryRunsAsync(
             command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var items = new List<AgentIntegrationItem>();
@@ -128,6 +139,24 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.WorkItem.Id,
                 w.Integration.PackageId,
                 w.WorkItem.Payload));
+        }
+
+        foreach (var r in retryRuns)
+        {
+            items.Add(new AgentIntegrationItem(
+                r.Integration.Id,
+                r.Integration.Name,
+                r.Integration.Slug,
+                r.Integration.TriggerType,
+                r.Integration.CronExpression,
+                r.Integration.ClassName,
+                r.WorkItem.ClaimExpiresAt,
+                TriggerSource.Retry,
+                r.WorkItem.ManualRunRequestId,
+                r.Integration.TimeoutSeconds,
+                r.WorkItem.Id,
+                r.Integration.PackageId,
+                r.WorkItem.Payload));
         }
 
         return new PollIntegrationsResult(items);
