@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using ControlPlane.Features.IntegrationPackages.Scanning;
+using ControlPlane.Features.Integrations;
 using ControlPlane.Infrastructure;
 using Shared.Domain;
 
@@ -32,7 +34,10 @@ public interface IPackageRepository
     Task<AssemblyPackage> CreateAsync(AssemblyPackage package, CancellationToken ct = default);
 }
 
-public class UploadPackageHandler(IPackageRepository repository)
+public class UploadPackageHandler(
+    IPackageRepository repository,
+    IAssemblyScanner scanner,
+    IIntegrationRepository integrationRepository)
     : ICommandHandler<UploadPackageCommand, PackageMetadata>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
@@ -56,6 +61,29 @@ public class UploadPackageHandler(IPackageRepository repository)
         };
 
         var created = await repository.CreateAsync(package, ct);
+
+        // Auto-provision integrations from code attributes
+        var discovered = scanner.ScanZip(command.Data);
+        foreach (var integration in discovered)
+        {
+            await integrationRepository.UpsertBySlugAsync(new Integration
+            {
+                TenantId = command.TenantId,
+                Name = integration.Name,
+                Slug = integration.Slug,
+                Description = integration.Description,
+                Environment = "production", // Default to production for auto-provisioning
+                TriggerType = integration.TriggerType,
+                CronExpression = integration.CronExpression,
+                ClassName = integration.ClassName,
+                TimeoutSeconds = integration.TimeoutSeconds,
+                RetryMaxAttempts = integration.RetryMaxAttempts ?? 0,
+                RetryBackoffSeconds = integration.RetryBackoffSeconds,
+                PackageId = created.Id,
+                Status = IntegrationStatus.Enabled
+            }, ct);
+        }
+
         return ToMetadata(created);
     }
 

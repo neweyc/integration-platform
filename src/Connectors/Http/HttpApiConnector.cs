@@ -67,6 +67,24 @@ public sealed class HttpApiConnector
         }
     }
 
+    public async Task PostJsonAsync<TRequest>(string path, TRequest payload, CancellationToken ct = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, path);
+        request.Content = JsonContent.Create(payload);
+        _context.Logger.LogInformation("HTTP POST {Uri}", request.RequestUri);
+
+        try
+        {
+            using var response = await _context.Http.SendAsync(request, ct);
+            await EnsureSuccessAsync(response);
+        }
+        catch (Exception ex)
+        {
+            _context.Logger.LogError(ex, "HTTP POST {Path} failed", path);
+            throw;
+        }
+    }
+
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
         var uri = _baseUrl != null 

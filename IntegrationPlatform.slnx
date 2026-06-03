@@ -1,10 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Cli/Cli.csproj" />
     <Project Path="src/Connectors/Connectors.csproj" />
     <Project Path="src/ControlPlane/ControlPlane.csproj" />
+    <Project Path="src/Examples/Examples.csproj" />
     <Project Path="src/RuntimeAgent/RuntimeAgent.csproj" />
     <Project Path="src/Sdk/Sdk.csproj" />
     <Project Path="src/Shared/Shared.csproj" />
+    <Project Path="src/Testing/Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ControlPlane.Tests/ControlPlane.Tests.csproj" />

@@ -226,6 +226,122 @@ Remaining limitations:
 
 ---
 
+## P0 — Prime Time Readiness (Funding & Launch)
+
+### Developer API Tokens & UI
+
+**Status:** Done
+
+Provide a seamless "One-Click" deployment experience for the CLI.
+
+Acceptance criteria:
+- UI has a "Developer" tab.
+- Users can generate a personal API token for use with `ip deploy`.
+- Tokens are securely hashed in the database.
+- One-click "Copy Command" for `ip login` or `ip deploy`.
+
+Completed notes:
+- Implemented `UserToken` (PAT) system with `pat_` prefix.
+- Created `UserTokenAuthenticationMiddleware` for seamless integration.
+- Added `/api/user-tokens` endpoints.
+
+### "Killer" Sample Project Gallery
+
+**Status:** Done
+
+Demonstrate the "Aha!" moment with real-world examples.
+
+Acceptance criteria:
+- A `src/Examples` directory containing 3-5 high-value integrations (e.g., Salesforce to SQL, Stripe to Slack).
+- Each example is fully documented and uses `Integration-as-Code` attributes.
+- Ready to be "Copied and Pasted" by new users.
+
+Completed notes:
+- Created `StripeToSlack`, `SqlToHttp`, and `SalesforceSync` examples in `src/Examples`.
+
+### `ip dev` Hot-Reload Loop
+
+**Status:** Done
+
+Create a habit-forming developer feedback loop.
+
+Acceptance criteria:
+- `ip dev` command watches local source files for changes.
+- Automatically triggers a project build and `ip test` on file save.
+- Clear, color-coded console output for success/failure.
+
+Completed notes:
+- Implemented `ip dev` command using `FileSystemWatcher`.
+- Integrated with `TestCommand` for automatic execution on change.
+
+---
+
+## P0 — Valuation & Governance Multipliers
+
+### Audit Log Infrastructure
+
+**Status:** Todo
+
+Implement an immutable record of all administrative actions to satisfy enterprise procurement requirements.
+
+Acceptance criteria:
+- Every secret create/update/delete is recorded.
+- Every integration deployment is recorded.
+- Every user invitation/acceptance is recorded.
+- Audit entries include Actor, Timestamp, Action, and Target.
+
+### Role-Based Access Control (RBAC)
+
+**Status:** Todo
+
+Separate administrative power from developer activity.
+
+Acceptance criteria:
+- Roles: `Admin`, `Developer`, `Operator`.
+- `Developer` can deploy and test, but not manage billing or invitations.
+- `Operator` can view logs and trigger manual runs, but not view secrets or deploy code.
+
+---
+
+## P0 — The "Magic" Experience
+
+### Attribute-Based Discovery
+
+**Status:** In Progress
+
+Allow developers to define integration metadata directly in code.
+
+Acceptance criteria:
+- `[Integration]`, `[ScheduledIntegration]`, and `[WebhookIntegration]` attributes exist in the SDK.
+- Attributes support setting name, slug, cron expression, timeout, and retry settings.
+- Documentation updated with attribute examples.
+
+### Assembly Scanning & Auto-Provisioning
+
+**Status:** Todo
+
+Automatically create or update integration records when a package is uploaded.
+
+Acceptance criteria:
+- Control plane scans uploaded assemblies for types decorated with integration attributes.
+- New integrations are auto-created in the database.
+- Existing integrations are updated if their attributes have changed (e.g., new cron).
+- Typos in class names are eliminated by deriving them directly from the type.
+
+### `ip` CLI
+
+**Status:** Todo
+
+The primary entry point for developers.
+
+Acceptance criteria:
+- `ip init` scaffolds a new integration project.
+- `ip dev` runs a local agent with hot-reload.
+- `ip deploy` packages and uploads to the control plane.
+- CLI is cross-platform (Windows, macOS, Linux).
+
+---
+
 ## P1 — Runtime Reliability
 
 ### Trigger Adapter Framework
@@ -258,7 +374,7 @@ Design rule:
 
 ### Core Connectors
 
-**Status:** Done
+**Status:** In Progress
 
 Provide reusable code-first helpers for common external-system work without bloating the SDK runtime contract.
 
@@ -279,6 +395,13 @@ Completed notes:
 - Implemented `SqlConnector` with Dapper support for queries and commands.
 - Added extension methods to `IIntegrationContext` for easy connector access.
 - Updated documentation and added NuGet metadata to projects.
+
+Remaining limitations:
+
+- HTTP connector does not yet cover pagination, rate-limit handling, retry classification, or idempotency helpers.
+- SQL connector does not yet cover batching, transactions, or bulk upsert patterns.
+- File/SFTP, object storage, and notification connectors are not implemented yet.
+- Connector behavior needs dedicated tests with fake transports or local test services.
 
 Design rule:
 

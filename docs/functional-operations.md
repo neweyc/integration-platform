@@ -28,9 +28,9 @@ The setup endpoint locks itself after first use — any subsequent call returns 
 
 ## Tenants
 
-Each installation has exactly one tenant (single-tenant deployment). Multi-tenant support is built into the data model — every resource carries a `TenantId` — but the UI and setup flow currently assume one tenant per deployment.
+Self-hosted deployments can use the first-run setup flow for a single tenant. SaaS-style deployments can also create tenants through public registration. Every resource carries a `TenantId`, and API queries are expected to scope data by tenant.
 
-This is intentional: self-hosted customers get a clean single-tenant experience. A future SaaS deployment could onboard multiple tenants to a shared control plane.
+The UI is still primarily optimized around the active user's tenant. Cross-tenant administration, billing administration, and tenant lifecycle management are not complete yet.
 
 ---
 

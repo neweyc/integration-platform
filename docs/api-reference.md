@@ -138,6 +138,66 @@ Accepts an invitation and creates a new user.
 
 ---
 
+## User Tokens (Personal Access Tokens)
+
+Personal Access Tokens (PATs) allow secure access to the API from the `ip` CLI and other automated tools without requiring JWT/OAuth flows. Tokens are prefixed with `pat_` and are securely hashed in the database.
+
+### `GET /api/user-tokens`
+
+Lists all active tokens for the current user.
+
+**Auth:** JWT
+
+**Response (200 OK):**
+
+```json
+{
+  "tokens": [
+    {
+      "id": "guid",
+      "name": "My Laptop",
+      "createdAt": "iso-date",
+      "lastUsedAt": "iso-date or null"
+    }
+  ]
+}
+```
+
+### `POST /api/user-tokens`
+
+Generates a new PAT. **Note:** The plaintext token is only returned once.
+
+**Auth:** JWT
+
+**Request body:**
+
+```json
+{
+  "name": "Production CLI"
+}
+```
+
+**Response (201 Created):**
+
+```json
+{
+  "id": "guid",
+  "name": "Production CLI",
+  "plaintextToken": "pat_...",
+  "createdAt": "iso-date"
+}
+```
+
+### `DELETE /api/user-tokens/{id}`
+
+Revokes a token.
+
+**Auth:** JWT
+
+**Response:** 204 No Content
+
+---
+
 ## Auth
 
 ### `POST /api/auth/register`

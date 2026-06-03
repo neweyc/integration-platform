@@ -140,9 +140,10 @@ public class PackagePinningTests
         var integrationRepo = Substitute.For<IIntegrationValidationRepository>();
         var manualRunRepo = Substitute.For<IManualRunRequestRepository>();
         var packageRepo = Substitute.For<IPackageLookupRepository>();
+        var quotaService = Substitute.For<IQuotaService>();
 
         var handler = new StartExecutionHandler(
-            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo);
+            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService);
 
         var tenantId = Guid.NewGuid();
         var agentId = Guid.NewGuid();
@@ -150,6 +151,9 @@ public class PackagePinningTests
         var workItemId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var now = DateTime.UtcNow;
+
+        quotaService.HasAvailableExecutionsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
         var workItem = new WorkItem
         {
@@ -201,15 +205,19 @@ public class PackagePinningTests
         var integrationRepo = Substitute.For<IIntegrationValidationRepository>();
         var manualRunRepo = Substitute.For<IManualRunRequestRepository>();
         var packageRepo = Substitute.For<IPackageLookupRepository>();
+        var quotaService = Substitute.For<IQuotaService>();
 
         var handler = new StartExecutionHandler(
-            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo);
+            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService);
 
         var tenantId = Guid.NewGuid();
         var agentId = Guid.NewGuid();
         var workItemId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var now = DateTime.UtcNow;
+
+        quotaService.HasAvailableExecutionsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(true);
 
         var workItem = new WorkItem
         {

@@ -1,12 +1,17 @@
 # Integration Platform
 
-A code-first workflow automation and integration platform. Integrations are written as C# classes rather than configured via low-code drag-and-drop.
+A **Developer Integration Platform** built on the principle of **Integration-as-Code**. We replace legacy, opaque IPaaS "Low-Code" designers with a high-velocity workflow developers actually love.
 
 ## Product direction
 
-The product goal is to replace the common 60-70% of Control-M/Boomi usage that is really scheduled jobs, data movement, API calls, transformations, retries, observability, and environment-safe deployment, while staying code-first.
+We provide the **magic developer experience** of Vercel or Temporal for enterprise C# integrations. We eliminate "Click-Ops" by allowing the **Code to be the Manifest**.
 
-This is not intended to be a low-code designer clone. The platform should give engineering-led teams real code, tests, packages, versioned deployment, rollback, agent execution close to systems/data, and an operations UI for scheduling, visibility, retries, audit, and administration.
+### The Integration-as-Code Workflow:
+1. **Author:** Write a C# class and decorate it with `[ScheduledIntegration]`.
+2. **Develop:** `ip dev` watches your code and runs tests locally on every save.
+3. **Deploy:** `ip deploy`. The Control Plane auto-provisions the infrastructure based on your code.
+
+We are the **"Terraform for Enterprise Integrations,"** designed specifically for engineering teams who need to solve complex SAP, Salesforce, and internal API automation without proprietary lock-in.
 
 Near-term product priorities:
 
@@ -147,7 +152,7 @@ Scheduling state is persisted in the control plane, so agent restarts do not res
 
 ### Deploying integrations
 
-The runtime agent loads assemblies from the local filesystem and can sync uploaded packages from the control plane. Synced packages are downloaded, SHA-256 verified, extracted under `PackagesPath`, and loaded by the agent. Package version pinning is not implemented yet, so uploaded packages are tenant-scoped and every agent for that tenant can discover them.
+The runtime agent loads assemblies from the local filesystem and can sync uploaded packages from the control plane. Synced packages are downloaded, SHA-256 verified, extracted under `PackagesPath`, and loaded by the agent. Integrations can be pinned to uploaded package versions so future executions use deterministic code.
 
 1. Build your integration project: `dotnet publish -c Release`
 2. Zip the publish output if you want to store the package in the control plane:
@@ -203,7 +208,7 @@ scripts/validate.sh
 
 This runs patch hygiene checks, .NET restore/build/test, and frontend lint/build when `node_modules` is present.
 
-Currently 183 tests cover control plane features, SDK behavior, runtime agent behavior, API contracts, security boundaries, and database-backed integration paths.
+Currently 186 tests cover control plane features, SDK behavior, runtime agent behavior, API contracts, security boundaries, commercial API surfaces, and database-backed integration paths.
 
 The control plane integration tests use a temporary PostgreSQL database when one is available. By default they try the local development database server at `127.0.0.1:5433` with `devuser` / `devpassword`. To point them at a different server, set:
 

@@ -28,6 +28,34 @@ public class IntegrationRepository(AppDbContext db)
         return integration;
     }
 
+    public async Task<Integration> UpsertBySlugAsync(Integration integration, CancellationToken ct = default)
+    {
+        var existing = await db.Integrations
+            .FirstOrDefaultAsync(i => i.TenantId == integration.TenantId && i.Slug == integration.Slug, ct);
+
+        if (existing == null)
+        {
+            db.Integrations.Add(integration);
+            await db.SaveChangesAsync(ct);
+            return integration;
+        }
+
+        existing.Name = integration.Name;
+        existing.Description = integration.Description;
+        existing.Environment = integration.Environment;
+        existing.TriggerType = integration.TriggerType;
+        existing.CronExpression = integration.CronExpression;
+        existing.ClassName = integration.ClassName;
+        existing.TimeoutSeconds = integration.TimeoutSeconds;
+        existing.RetryMaxAttempts = integration.RetryMaxAttempts;
+        existing.RetryBackoffSeconds = integration.RetryBackoffSeconds;
+        existing.PackageId = integration.PackageId;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+        return existing;
+    }
+
     public Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default) =>
         db.Integrations.FirstOrDefaultAsync(
             i => i.TenantId == tenantId && i.Id == integrationId, ct);

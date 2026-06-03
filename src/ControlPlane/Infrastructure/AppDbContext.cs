@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -315,6 +316,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(i => i.Tenant)
              .WithMany()
              .HasForeignKey(i => i.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserToken>(b =>
+        {
+            b.ToTable("user_tokens");
+            b.HasKey(t => t.Id);
+            b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+            b.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);
+
+            b.HasIndex(t => t.TokenHash).IsUnique();
+            b.HasIndex(t => new { t.TenantId, t.UserId });
+
+            b.HasOne(t => t.Tenant)
+             .WithMany()
+             .HasForeignKey(t => t.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(t => t.User)
+             .WithMany()
+             .HasForeignKey(t => t.UserId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

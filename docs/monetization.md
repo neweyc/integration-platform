@@ -1,4 +1,15 @@
-# Monetization
+# Monetization: Integration-as-Code
+
+## The Category We Own
+
+We are not an IPaaS (Integration Platform as a Service) in the legacy sense (Boomi, MuleSoft). We are a **Developer Integration Platform**.
+
+**We solve the "Low-Code Trap":** Enterprise integrations end up requiring code anyway. Instead of hiding that code in a proprietary black box, we make it the first-class citizen. By treating integrations as **Infrastructure**, we enable:
+- **Version Control:** Integrations live in Git.
+- **CI/CD:** Automated testing and deployment via the `ip` CLI.
+- **Velocity:** Engineering teams build 10x faster using idiomatic C# and our specialized **Enterprise Connectors**.
+
+---
 
 ## The problem we solve
 
@@ -169,8 +180,9 @@ As of Phase 2, the following commercial enablers are **Live**:
 
 ## Strategic Goals for Buyout (Multi-Million Dollar Exit)
 
-To achieve a multi-million dollar exit, the product must demonstrate:
-1.  **Low Friction Onboarding:** Proven by the self-service registration and SDK usability.
-2.  **High Stickiness:** Integration code is deeply embedded in customer workflows.
-3.  **Predictable Revenue:** Enforced by monthly quotas and tiered cloud pricing.
-4.  **Operational Excellence:** Demonstrated through audit logs (Todo) and execution observability.
+To achieve a **$10M–$100M+ exit**, we must demonstrate:
+1.  **Workflow Moat:** Prove that once a team adopts our SDK and CLI, the "Integration-as-Code" workflow is too valuable to replace.
+2.  **Connector Ecosystem:** Build a marketplace of high-value "Enterprise Wedges" (e.g., SAP, Salesforce, Oracle) that simplify the hardest integration problems.
+3.  **Low-Friction Adoption:** High "Self-Serve" conversion rates from `ip init` to first paid quota hit.
+4.  **Operational Maturity:** Enterprise-grade Audit Logs, RBAC, and Compliance reporting.
+5.  **Platform Stickiness:** Native integration with Azure, GitHub, and Entra ID (making us the default choice for the Microsoft ecosystem).

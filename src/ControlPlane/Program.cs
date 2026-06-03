@@ -3,11 +3,13 @@ using System.Text.Json.Serialization;
 using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.IntegrationPackages;
+using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Invitations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
+using ControlPlane.Features.UserTokens;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -110,6 +112,7 @@ builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
 builder.Services.AddScoped<ICommandHandler<DeliverWebhookCommand, DeliverWebhookResult>, DeliverWebhookHandler>();
 
 // Integration packages feature
+builder.Services.AddScoped<IAssemblyScanner, AssemblyScanner>();
 builder.Services.AddScoped<PackageRepository>();
 builder.Services.AddScoped<IPackageRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageReadRepository>(sp => sp.GetRequiredService<PackageRepository>());
@@ -163,6 +166,13 @@ builder.Services.AddScoped<IUserReadRepository, UserRepository>();
 builder.Services.AddScoped<ICommandHandler<RegisterUserCommand, RegisterUserResult>, RegisterUserHandler>();
 builder.Services.AddScoped<ICommandHandler<LoginUserCommand, LoginUserResult>, LoginUserHandler>();
 
+// User token feature
+builder.Services.AddScoped<IUserTokenService, UserTokenService>();
+builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
+builder.Services.AddScoped<ICommandHandler<CreateUserTokenCommand, CreateUserTokenResult>, CreateUserTokenHandler>();
+builder.Services.AddScoped<ICommandHandler<ListUserTokensCommand, ListUserTokensResult>, ListUserTokensHandler>();
+builder.Services.AddScoped<ICommandHandler<RevokeUserTokenCommand, bool>, RevokeUserTokenHandler>();
+
 // Exception handling
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -191,12 +201,14 @@ if (app.Environment.IsDevelopment())
     app.UseCors();
 }
 
+app.UseUserTokenAuthentication();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
+app.MapUserTokenEndpoints();
 app.MapInvitationEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();

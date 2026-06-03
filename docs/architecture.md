@@ -1,18 +1,18 @@
-# Architecture
+# Architecture: Integration-as-Code
 
 ## Overview
 
-Integration Platform is a code-first integration platform designed for high-scale SaaS and enterprise deployments. Users write integrations as C# classes, composing them using a rich set of platform-provided **Connectors**. The platform handles trigger intake, scheduling, secrets injection, execution, and observability.
+Integration Platform is a **Developer Integration Platform** designed for high-scale enterprise deployments. We treat integrations as **Infrastructure**, utilizing a **Code-as-the-Manifest** model that eliminates manual UI configuration.
 
 ![Integration Platform architecture overview](assets/architecture-overview.svg)
 
 ### Key Architectural Layers
 
-1.  **SDK (`IntegrationPlatform.Sdk`):** The stable runtime contract. Minimal by design to ensure long-term compatibility.
-2.  **Connectors (`IntegrationPlatform.Connectors`):** Pluggable libraries (HTTP, SQL, etc.) that abstract away boilerplate while remaining execution-aware (logging, secrets, cancellation).
-3.  **Trigger Adapters:** Producers that normalize external events (Cron, Webhooks, Manual) into a unified `WorkItem` queue.
-4.  **Control Plane:** The multi-tenant brain. Handles registration, auth, scheduling, secrets, and **SaaS Quotas**.
-5.  **Runtime Agent:** The stateless worker that executes jobs close to the data.
+1.  **SDK (`IntegrationPlatform.Sdk`):** The code-first manifest definition. Developers use attributes to define triggers, schedules, and operational constraints directly on their classes.
+2.  **Marketplace & Connectors (`IntegrationPlatform.Connectors`):** An extensible ecosystem of specialized connectors (e.g., SAP, Salesforce, SQL) that abstract enterprise complexity into idiomatic C#.
+3.  **Governance Layer:** Built-in **Audit Logs**, **RBAC**, and **SSO** that meet enterprise procurement and compliance requirements.
+4.  **Control Plane:** The multi-tenant orchestration engine. Performs **Assembly Scanning** to auto-provision integrations from uploaded packages.
+5.  **Runtime Agent:** A stateless worker service that provides a secure "Execution Sandbox" close to the data.
 
 The system is split into two independently deployable components:
 
@@ -93,11 +93,13 @@ public class Dispatcher(IServiceProvider services) : IDispatcher
 
 ### Authentication
 
-Two auth mechanisms exist:
+Three auth mechanisms exist:
 
-1. **User JWT** — issued on login/setup, contains `sub`, `email`, `tenant_id`, `role` claims. Used for all user-facing API calls. Validated by ASP.NET Core JWT Bearer middleware.
+1. **User JWT** — issued on login/setup, contains `sub`, `email`, `tenant_id`, `role` claims. Used for all web-based API calls.
 
-2. **Agent tokens** — format `agt_<base64url(32 random bytes)>`. SHA-256 hash stored in the database. Presented via `X-Agent-Token` header. Validated inline in the agent endpoint. Scoped to a single tenant + environment.
+2. **Personal Access Tokens (PATs)** — format `pat_<base64url(32 random bytes)>`. Used by the `ip` CLI. SHA-256 hash stored in the database. Authenticated via `UserTokenAuthenticationMiddleware` which injects standard user claims.
+
+3. **Agent tokens** — format `agt_<base64url(32 random bytes)>`. SHA-256 hash stored in the database. Presented via `X-Agent-Token` header. Scoped to a single tenant + environment.
 
 ### Secrets
 
@@ -115,6 +117,14 @@ The control plane is built for multi-tenancy from the ground up:
 - **Quota Management:** `IQuotaService` enforces monthly execution limits per tenant, enabling tiered pricing models.
 - **Billing Integration:** Built-in hooks for Stripe Customer and Subscription management.
 
+### Enterprise Governance
+
+The control plane provides the operational "safety net" required for high-value enterprise deployments:
+- **Audit Logs:** Every secret change, deployment, and configuration update is immutably recorded.
+- **RBAC:** Granular Role-Based Access Control to separate "Developers" from "Operations."
+- **SSO/SAML:** (Phase 4) Integration with enterprise identity providers.
+- **Compliance Reporting:** Exportable history for security and financial audits.
+
 ### Database
 
 PostgreSQL via EF Core. Migrations are applied automatically on startup — no manual migration step is needed.
@@ -124,6 +134,7 @@ Schema:
 ```
 tenants           — id, name, slug, status, max_executions_per_month, stripe_customer_id, stripe_subscription_id
 users             — id, tenant_id, email, password_hash, role
+user_tokens       — id, tenant_id, user_id, name, token_hash, last_used_at, expires_at
 invitations       — id, tenant_id, email, token, role, expires_at, accepted_at
 secrets           — id, tenant_id, environment, key, encrypted_value
 integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, timeout_seconds, retry_max_attempts, retry_backoff_seconds, package_id, encrypted_webhook_secret

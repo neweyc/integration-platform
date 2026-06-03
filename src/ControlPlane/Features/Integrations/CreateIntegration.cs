@@ -54,6 +54,7 @@ public interface IIntegrationRepository
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
     Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default);
+    Task<Integration> UpsertBySlugAsync(Integration integration, CancellationToken ct = default);
 }
 
 public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
