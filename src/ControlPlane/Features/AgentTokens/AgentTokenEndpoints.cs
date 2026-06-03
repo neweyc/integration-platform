@@ -1,6 +1,7 @@
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ControlPlane.Features.AgentTokens;
@@ -22,7 +23,7 @@ public static class AgentTokenEndpoints
                 new CreateAgentTokenCommand(currentUser.TenantId, request.Name, request.Environment), ct);
 
             return Results.Created($"/api/agent-tokens/{result.Id}", result);
-        });
+        }).RequirePermission(Permission.ManageAgentTokens);
 
         mgmt.MapGet("/", async (
             IDispatcher dispatcher,
@@ -31,7 +32,7 @@ public static class AgentTokenEndpoints
         {
             var result = await dispatcher.SendAsync(new ListAgentTokensCommand(currentUser.TenantId), ct);
             return Results.Ok(result);
-        });
+        }).RequirePermission(Permission.ManageAgentTokens);
 
         mgmt.MapGet("/heartbeats", async (
             IDispatcher dispatcher,
@@ -40,7 +41,7 @@ public static class AgentTokenEndpoints
         {
             var result = await dispatcher.SendAsync(new ListAgentHeartbeatsCommand(currentUser.TenantId), ct);
             return Results.Ok(result);
-        });
+        }).RequirePermission(Permission.ViewExecutions);
 
         mgmt.MapDelete("/{id:guid}", async (
             Guid id,
@@ -50,7 +51,7 @@ public static class AgentTokenEndpoints
         {
             await dispatcher.SendAsync(new RevokeAgentTokenCommand(currentUser.TenantId, id), ct);
             return Results.NoContent();
-        });
+        }).RequirePermission(Permission.ManageAgentTokens);
 
         // All agent-facing endpoints share the same token validation pattern
         var agent = app.MapGroup("/api/agent").WithTags("Agent");

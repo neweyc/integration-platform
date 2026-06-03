@@ -12,6 +12,7 @@ public class GlobalExceptionHandler(IProblemDetailsService problemDetailsService
         {
             ValidationException => (StatusCodes.Status400BadRequest, "Validation Error"),
             UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
             NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
             // Kestrel aborts oversized request bodies with this — surface as 413, not 500

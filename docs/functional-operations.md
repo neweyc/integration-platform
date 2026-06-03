@@ -180,10 +180,12 @@ Integrations can be pinned to uploaded package versions, and execution records r
 
 | Role | Capabilities |
 |------|-------------|
-| Admin | Full access — manage integrations, secrets, tokens, users |
-| Member | (future) Read access, can view integrations and execution history |
+| Admin | Full access — manage integrations, secrets, packages, tokens, users, and billing/admin tenant operations |
+| Developer | Deploy and operate integrations, manage secrets, packages, and agent tokens; cannot manage users or billing |
+| Operator | View integrations, executions, and logs; trigger manual runs; cannot view secrets or deploy code |
+| Member | Legacy read-only role; can view integrations and execution history |
 
-Currently all authenticated users within a tenant have admin-level access. Role-based restrictions will be enforced when the Member role is surfaced in the UI.
+Server-side role enforcement is active through endpoint permission filters. The UI still needs role-aware hiding or disabling of unavailable actions; until that is complete, disallowed UI actions receive `403 Forbidden` from the API.
 
 ---
 

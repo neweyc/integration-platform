@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ControlPlane.Features.IntegrationPackages;
@@ -31,7 +32,7 @@ public static class PackageEndpoints
                 ct);
 
             return Results.Created($"/api/integration-packages/{result.Id}", result);
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RequirePermission(Permission.ManagePackages);
 
         group.MapGet("/", async (
             IDispatcher dispatcher,
@@ -40,7 +41,7 @@ public static class PackageEndpoints
         {
             var result = await dispatcher.SendAsync(new ListPackagesCommand(currentUser.TenantId), ct);
             return Results.Ok(result);
-        });
+        }).RequirePermission(Permission.ViewIntegrations);
 
         group.MapGet("/{id:guid}", async (
             Guid id,
@@ -50,7 +51,7 @@ public static class PackageEndpoints
         {
             var result = await dispatcher.SendAsync(new GetPackageCommand(currentUser.TenantId, id), ct);
             return result is null ? Results.NotFound() : Results.Ok(result);
-        });
+        }).RequirePermission(Permission.ViewIntegrations);
 
         group.MapGet("/{id:guid}/download", async (
             Guid id,
@@ -63,7 +64,7 @@ public static class PackageEndpoints
             return result is null
                 ? Results.NotFound()
                 : Results.File(result.Data, result.ContentType, result.FileName);
-        });
+        }).RequirePermission(Permission.ManagePackages);
 
         group.MapDelete("/{id:guid}", async (
             Guid id,
@@ -73,7 +74,7 @@ public static class PackageEndpoints
         {
             await dispatcher.SendAsync(new DeletePackageCommand(currentUser.TenantId, id), ct);
             return Results.NoContent();
-        });
+        }).RequirePermission(Permission.ManagePackages);
 
         return app;
     }

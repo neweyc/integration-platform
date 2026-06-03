@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ControlPlane.Features.Auth;
@@ -12,12 +13,13 @@ public static class AuthEndpoints
         group.MapPost("/register", async (
             [FromBody] RegisterUserRequest request,
             IDispatcher dispatcher,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
             var result = await dispatcher.SendAsync(
-                new RegisterUserCommand(request.TenantId, request.Email, request.Password), ct);
+                new RegisterUserCommand(currentUser.TenantId, request.Email, request.Password), ct);
             return Results.Created($"/api/users/{result.UserId}", new { result.UserId, result.Email });
-        });
+        }).RequireAuthorization().RequirePermission(Permission.ManageUsers);
 
         group.MapPost("/login", async (
             [FromBody] LoginUserRequest request,
@@ -33,5 +35,5 @@ public static class AuthEndpoints
     }
 }
 
-public record RegisterUserRequest(Guid TenantId, string Email, string Password);
+public record RegisterUserRequest(string Email, string Password);
 public record LoginUserRequest(string Email, string Password);

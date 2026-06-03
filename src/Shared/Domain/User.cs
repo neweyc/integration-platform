@@ -12,6 +12,15 @@ public class User : Entity
 
 public enum UserRole
 {
+    // Full control: everything below, plus user management and billing.
     Admin,
+
+    // Deploy and operate integrations; manage secrets, packages, agent tokens. No user mgmt or billing.
+    Developer,
+
+    // View executions/logs and trigger manual runs. No secrets, no deploy.
+    Operator,
+
+    // Legacy read-only role. Retained for backward compatibility with existing data.
     Member
 }

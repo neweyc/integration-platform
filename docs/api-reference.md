@@ -190,7 +190,7 @@ Generates a new PAT. **Note:** The plaintext token is only returned once.
 
 ### `DELETE /api/user-tokens/{id}`
 
-Revokes a token.
+Revokes one of the current user's personal access tokens. Revocation is scoped to the authenticated user; one tenant user cannot revoke another user's personal access token.
 
 **Auth:** JWT
 
@@ -202,7 +202,7 @@ Revokes a token.
 
 ### `POST /api/auth/register`
 
-Register a new user within the current tenant. First user automatically becomes Admin.
+Legacy direct user registration within the authenticated user's tenant. This endpoint is admin-gated and creates a member user. Prefer invitations for assigning explicit `Developer`, `Operator`, or `Member` roles.
 
 **Auth:** JWT (Admin)
 
@@ -218,9 +218,7 @@ Register a new user within the current tenant. First user automatically becomes 
 ```json
 {
   "userId": "uuid",
-  "email": "user@acme.com",
-  "role": "Member",
-  "token": "<jwt>"
+  "email": "user@acme.com"
 }
 ```
 

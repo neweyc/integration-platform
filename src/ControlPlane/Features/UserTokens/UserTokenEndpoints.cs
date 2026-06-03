@@ -37,7 +37,7 @@ public static class UserTokenEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            await dispatcher.SendAsync(new RevokeUserTokenCommand(currentUser.TenantId, id), ct);
+            await dispatcher.SendAsync(new RevokeUserTokenCommand(currentUser.TenantId, currentUser.UserId, id), ct);
             return Results.NoContent();
         });
 

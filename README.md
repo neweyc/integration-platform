@@ -217,7 +217,7 @@ scripts/validate.sh
 
 This runs patch hygiene checks, .NET restore/build/test, and frontend lint/build when `node_modules` is present.
 
-Currently 197 tests cover control plane features, SDK behavior, runtime agent behavior, CLI behavior, API contracts, security boundaries, commercial API surfaces, and database-backed integration paths.
+Currently 231 tests cover control plane features, SDK behavior, runtime agent behavior, CLI behavior, API contracts, RBAC/security boundaries, commercial API surfaces, and database-backed integration paths.
 
 The control plane integration tests use a temporary PostgreSQL database when one is available. By default they try the local development database server at `127.0.0.1:5433` with `devuser` / `devpassword`. To point them at a different server, set:
 

@@ -292,14 +292,21 @@ Acceptance criteria:
 
 ### Role-Based Access Control (RBAC)
 
-**Status:** Todo
+**Status:** Done
 
 Separate administrative power from developer activity.
 
 Acceptance criteria:
-- Roles: `Admin`, `Developer`, `Operator`.
+- Roles: `Admin`, `Developer`, `Operator`. (`Member` retained as legacy read-only.)
 - `Developer` can deploy and test, but not manage billing or invitations.
 - `Operator` can view logs and trigger manual runs, but not view secrets or deploy code.
+
+Completed notes:
+- `Permission` enum + `RolePermissions` matrix in `Infrastructure/Authorization` is the single source of truth for access policy.
+- `.RequirePermission(Permission)` endpoint filter enforces server-side: 401 if unauthenticated, 403 (`ForbiddenException` → ProblemDetails) if the role lacks the permission.
+- Applied across Integrations, Secrets, Packages, Agent Tokens, Invitations, direct user registration, and Tenant/billing endpoints. Agent (`X-Agent-Token`), Setup, login, tenant self-registration, and Webhook endpoints are intentionally outside the user-role model.
+- Fixed a latent claim-mapping bug: JWT `role` claim is remapped to `ClaimTypes.Role` on validation; `CurrentUser.Role` now reads either form.
+- Tests: full `RolePermissions` matrix unit tests + endpoint allow/deny integration tests per role (Operator/Developer/Member/Admin) using the real invite → accept → enforce flow.
 
 ---
 
@@ -798,16 +805,16 @@ Acceptance criteria:
 
 ### Role Enforcement
 
-**Status:** Todo
+**Status:** Done (server-side); UI hiding still Todo
 
 Make user roles meaningful.
 
 Acceptance criteria:
 
-- Admin-only operations are enforced server-side.
-- Member role has read-only access where appropriate.
-- UI hides unavailable actions for non-admin users.
-- Tests cover authorization failures.
+- Admin-only operations are enforced server-side. ✓ (see RBAC above)
+- Member role has read-only access where appropriate. ✓
+- UI hides unavailable actions for non-admin users. — **still Todo** (server returns 403; the dashboard should also hide actions the role can't perform).
+- Tests cover authorization failures. ✓
 
 ### Rate Limiting
 

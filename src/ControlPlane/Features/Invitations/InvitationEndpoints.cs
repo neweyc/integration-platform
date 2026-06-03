@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Shared.Domain;
 
@@ -17,7 +18,7 @@ public static class InvitationEndpoints
         {
             var result = await dispatcher.SendAsync(new InviteUserCommand(request.Email, request.Role), ct);
             return Results.Ok(result);
-        });
+        }).RequirePermission(Permission.ManageUsers);
 
         app.MapPost("/api/invitations/accept", async (
             [FromBody] AcceptInvitationRequest request,

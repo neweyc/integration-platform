@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Shared.Domain;
 
 namespace ControlPlane.Infrastructure;
 
@@ -18,5 +19,19 @@ public class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUse
         ?? User.FindFirstValue("email")
         ?? throw new InvalidOperationException("Email claim missing.");
 
-    public bool IsAdmin => User.FindFirstValue("role") == "Admin";
+    public UserRole Role
+    {
+        get
+        {
+            // JWT validation may remap the short "role" claim to ClaimTypes.Role; the
+            // user-token middleware emits the short form. Accept either.
+            var raw = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+            return Enum.TryParse<UserRole>(raw, out var role)
+                ? role
+                // Unknown/missing role claim defaults to the least-privileged role.
+                : UserRole.Member;
+        }
+    }
+
+    public bool IsAdmin => Role == UserRole.Admin;
 }
