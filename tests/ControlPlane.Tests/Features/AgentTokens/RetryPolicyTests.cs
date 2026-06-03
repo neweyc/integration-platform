@@ -23,6 +23,7 @@ public class RetryPolicyTests
         var integrationId = Guid.NewGuid();
         var workItemId = Guid.NewGuid();
         var executionId = Guid.NewGuid();
+        var agentTokenId = Guid.NewGuid();
 
         var record = new ExecutionRecord
         {
@@ -53,11 +54,12 @@ public class RetryPolicyTests
             Environment = "production",
             TriggerSource = TriggerSource.Scheduled,
             Payload = "payload",
-            Status = WorkItemStatus.Started
+            Status = WorkItemStatus.Started,
+            ClaimOwner = agentTokenId
         });
 
         await _handler.HandleAsync(new CompleteExecutionCommand(
-            tenantId, executionId, Succeeded: false, ErrorMessage: "failed"));
+            tenantId, "production", executionId, agentTokenId, Succeeded: false, ErrorMessage: "failed"));
 
         await _workItemRepository.Received(1).CreateAsync(Arg.Is<WorkItem>(w =>
             w.TenantId == tenantId
@@ -77,6 +79,7 @@ public class RetryPolicyTests
         var tenantId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var executionId = Guid.NewGuid();
+        var agentTokenId = Guid.NewGuid();
 
         _executionRepository.FindAsync(tenantId, executionId).Returns(new ExecutionRecord
         {
@@ -95,7 +98,7 @@ public class RetryPolicyTests
         });
 
         await _handler.HandleAsync(new CompleteExecutionCommand(
-            tenantId, executionId, Succeeded: false, ErrorMessage: "failed"));
+            tenantId, "production", executionId, agentTokenId, Succeeded: false, ErrorMessage: "failed"));
 
         await _workItemRepository.DidNotReceive().CreateAsync(Arg.Any<WorkItem>());
     }
@@ -106,6 +109,7 @@ public class RetryPolicyTests
         var tenantId = Guid.NewGuid();
         var integrationId = Guid.NewGuid();
         var executionId = Guid.NewGuid();
+        var agentTokenId = Guid.NewGuid();
 
         _executionRepository.FindAsync(tenantId, executionId).Returns(new ExecutionRecord
         {
@@ -124,7 +128,7 @@ public class RetryPolicyTests
         });
 
         await _handler.HandleAsync(new CompleteExecutionCommand(
-            tenantId, executionId, Succeeded: false, ErrorMessage: "shutdown", Retryable: false));
+            tenantId, "production", executionId, agentTokenId, Succeeded: false, ErrorMessage: "shutdown", Retryable: false));
 
         await _workItemRepository.DidNotReceive().CreateAsync(Arg.Any<WorkItem>());
     }

@@ -209,7 +209,9 @@ public static class AgentTokenEndpoints
             await dispatcher.SendAsync(
                 new CompleteExecutionCommand(
                     agentToken.TenantId,
+                    agentToken.Environment,
                     id,
+                    agentToken.Id,
                     request.Succeeded,
                     request.ErrorMessage,
                     request.IsTimeout,

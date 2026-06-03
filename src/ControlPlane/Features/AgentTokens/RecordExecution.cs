@@ -16,7 +16,9 @@ public record StartExecutionResult(Guid ExecutionId, DateTime StartedAt);
 // Called by the agent to close the execution record with the outcome
 public record CompleteExecutionCommand(
     Guid TenantId,
+    string Environment,
     Guid ExecutionId,
+    Guid AgentTokenId,
     bool Succeeded,
     string? ErrorMessage,
     bool IsTimeout = false,
@@ -144,6 +146,16 @@ public class CompleteExecutionHandler(
 
         if (record is null)
             throw new NotFoundException("Execution record not found.");
+
+        if (record.Environment != command.Environment)
+            throw new NotFoundException("Execution record not found.");
+
+        if (record.WorkItemId.HasValue)
+        {
+            var claimedWorkItem = await workItemRepository.GetByIdAsync(command.TenantId, record.WorkItemId.Value, ct);
+            if (claimedWorkItem is null || claimedWorkItem.ClaimOwner != command.AgentTokenId)
+                throw new NotFoundException("Execution record not found.");
+        }
 
         record.Status = command.Succeeded
             ? ExecutionStatus.Succeeded

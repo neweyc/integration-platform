@@ -10,6 +10,8 @@ Every production change should pass:
 - `.NET restore`
 - `.NET build with warnings as errors`
 - Full `.NET test` suite
+- API contract tests for client-facing response shapes
+- Tenant-isolation and agent-token misuse tests
 - Frontend `npm run lint`
 - Frontend `npm run build`
 - PostgreSQL-backed integration tests with `INTEGRATION_TEST_CONNECTION` set
@@ -37,5 +39,4 @@ Before merging risky changes, verify:
 
 ## Known Limits
 
-These controls raise confidence; they do not prove correctness. The next controls to add are contract tests for API response shape, end-to-end packaged-agent smoke tests, coverage reporting for critical paths, and security-focused tests for tenant isolation and token misuse.
-
+These controls raise confidence; they do not prove correctness. The next controls to add are end-to-end packaged-agent smoke tests, coverage reporting for critical paths, broader authorization matrix tests, dependency vulnerability scanning, and load/concurrency tests for claims, retries, and scheduling.
