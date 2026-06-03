@@ -928,7 +928,7 @@ Completed notes:
 
 ### User Invitations
 
-**Status:** Done
+**Status:** In Progress
 
 Allow tenant admins to invite users.
 
@@ -938,11 +938,21 @@ Acceptance criteria:
 - Invite token expires.
 - Invite acceptance creates user in correct tenant.
 - Invite events are audited.
+- Admin UI can create an invite and expose an accept link.
+- Public accept-invitation UI lets the invited user set a password.
 
 Completed notes:
 
 - Implemented `Invitation` domain model and feature.
 - Secure token generation and public accept endpoint.
+- Added role-gated Users UI for tenant admins to create invitations.
+- Added public accept-invitation UI.
+
+Remaining:
+
+- List active users and pending invitations in the UI.
+- Revoke/resend pending invitations.
+- Audit invite and accept events.
 
 ### Password Reset
 
