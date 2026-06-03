@@ -2,7 +2,7 @@
 
 ## Overview
 
-Integration Platform is a code-first integration platform. Users write integrations as C# classes rather than configuring them in a low-code editor. The platform handles scheduling, secrets injection, execution, and observability.
+Integration Platform is a code-first integration platform. Users write integrations as C# classes rather than configuring them in a low-code editor. The platform handles trigger intake, scheduling, secrets injection, execution, and observability.
 
 ![Integration Platform architecture overview](assets/architecture-overview.svg)
 
@@ -28,7 +28,7 @@ The system is split into two independently deployable components:
 └─────────────────────────────────┘
 ```
 
-This separation is a first-class design decision. The control plane owns all state and decisions. The runtime agent is stateless — it polls or is triggered by the control plane, executes work, and reports back. This enables a self-hosted model where the agent runs inside the customer's network with access to internal systems, while the control plane can be cloud-hosted.
+This separation is a first-class design decision. The control plane owns all state and decisions. Trigger adapters create work items in the control plane. The runtime agent is stateless: it claims work items, executes work, and reports back. This enables a self-hosted model where the agent runs inside the customer's network with access to internal systems, while the control plane can be cloud-hosted.
 
 ---
 
@@ -109,13 +109,14 @@ Schema:
 tenants           — id, name, slug, status
 users             — id, tenant_id, email, password_hash, role
 secrets           — id, tenant_id, environment, key, encrypted_value
-integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name
+integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, package_id, encrypted_webhook_secret
 agent_tokens      — id, tenant_id, name, environment, token_hash
-execution_records — id, tenant_id, integration_id, work_item_id, environment, status, started_at, completed_at, error_message
+execution_records — id, tenant_id, integration_id, work_item_id, environment, status, package_id, package_name, package_version, started_at, completed_at, error_message
 execution_logs    — id, tenant_id, execution_record_id, timestamp, level, message, exception, properties_json
 assembly_packages — id, tenant_id, name, version, file_name, data, size_bytes, sha256_hash
 integration_schedule_states — id, tenant_id, integration_id, last_dispatched_at, next_run_at
-work_items        — id, tenant_id, integration_id, environment, trigger_source, status, available_at, claim_owner, claim_expires_at, manual_run_request_id, payload
+work_items        — id, tenant_id, integration_id, environment, trigger_source, status, available_at, claim_owner, claim_expires_at, manual_run_request_id, payload, delivery_id
+webhook_deliveries — id, tenant_id, integration_id, delivery_id, outcome, work_item_id, received_at
 ```
 
 ---
@@ -125,7 +126,7 @@ work_items        — id, tenant_id, integration_id, environment, trigger_source
 The agent is a .NET Worker Service deployed by the customer. It:
 
 1. Authenticates with the control plane using an agent token
-2. Polls for work — integrations that are due to run based on their cron schedules
+2. Polls for work items in its tenant/environment
 3. Fetches the secret bundle for its environment
 4. Loads and executes the integration C# class with secrets injected
 5. Reports execution status and any errors back to the control plane
@@ -177,7 +178,23 @@ Packages are validated as zip files, must contain at least one `.dll`, and are s
 
 Runtime agents sync packages into `PackagesPath`, verify SHA-256 before activation, and load extracted assemblies. Agents still also load DLLs from local `IntegrationsPath` for development.
 
-Important current limitation: integrations are not yet pinned to package versions, execution records do not record which package version ran, package deletion does not remove local agent cache entries, and assemblies are still loaded in the default load context.
+Package-backed integrations can be pinned to a package version. Execution records snapshot the package id, package name, and package version used so history remains accurate after rollback or repointing. Current limitations: package deletion does not remove local agent cache entries, and assemblies are still loaded in the default load context.
+
+### Trigger adapters
+
+The trigger model is intentionally producer-based:
+
+```
+Trigger adapter -> WorkItem -> Agent claim -> ExecutionRecord -> Integration code
+```
+
+Scheduled, manual, and webhook triggers are the first built-in adapters:
+
+- **Scheduled** evaluates cron state and creates scheduled work items when due.
+- **Manual** turns a user "run now" request into a pending work item.
+- **Webhook** validates an inbound signed request, stores the payload, records delivery state, and creates a pending work item.
+
+Future trigger types should follow the same contract. Queue messages, file arrivals, database changes, workflow dependencies, dataset availability, and API events should all normalize their event metadata into a work item instead of introducing trigger-specific execution APIs. This keeps the runtime agent simple and makes observability, retries, claim recovery, and execution history consistent across trigger sources.
 
 ### Concurrency and scheduling
 
@@ -186,9 +203,9 @@ The agent implements several safety mechanisms:
 - **Concurrency limit** — A configurable `MaxConcurrentExecutions` setting (default: 5) limits how many integrations can run simultaneously using a semaphore
 - **In-flight tracking** — Each integration is tracked while executing; if a poll cycle fires while an integration is still running, it will be skipped to prevent overlapping executions
 - **Durable cron scheduling** — The control plane evaluates cron schedules and persists `LastDispatchedAt` and `NextRunAt` in `integration_schedule_states`
-- **Work-item dispatch** — Scheduled and manual triggers create work items. Agents claim work items with a claim owner and expiry (5 minutes), preventing duplicate dispatch while allowing abandoned claims to be reclaimed.
+- **Work-item dispatch** — Trigger adapters create work items. Agents claim work items with a claim owner and expiry (5 minutes), preventing duplicate dispatch while allowing abandoned claims to be reclaimed.
 
-The poll endpoint creates or claims work items inside a serializable transaction. This prevents agent restarts from resetting scheduling state. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
+The poll endpoint creates due scheduled work and claims available work items inside serializable transactions. This prevents agent restarts from resetting scheduling state and keeps scheduled, manual, webhook, and future trigger sources on the same dispatch path. The agent still keeps local in-flight tracking so it does not overlap the same integration inside one process.
 
 ### Claim recovery
 

@@ -10,7 +10,7 @@ The strategic build order is:
 
 1. Make code execution production-safe with versioned packages, rollback, work items, retries, and agent health.
 2. Add workflow orchestration primitives: DAGs, dependencies, calendars, reruns, and agent pools.
-3. Add integration primitives: webhooks, HTTP/API, database, files/SFTP, object storage, notifications, and code-first transforms.
+3. Add trigger adapters and integration primitives: queues/events, webhooks, files/SFTP, object storage, database changes, HTTP/API, notifications, and code-first transforms.
 4. Add enterprise controls: audit, RBAC, quotas, retention, environment promotion, and compliance exports.
 
 ---
@@ -67,7 +67,8 @@ The strategic build order is:
 - [x] Documentation: writing and deploying your first integration
 
 ### Agent improvements
-- [ ] Webhook trigger support: agent exposes an HTTP endpoint or control plane proxies
+- [x] Webhook trigger support: control plane receives signed webhooks and enqueues work items
+- [ ] Trigger adapter framework for queue, file, database, dependency, dataset, and API-event triggers
 - [ ] Retry policy: configurable retry count and backoff per integration
 - [ ] Agent version reporting (for compatibility checking)
 - [ ] Lease-based scheduling recovery for abandoned claims

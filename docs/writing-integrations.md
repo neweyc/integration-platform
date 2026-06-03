@@ -6,7 +6,7 @@ This guide explains how to write, deploy, and test integrations for the platform
 
 ## Concept
 
-An integration is a C# class that implements `IIntegration`. The class contains your business logic — the platform handles everything else: scheduling, secret injection, execution, logging, and retry.
+An integration is a C# class that implements `IIntegration`. The class contains your business logic; the platform handles everything else: trigger intake, scheduling, secret injection, execution, logging, and retry.
 
 ```csharp
 using IntegrationPlatform.Sdk;
@@ -95,10 +95,12 @@ Once deployed, the integration class must be registered in the control plane:
    - **Name** — display name (e.g. "Sync Orders")
    - **Slug** — URL-safe identifier (e.g. `sync-orders`)
    - **Environment** — target environment (e.g. `production`)
-   - **Trigger type** — `Scheduled`, `Webhook`, or `Manual`
+   - **Trigger type** — built-in values are `Scheduled`, `Webhook`, or `Manual`
    - **Cron expression** — required for scheduled triggers (e.g. `0 * * * *` for hourly)
    - **Class name** — fully qualified .NET type name (e.g. `MyIntegrations.SyncOrdersIntegration`)
-3. The runtime agent uses the **class name** to locate and instantiate the integration class when it's due to run
+3. The runtime agent uses the **class name** to locate and instantiate the integration class when work is claimed
+
+Triggers are producers. Whether an integration is started by cron, a manual run, a webhook, or a future queue/file/database trigger, the platform converts that event into a work item and the agent executes the same integration class through the same runtime path. Webhook payloads are available through `context.Payload`; future adapters should expose normalized payload or metadata the same way.
 
 > **Important:** The class name must exactly match the fully qualified type name in your assembly. If the agent can't find the class, it will log a warning and skip execution.
 
@@ -172,9 +174,8 @@ Package constraints:
 Current limitations:
 
 - Packages are tenant-scoped, not environment-scoped
-- Integrations are not yet pinned to a package/version
-- The execution record does not yet store which package version ran
-- Rollback is not yet a first-class workflow
+- Integrations can be pinned to a package/version, and execution records retain the package version that ran
+- Rollback is performed by repointing an integration to a previous package version rather than through a dedicated rollback workflow
 - Loaded assemblies are not isolated or unloaded yet
 
 ---

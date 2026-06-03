@@ -22,6 +22,7 @@ Principles:
 - Real code over low-code lock-in.
 - Versioned package deployment and rollback over copying files to agents.
 - Work items and workflows over one-off execution paths.
+- Trigger adapters over trigger-specific execution paths.
 - Agent execution close to systems and data.
 - Operations-grade visibility, retry, audit, and access control.
 - Built-in primitives for the common integration work: schedules, HTTP/API calls, database access, files/SFTP, transformations, secrets, alerts, and environment promotion.
@@ -33,7 +34,7 @@ Priority ladder:
 3. Workflow DAG foundation.
 4. Retry policy.
 5. Agent heartbeats and agent pools.
-6. Webhook triggers.
+6. Trigger adapter framework.
 7. Core connectors.
 8. Code-first transform steps.
 9. Environment promotion.
@@ -227,6 +228,34 @@ Remaining limitations:
 ---
 
 ## P1 — Runtime Reliability
+
+### Trigger Adapter Framework
+
+**Status:** Todo
+
+Make "anything can trigger a job" a first-class architecture rule. Scheduled, manual, and webhook triggers already prove the model: each trigger source should detect or receive an event, validate it, normalize payload and metadata, and enqueue a `WorkItem`. The runtime agent and execution APIs must remain trigger-agnostic.
+
+Acceptance criteria:
+
+- A trigger adapter contract exists for producing work items from different trigger sources.
+- Scheduled, manual, and webhook producers are documented as the first built-in adapters.
+- Future trigger sources can be added without changing the agent execution path.
+- Work item payload and metadata can carry normalized trigger-specific context.
+- Trigger-source observability records when a trigger was received, accepted, deduplicated, rejected, or converted to work.
+- Tests cover at least one new adapter using the shared work-item producer path.
+
+Candidate adapters:
+
+- Queue/event bus: SQS, Azure Service Bus, RabbitMQ, Kafka.
+- File/object arrival: SFTP, local watched folders, S3/Azure Blob/GCS.
+- Database: polling queries, change tables, CDC streams.
+- API event: authenticated enqueue endpoint distinct from webhook integrations.
+- Workflow dependency: upstream job completion creates downstream work.
+- Dataset availability: partition/table/object readiness creates work.
+
+Design rule:
+
+- Triggers produce `WorkItem`; agents execute `WorkItem`; integration code receives normalized context through `IIntegrationContext`.
 
 ### Retry Policy
 

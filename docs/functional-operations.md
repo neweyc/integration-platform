@@ -46,7 +46,7 @@ An integration is a named, versioned definition of a job. It does not contain co
 | Slug | URL-safe identifier, unique within a tenant |
 | Description | Optional notes |
 | Environment | `production`, `staging`, etc. |
-| Trigger type | `Scheduled`, `Webhook`, or `Manual` |
+| Trigger type | Built-in values today: `Scheduled`, `Webhook`, or `Manual`. Future trigger adapters should also enqueue work items. |
 | Cron expression | Required when trigger is `Scheduled` |
 | Status | `Enabled` or `Disabled` |
 
@@ -153,7 +153,7 @@ The agent injects these as environment variables (or via a typed context object)
 
 Scheduling state is stored in `integration_schedule_states` with `last_dispatched_at` and `next_run_at`. New scheduled integrations calculate their first run from the integration creation time. Existing scheduled integrations use the persisted `next_run_at`, so agent restarts do not cause all jobs to run immediately.
 
-Due scheduled integrations create claimed work items. Manual run requests also create pending work items. Agents claim work items with a 5-minute claim expiry, start executions from claimed work items, and completion mirrors the terminal execution state back to the work item. If an agent crashes after claiming work but before opening an execution record, another agent can reclaim the work item after the claim expires.
+Trigger adapters create work items. Due scheduled integrations create claimed scheduled work items, manual run requests create pending manual work items, and signed webhook deliveries create pending webhook work items with payload context. Future queue, file, database, dependency, dataset, or API-event triggers should follow the same producer pattern. Agents claim work items with a 5-minute claim expiry, start executions from claimed work items, and completion mirrors the terminal execution state back to the work item. If an agent crashes after claiming work but before opening an execution record, another agent can reclaim the work item after the claim expires.
 
 ---
 
@@ -172,7 +172,7 @@ Packages are uploaded through `POST /api/integration-packages` as `multipart/for
 
 Runtime agents can list and download tenant packages through agent-token endpoints. Downloaded packages are SHA-256 verified, extracted into the agent's `PackagesPath`, and loaded by the runtime agent.
 
-Current operational limitations: packages are not yet pinned to integration definitions, execution records do not store the package version used, packages are not environment-scoped, and rollback is not yet a first-class workflow.
+Integrations can be pinned to uploaded package versions, and execution records retain the package id/name/version used for each run. Current operational limitations: packages are not environment-scoped, package deletion does not remove local agent cache entries, rollback is performed by repointing an integration rather than through a dedicated rollback workflow, and loaded assemblies are not isolated or unloaded yet.
 
 ---
 

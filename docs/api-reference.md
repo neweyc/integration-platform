@@ -554,7 +554,7 @@ All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (
 
 ### `GET /api/agent/integrations`
 
-Claims and returns work items for the token's environment. This includes both due scheduled integrations and pending manual run requests.
+Claims and returns work items for the token's environment. Built-in work producers currently include due scheduled integrations, manual run requests, and signed webhook deliveries. Future trigger adapters should use the same work-item dispatch path.
 
 **Auth:** `X-Agent-Token`
 
