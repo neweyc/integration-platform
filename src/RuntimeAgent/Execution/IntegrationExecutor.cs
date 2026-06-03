@@ -12,7 +12,17 @@ public class IntegrationExecutor(
 {
     public async Task ExecuteAsync(IntegrationItem integration, Dictionary<string, string> secrets, CancellationToken ct)
     {
-        var instance = loader.Resolve(integration.ClassName);
+        IIntegration? instance;
+        if (integration.PackageId.HasValue)
+        {
+            var packageDir = Path.Combine(options.PackagesPath, integration.PackageId.Value.ToString());
+            instance = loader.ResolveFromDirectory(integration.ClassName, packageDir);
+        }
+        else
+        {
+            instance = loader.Resolve(integration.ClassName);
+        }
+
         if (instance is null)
         {
             logger.LogWarning("Skipping {Name} — no matching integration class found for '{ClassName}'",

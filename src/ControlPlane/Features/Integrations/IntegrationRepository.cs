@@ -11,6 +11,9 @@ public class IntegrationRepository(AppDbContext db)
     public Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default) =>
         db.Integrations.AnyAsync(i => i.TenantId == tenantId && i.Slug == slug, ct);
 
+    public Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default) =>
+        db.AssemblyPackages.AnyAsync(p => p.TenantId == tenantId && p.Id == packageId, ct);
+
     public async Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default)
     {
         db.Integrations.Add(integration);

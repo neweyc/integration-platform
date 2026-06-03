@@ -72,9 +72,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.TriggerType).HasConversion<string>();
             b.Property(i => i.CronExpression).HasMaxLength(100);
             b.Property(i => i.ClassName).IsRequired().HasMaxLength(500);
+            b.Property(i => i.PackageId);
 
             // Slug must be unique within a tenant
             b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();
+
+            b.HasOne<AssemblyPackage>()
+             .WithMany()
+             .HasForeignKey(i => i.PackageId)
+             .OnDelete(DeleteBehavior.SetNull)
+             .IsRequired(false);
 
             b.HasOne(i => i.Tenant)
              .WithMany()
@@ -108,6 +115,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(e => e.TriggerSource).HasConversion<string>().HasMaxLength(20);
             b.Property(e => e.ErrorMessage).HasMaxLength(4000);
             b.Property(e => e.WorkItemId);
+            b.Property(e => e.PackageId);
+            b.Property(e => e.PackageName).HasMaxLength(200);
+            b.Property(e => e.PackageVersion).HasMaxLength(50);
 
             b.HasOne(e => e.Integration)
              .WithMany()

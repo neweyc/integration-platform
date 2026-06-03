@@ -21,6 +21,7 @@ public class ListIntegrationsHandlerTests
     {
         var integrationId = Guid.NewGuid();
         var executionId = Guid.NewGuid();
+        var packageId = Guid.NewGuid();
 
         _integrationRepository.ListAsync(_tenantId, "production").Returns([
             new Integration
@@ -34,7 +35,8 @@ public class ListIntegrationsHandlerTests
                 TriggerType = TriggerType.Scheduled,
                 CronExpression = "0 * * * *",
                 ClassName = "MyCompany.Integrations.SyncOrdersIntegration",
-                TimeoutSeconds = 300
+                TimeoutSeconds = 300,
+                PackageId = packageId
             }
         ]);
 
@@ -64,5 +66,6 @@ public class ListIntegrationsHandlerTests
         Assert.Equal(executionId, integration.LastExecution.Id);
         Assert.Equal("Failed", integration.LastExecution.Status);
         Assert.Equal(300, integration.TimeoutSeconds);
+        Assert.Equal(packageId, integration.PackageId);
     }
 }

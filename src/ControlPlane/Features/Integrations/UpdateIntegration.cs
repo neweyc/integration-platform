@@ -11,11 +11,13 @@ public record UpdateIntegrationCommand(
     string? Description,
     IntegrationStatus Status,
     string? CronExpression,
-    int? TimeoutSeconds = null) : ICommand<CreateIntegrationResult>;
+    int? TimeoutSeconds = null,
+    Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
 
 public interface IIntegrationUpdateRepository
 {
     Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
+    Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<Integration> UpdateAsync(Integration integration, CancellationToken ct = default);
 }
 
@@ -31,11 +33,16 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
 
         ValidateCommand(command, integration.TriggerType);
 
+        if (command.PackageId.HasValue
+            && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
+            throw new NotFoundException($"Package '{command.PackageId}' not found.");
+
         integration.Name = command.Name;
         integration.Description = command.Description;
         integration.Status = command.Status;
         integration.CronExpression = command.CronExpression;
         integration.TimeoutSeconds = command.TimeoutSeconds;
+        integration.PackageId = command.PackageId;
         integration.UpdatedAt = DateTime.UtcNow;
 
         var updated = await repository.UpdateAsync(integration, ct);

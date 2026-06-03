@@ -27,7 +27,8 @@ public record IntegrationItem(
     string TriggerSource,
     Guid? ManualRunRequestId,
     int? TimeoutSeconds = null,
-    Guid? WorkItemId = null);
+    Guid? WorkItemId = null,
+    Guid? PackageId = null);
 
 public record ExecutionLogEntry(
     DateTime Timestamp,

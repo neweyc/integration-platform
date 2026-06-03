@@ -17,7 +17,9 @@ public record ExecutionSummary(
     DateTime StartedAt,
     DateTime? CompletedAt,
     int? DurationMs,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    string? PackageName = null,
+    string? PackageVersion = null);
 
 public interface IExecutionHistoryRepository
 {
@@ -77,6 +79,8 @@ public class ListIntegrationExecutionsHandler(
             execution.StartedAt,
             execution.CompletedAt,
             duration,
-            execution.ErrorMessage);
+            execution.ErrorMessage,
+            execution.PackageName,
+            execution.PackageVersion);
     }
 }

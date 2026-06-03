@@ -21,6 +21,9 @@ public class Integration : Entity
     // Maximum seconds an execution may run before being cancelled. Null means no timeout.
     public int? TimeoutSeconds { get; set; }
 
+    // Pinned package. Null means the agent resolves from its local IntegrationsPath in dev mode.
+    public Guid? PackageId { get; set; }
+
     public Tenant Tenant { get; set; } = null!;
 }
 

@@ -132,6 +132,7 @@ builder.Services.AddScoped<ICommandHandler<PollIntegrationsCommand, PollIntegrat
 builder.Services.AddScoped<IScheduleStateRepository, ScheduleStateRepository>();
 builder.Services.AddScoped<WorkItemRepository>();
 builder.Services.AddScoped<IWorkItemRepository>(sp => sp.GetRequiredService<WorkItemRepository>());
+builder.Services.AddScoped<IPackageLookupRepository, PackageLookupRepository>();
 builder.Services.AddScoped<ExecutionRepository>();
 builder.Services.AddScoped<IExecutionRepository>(sp => sp.GetRequiredService<ExecutionRepository>());
 builder.Services.AddScoped<IExecutionLogRepository, ExecutionLogRepository>();

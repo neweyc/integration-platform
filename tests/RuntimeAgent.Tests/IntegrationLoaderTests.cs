@@ -38,15 +38,66 @@ public class IntegrationLoaderTests
     [Fact]
     public void LoadFromDirectory_CalledTwice_OnlyLoadsOnce()
     {
-        // Arrange
         var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
 
-        // Act - call twice
         loader.LoadFromDirectory(AppContext.BaseDirectory);
         loader.LoadFromDirectory(AppContext.BaseDirectory);
 
-        // Assert - should not throw, second call is a no-op
-        // This tests the _loaded flag behavior
         Assert.Null(loader.Resolve("NonExistent.ClassName"));
+    }
+
+    [Fact]
+    public void ResolveFromDirectory_ClassInDirectory_ReturnsInstance()
+    {
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+
+        var result = loader.ResolveFromDirectory(
+            typeof(SuccessfulTestIntegration).FullName!,
+            AppContext.BaseDirectory);
+
+        Assert.NotNull(result);
+        Assert.IsType<SuccessfulTestIntegration>(result);
+    }
+
+    [Fact]
+    public void ResolveFromDirectory_ClassNotInDirectory_FallsBackToGlobalPool()
+    {
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+        loader.LoadFromDirectory(AppContext.BaseDirectory);
+
+        // Use a non-existent subdirectory. The class should not be there, but is in the global pool.
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var result = loader.ResolveFromDirectory(
+                typeof(SuccessfulTestIntegration).FullName!,
+                tempDir);
+
+            // Falls back to global pool since tempDir has no DLLs but BaseDirectory was loaded
+            Assert.NotNull(result);
+        }
+        finally
+        {
+            Directory.Delete(tempDir);
+        }
+    }
+
+    [Fact]
+    public void ResolveFromDirectory_NonExistentClassAndDirectory_ReturnsNull()
+    {
+        var loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
+
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var result = loader.ResolveFromDirectory("No.Such.Class", tempDir);
+            Assert.Null(result);
+        }
+        finally
+        {
+            Directory.Delete(tempDir);
+        }
     }
 }

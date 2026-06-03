@@ -17,6 +17,11 @@ public class ExecutionRecord : Entity
 
     // The work item that triggered this execution
     public Guid? WorkItemId { get; set; }
+
+    // Snapshot of the package used, retained even if the integration is later repointed.
+    public Guid? PackageId { get; set; }
+    public string? PackageName { get; set; }
+    public string? PackageVersion { get; set; }
 }
 
 public enum ExecutionStatus

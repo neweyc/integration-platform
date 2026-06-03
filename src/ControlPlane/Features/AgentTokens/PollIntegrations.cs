@@ -23,7 +23,8 @@ public record AgentIntegrationItem(
     TriggerSource TriggerSource,
     Guid? ManualRunRequestId,
     int? TimeoutSeconds = null,
-    Guid? WorkItemId = null);
+    Guid? WorkItemId = null,
+    Guid? PackageId = null);
 
 public interface IPollRepository
 {
@@ -76,7 +77,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 TriggerSource.Scheduled,
                 null,
                 c.Integration.TimeoutSeconds,
-                c.WorkItem.Id));
+                c.WorkItem.Id,
+                c.Integration.PackageId));
         }
 
         foreach (var m in manualRuns)
@@ -92,7 +94,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 TriggerSource.Manual,
                 m.WorkItem.ManualRunRequestId,
                 m.Integration.TimeoutSeconds,
-                m.WorkItem.Id));
+                m.WorkItem.Id,
+                m.Integration.PackageId));
         }
 
         return new PollIntegrationsResult(items);

@@ -13,7 +13,8 @@ public record CreateIntegrationCommand(
     TriggerType TriggerType,
     string? CronExpression,
     string ClassName,
-    int? TimeoutSeconds = null) : ICommand<CreateIntegrationResult>;
+    int? TimeoutSeconds = null,
+    Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
 
 public record CreateIntegrationResult(
     Guid Id,
@@ -24,11 +25,13 @@ public record CreateIntegrationResult(
     string TriggerType,
     string? CronExpression,
     string ClassName,
-    int? TimeoutSeconds = null);
+    int? TimeoutSeconds = null,
+    Guid? PackageId = null);
 
 public interface IIntegrationRepository
 {
     Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default);
+    Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default);
 }
 
@@ -42,6 +45,10 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
         if (await repository.SlugExistsAsync(command.TenantId, command.Slug, ct))
             throw new ConflictException($"An integration with slug '{command.Slug}' already exists.");
 
+        if (command.PackageId.HasValue
+            && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
+            throw new NotFoundException($"Package '{command.PackageId}' not found.");
+
         var integration = new Integration
         {
             TenantId = command.TenantId,
@@ -53,6 +60,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
             CronExpression = command.CronExpression,
             ClassName = command.ClassName,
             TimeoutSeconds = command.TimeoutSeconds,
+            PackageId = command.PackageId,
             Status = IntegrationStatus.Enabled
         };
 
@@ -109,5 +117,6 @@ public class CreateIntegrationHandler(IIntegrationRepository repository)
     }
 
     internal static CreateIntegrationResult ToResult(Integration i) =>
-        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(), i.CronExpression, i.ClassName, i.TimeoutSeconds);
+        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(),
+            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.PackageId);
 }

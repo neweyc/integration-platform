@@ -26,7 +26,8 @@ public static class IntegrationEndpoints
                     request.TriggerType,
                     request.CronExpression,
                     request.ClassName,
-                    request.TimeoutSeconds), ct);
+                    request.TimeoutSeconds,
+                    request.PackageId), ct);
 
             return Results.Created($"/api/integrations/{result.Id}", result);
         });
@@ -96,7 +97,8 @@ public static class IntegrationEndpoints
                     request.Description,
                     request.Status,
                     request.CronExpression,
-                    request.TimeoutSeconds), ct);
+                    request.TimeoutSeconds,
+                    request.PackageId), ct);
 
             return Results.Ok(result);
         });
@@ -135,11 +137,13 @@ public record CreateIntegrationRequest(
     TriggerType TriggerType,
     string? CronExpression,
     string ClassName,
-    int? TimeoutSeconds = null);
+    int? TimeoutSeconds = null,
+    Guid? PackageId = null);
 
 public record UpdateIntegrationRequest(
     string Name,
     string? Description,
     IntegrationStatus Status,
     string? CronExpression,
-    int? TimeoutSeconds = null);
+    int? TimeoutSeconds = null,
+    Guid? PackageId = null);

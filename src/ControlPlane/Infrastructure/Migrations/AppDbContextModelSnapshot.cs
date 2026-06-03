@@ -157,6 +157,17 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<Guid?>("WorkItemId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("PackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PackageName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PackageVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IntegrationId");
@@ -259,6 +270,9 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.Property<int?>("TimeoutSeconds")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("PackageId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TriggerType")
                         .IsRequired()
@@ -587,6 +601,11 @@ namespace ControlPlane.Infrastructure.Migrations
 
             modelBuilder.Entity("Shared.Domain.Integration", b =>
                 {
+                    b.HasOne("Shared.Domain.AssemblyPackage", null)
+                        .WithMany()
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Shared.Domain.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")

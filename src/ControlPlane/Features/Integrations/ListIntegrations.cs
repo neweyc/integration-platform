@@ -16,6 +16,7 @@ public record ListIntegrationItem(
     string? CronExpression,
     string ClassName,
     int? TimeoutSeconds,
+    Guid? PackageId,
     ExecutionSummary? LastExecution);
 
 public class ListIntegrationsHandler(
@@ -46,6 +47,7 @@ public class ListIntegrationsHandler(
                     i.CronExpression,
                     i.ClassName,
                     i.TimeoutSeconds,
+                    i.PackageId,
                     lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution));
             })
             .ToList();

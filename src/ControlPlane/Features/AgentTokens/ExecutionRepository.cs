@@ -33,6 +33,20 @@ public class ExecutionRepository(AppDbContext db) : IExecutionRepository
     }
 }
 
+public class PackageLookupRepository(AppDbContext db) : IPackageLookupRepository
+{
+    public async Task<(string Name, string Version)?> GetPackageInfoAsync(
+        Guid tenantId, Guid packageId, CancellationToken ct = default)
+    {
+        var pkg = await db.AssemblyPackages
+            .Where(p => p.TenantId == tenantId && p.Id == packageId)
+            .Select(p => new { p.Name, p.Version })
+            .FirstOrDefaultAsync(ct);
+
+        return pkg is null ? null : (pkg.Name, pkg.Version);
+    }
+}
+
 public class ManualRunRequestRepository(AppDbContext db) : IManualRunRequestRepository
 {
     public async Task<ManualRunRequest?> GetByIdAsync(Guid tenantId, Guid requestId, CancellationToken ct = default)

@@ -40,11 +40,17 @@ public interface IManualRunRequestRepository
     Task MarkStartedAsync(Guid requestId, Guid executionRecordId, CancellationToken ct = default);
 }
 
+public interface IPackageLookupRepository
+{
+    Task<(string Name, string Version)?> GetPackageInfoAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
+}
+
 public class StartExecutionHandler(
     IExecutionRepository repository,
     IWorkItemRepository workItemRepository,
     IIntegrationValidationRepository integrationRepository,
-    IManualRunRequestRepository manualRunRepository)
+    IManualRunRequestRepository manualRunRepository,
+    IPackageLookupRepository packageRepository)
     : ICommandHandler<StartExecutionCommand, StartExecutionResult>
 {
     public async Task<StartExecutionResult> HandleAsync(StartExecutionCommand command, CancellationToken ct = default)
@@ -82,6 +88,17 @@ public class StartExecutionHandler(
         if (await repository.HasRunningExecutionAsync(command.TenantId, workItem.IntegrationId, ct))
             throw new ConflictException($"Integration '{integration.Id}' already has a running execution.");
 
+        // Snapshot the pinned package version at execution start so history is immutable
+        string? packageName = null;
+        string? packageVersion = null;
+        if (integration.PackageId.HasValue)
+        {
+            var pkg = await packageRepository.GetPackageInfoAsync(
+                command.TenantId, integration.PackageId.Value, ct);
+            packageName = pkg?.Name;
+            packageVersion = pkg?.Version;
+        }
+
         var record = new ExecutionRecord
         {
             TenantId = command.TenantId,
@@ -90,7 +107,10 @@ public class StartExecutionHandler(
             Status = ExecutionStatus.Running,
             TriggerSource = workItem.TriggerSource,
             StartedAt = now,
-            WorkItemId = command.WorkItemId
+            WorkItemId = command.WorkItemId,
+            PackageId = integration.PackageId,
+            PackageName = packageName,
+            PackageVersion = packageVersion
         };
 
         var created = await repository.CreateAsync(record, ct);
