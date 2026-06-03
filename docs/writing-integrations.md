@@ -10,19 +10,35 @@ An integration is a C# class that implements `IIntegration`. The class contains 
 
 ```csharp
 using IntegrationPlatform.Sdk;
+using IntegrationPlatform.Connectors.Http;
+using IntegrationPlatform.Connectors.Sql;
 
 public class SyncOrdersIntegration : IIntegration
 {
     public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
     {
-        var dbUrl = context.Secrets["DATABASE_URL"];
-        var apiKey = context.Secrets["SHOPIFY_API_KEY"];
+        // Use connectors for common tasks
+        var api = context.HttpConnector("https://api.shopify.com")
+                         .WithBearerToken("SHOPIFY_API_KEY");
 
-        // your logic here
-        var orders = await FetchOrdersFromShopify(apiKey, ct);
-        await WriteOrdersToDatabase(dbUrl, orders, ct);
+        var db = context.SqlConnector("DATABASE_URL");
 
-        context.Logger.LogInformation("Synced {Count} orders", orders.Count);
+        // Fetch from API
+        var orders = await api.GetJsonAsync<List<Order>>("/admin/api/orders.json", ct);
+
+        if (orders != null)
+        {
+            // Write to SQL
+            foreach (var order in orders)
+            {
+                await db.ExecuteAsync(
+                    "INSERT INTO Orders (Id, Total) VALUES (@Id, @Total)", 
+                    new { order.Id, order.Total }, 
+                    ct);
+            }
+
+            context.Logger.LogInformation("Synced {Count} orders", orders.Count);
+        }
     }
 }
 ```
@@ -44,15 +60,45 @@ public interface IIntegrationContext
     HttpClient Http { get; }
 
     // Metadata about the current run
-    ExecutionContext Execution { get; }
+    ExecutionMetadata Execution { get; }
+
+    // Raw request body for Webhook-triggered executions
+    string? Payload { get; }
 }
 
-public record ExecutionContext(
+public record ExecutionMetadata(
+    Guid ExecutionId,
     Guid IntegrationId,
     string IntegrationName,
     string Environment,
-    Guid ExecutionId,
     DateTime ScheduledAt);
+```
+
+---
+
+## Core Connectors
+
+The platform provides built-in connectors to simplify common integration tasks. To use them, reference the `IntegrationPlatform.Connectors` assembly.
+
+### HTTP Connector
+
+The HTTP connector provides a fluent API for making JSON-based API calls, handling authentication from secrets, and logging requests automatically.
+
+```csharp
+var client = context.HttpConnector("https://api.example.com")
+                    .WithBearerToken("MY_SECRET_KEY")
+                    .WithHeader("X-Custom", "value");
+
+var data = await client.GetJsonAsync<MyData>("/path", ct);
+```
+
+### SQL Connector
+
+The SQL connector (built on Dapper) makes it easy to execute queries and commands against SQL Server databases using connection strings stored in secrets.
+
+```csharp
+var db = context.SqlConnector("DB_CONN_STRING");
+var users = await db.QueryAsync<User>("SELECT * FROM Users WHERE Active = 1", ct: ct);
 ```
 
 ---

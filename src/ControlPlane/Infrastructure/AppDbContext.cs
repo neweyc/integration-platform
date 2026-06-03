@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(t => t.Slug).IsRequired().HasMaxLength(100);
             b.HasIndex(t => t.Slug).IsUnique();
             b.Property(t => t.Status).HasConversion<string>();
+            b.Property(t => t.MaxExecutionsPerMonth).HasDefaultValue(1000);
+            b.Property(t => t.StripeCustomerId).HasMaxLength(100);
+            b.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
         });
 
         modelBuilder.Entity<User>(b =>
@@ -292,6 +296,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(h => h.AgentToken)
              .WithMany()
              .HasForeignKey(h => h.AgentTokenId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Invitation>(b =>
+        {
+            b.ToTable("invitations");
+            b.HasKey(i => i.Id);
+            b.Property(i => i.Email).IsRequired().HasMaxLength(300);
+            b.Property(i => i.Token).IsRequired().HasMaxLength(100);
+            b.Property(i => i.Role).HasConversion<string>();
+            b.Property(i => i.ExpiresAt).IsRequired();
+            b.Property(i => i.AcceptedAt);
+
+            b.HasIndex(i => i.Token).IsUnique();
+            b.HasIndex(i => new { i.TenantId, i.Email });
+
+            b.HasOne(i => i.Tenant)
+             .WithMany()
+             .HasForeignKey(i => i.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

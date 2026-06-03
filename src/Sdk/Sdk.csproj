@@ -5,6 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>IntegrationPlatform.Sdk</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>Integration Platform Team</Authors>
+    <Description>SDK for building code-first integrations on the Integration Platform.</Description>
+    <PackageProjectUrl>https://github.com/integration-platform/platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/integration-platform/platform</RepositoryUrl>
+    <PackageTags>integration;automation;workflow;sdk</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,9 +2,17 @@
 
 ## Overview
 
-Integration Platform is a code-first integration platform. Users write integrations as C# classes rather than configuring them in a low-code editor. The platform handles trigger intake, scheduling, secrets injection, execution, and observability.
+Integration Platform is a code-first integration platform designed for high-scale SaaS and enterprise deployments. Users write integrations as C# classes, composing them using a rich set of platform-provided **Connectors**. The platform handles trigger intake, scheduling, secrets injection, execution, and observability.
 
 ![Integration Platform architecture overview](assets/architecture-overview.svg)
+
+### Key Architectural Layers
+
+1.  **SDK (`IntegrationPlatform.Sdk`):** The stable runtime contract. Minimal by design to ensure long-term compatibility.
+2.  **Connectors (`IntegrationPlatform.Connectors`):** Pluggable libraries (HTTP, SQL, etc.) that abstract away boilerplate while remaining execution-aware (logging, secrets, cancellation).
+3.  **Trigger Adapters:** Producers that normalize external events (Cron, Webhooks, Manual) into a unified `WorkItem` queue.
+4.  **Control Plane:** The multi-tenant brain. Handles registration, auth, scheduling, secrets, and **SaaS Quotas**.
+5.  **Runtime Agent:** The stateless worker that executes jobs close to the data.
 
 The system is split into two independently deployable components:
 
@@ -99,6 +107,14 @@ Two auth mechanisms exist:
 - Secret values are **never returned** through the user-facing API — only keys and metadata
 - The secret bundle endpoint (`GET /api/agent/secrets/{environment}`) decrypts and returns all values for an environment, but is only accessible with a valid agent token
 
+### SaaS Infrastructure
+
+The control plane is built for multi-tenancy from the ground up:
+- **Tenant Registration:** Public endpoints for self-service onboarding.
+- **Invitations:** Secure, token-based team member invitation flow.
+- **Quota Management:** `IQuotaService` enforces monthly execution limits per tenant, enabling tiered pricing models.
+- **Billing Integration:** Built-in hooks for Stripe Customer and Subscription management.
+
 ### Database
 
 PostgreSQL via EF Core. Migrations are applied automatically on startup — no manual migration step is needed.
@@ -106,8 +122,9 @@ PostgreSQL via EF Core. Migrations are applied automatically on startup — no m
 Schema:
 
 ```
-tenants           — id, name, slug, status
+tenants           — id, name, slug, status, max_executions_per_month, stripe_customer_id, stripe_subscription_id
 users             — id, tenant_id, email, password_hash, role
+invitations       — id, tenant_id, email, token, role, expires_at, accepted_at
 secrets           — id, tenant_id, environment, key, encrypted_value
 integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, timeout_seconds, retry_max_attempts, retry_backoff_seconds, package_id, encrypted_webhook_secret
 agent_tokens      — id, tenant_id, name, environment, token_hash

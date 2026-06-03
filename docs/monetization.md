@@ -153,3 +153,24 @@ Mitigation: The value of the cloud tier is operations (hosting, backups, monitor
 
 **Risk: .NET-only limits addressable market**
 Mitigation: The agent SDK can be extended to other runtimes (Python, Node) without changing the control plane. Address this in Phase 3 once C# traction is proven.
+
+---
+
+## Progress & Commercial Viability
+
+As of Phase 2, the following commercial enablers are **Live**:
+- **Multi-Tenant SaaS Foundation:** Public self-registration for new tenants.
+- **Quota & Metering:** Automated monthly execution limits are enforced per tenant.
+- **Team Collaboration:** Invitation system for onboarding members.
+- **Developer Productivity:** Core Connectors (HTTP/SQL) make the platform significantly faster to adopt than raw code or low-code alternatives.
+- **Stripe Foundation:** Tenant model is prepared for Stripe Customer and Subscription ID integration.
+
+---
+
+## Strategic Goals for Buyout (Multi-Million Dollar Exit)
+
+To achieve a multi-million dollar exit, the product must demonstrate:
+1.  **Low Friction Onboarding:** Proven by the self-service registration and SDK usability.
+2.  **High Stickiness:** Integration code is deeply embedded in customer workflows.
+3.  **Predictable Revenue:** Enforced by monthly quotas and tiered cloud pricing.
+4.  **Operational Excellence:** Demonstrated through audit logs (Todo) and execution observability.

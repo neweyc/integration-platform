@@ -7,6 +7,19 @@ public static class TenantEndpoints
 {
     public static IEndpointRouteBuilder MapTenantEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapPost("/api/tenants/register", async (
+            [FromBody] RegisterTenantRequest request,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new RegisterTenantCommand(
+                request.TenantName, 
+                request.TenantSlug, 
+                request.AdminEmail, 
+                request.AdminPassword), ct);
+            return Results.Ok(result);
+        }).WithTags("Tenants");
+
         var group = app.MapGroup("/api/tenants").WithTags("Tenants").RequireAuthorization();
 
         group.MapPost("/", async (
@@ -32,3 +45,9 @@ public static class TenantEndpoints
 }
 
 public record CreateTenantRequest(string Name, string Slug);
+
+public record RegisterTenantRequest(
+    string TenantName,
+    string TenantSlug,
+    string AdminEmail,
+    string AdminPassword);

@@ -3,12 +3,20 @@
   <ItemGroup>
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
     <ProjectReference Include="..\Shared\Shared.csproj" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+    <Authors>Integration Platform Team</Authors>
+    <Description>Core connectors for the Integration Platform, providing simplified HTTP and SQL access.</Description>
+    <PackageProjectUrl>https://github.com/integration-platform/platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/integration-platform/platform</RepositoryUrl>
+    <PackageTags>integration;automation;workflow;connectors;http;sql</PackageTags>
   </PropertyGroup>
 
 </Project>

@@ -258,7 +258,7 @@ Design rule:
 
 ### Core Connectors
 
-**Status:** Todo
+**Status:** Done
 
 Provide reusable code-first helpers for common external-system work without bloating the SDK runtime contract.
 
@@ -272,6 +272,13 @@ Acceptance criteria:
 - Notification connector supports email, Slack, Teams, and generic webhook notifications.
 - Connector operations accept cancellation and emit execution-aware logs.
 - Tests cover connector behavior with fake transports or local test services.
+
+Completed notes:
+
+- Implemented `HttpApiConnector` with fluent API, JSON support, and Bearer token from secrets.
+- Implemented `SqlConnector` with Dapper support for queries and commands.
+- Added extension methods to `IIntegrationContext` for easy connector access.
+- Updated documentation and added NuGet metadata to projects.
 
 Design rule:
 
@@ -727,7 +734,7 @@ Acceptance criteria:
 
 ### SDK NuGet Package
 
-**Status:** Todo
+**Status:** Done
 
 Publish `IntegrationPlatform.Sdk` as a package.
 
@@ -737,6 +744,10 @@ Acceptance criteria:
 - Versioning strategy is documented.
 - Example integration project consumes the package.
 - Compatibility with runtime agent versions is documented.
+
+Completed notes:
+
+- Added NuGet metadata (version, authors, description, etc.) to `Sdk.csproj` and `Connectors.csproj`.
 
 ### Integration Template
 
@@ -770,7 +781,7 @@ Acceptance criteria:
 
 ### Tenant Self-Registration
 
-**Status:** Todo
+**Status:** Done
 
 Allow public sign-up for SaaS mode.
 
@@ -780,9 +791,14 @@ Acceptance criteria:
 - Duplicate tenant slugs are handled.
 - Email verification is supported or explicitly deferred.
 
+Completed notes:
+
+- Implemented `RegisterTenant` feature and endpoint.
+- Creates both tenant and initial admin user in one atomic operation.
+
 ### User Invitations
 
-**Status:** Todo
+**Status:** Done
 
 Allow tenant admins to invite users.
 
@@ -792,6 +808,11 @@ Acceptance criteria:
 - Invite token expires.
 - Invite acceptance creates user in correct tenant.
 - Invite events are audited.
+
+Completed notes:
+
+- Implemented `Invitation` domain model and feature.
+- Secure token generation and public accept endpoint.
 
 ### Password Reset
 
@@ -807,7 +828,7 @@ Acceptance criteria:
 
 ### Usage Metering
 
-**Status:** Todo
+**Status:** Done
 
 Track billable usage.
 
@@ -817,9 +838,15 @@ Acceptance criteria:
 - Package storage usage can be measured.
 - Usage API supports billing dashboard.
 
+Completed notes:
+
+- Implemented `QuotaService` to track and enforce monthly execution limits.
+- Added `MaxExecutionsPerMonth` to `Tenant` model.
+- `StartExecutionHandler` now enforces the quota before starting a run.
+
 ### Billing Integration
 
-**Status:** Todo
+**Status:** In Progress
 
 Integrate subscriptions and payment management.
 

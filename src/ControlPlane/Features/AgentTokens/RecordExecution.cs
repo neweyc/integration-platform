@@ -53,12 +53,17 @@ public class StartExecutionHandler(
     IWorkItemRepository workItemRepository,
     IIntegrationValidationRepository integrationRepository,
     IManualRunRequestRepository manualRunRepository,
-    IPackageLookupRepository packageRepository)
+    IPackageLookupRepository packageRepository,
+    IQuotaService quotaService)
     : ICommandHandler<StartExecutionCommand, StartExecutionResult>
 {
     public async Task<StartExecutionResult> HandleAsync(StartExecutionCommand command, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
+
+        // Enforce monthly execution limit
+        if (!await quotaService.HasAvailableExecutionsAsync(command.TenantId, ct))
+            throw new ValidationException("Monthly execution limit reached.");
 
         var workItem = await workItemRepository.GetByIdAsync(command.TenantId, command.WorkItemId, ct);
 

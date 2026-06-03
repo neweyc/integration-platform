@@ -50,6 +50,94 @@ One-time bootstrap. Creates the first tenant and admin user. Returns 409 if alre
 
 ---
 
+## Tenants
+
+### `POST /api/tenants/register` (Public)
+
+Creates a new tenant and an initial admin user. Enables self-service SaaS onboarding.
+
+**Auth:** None
+
+**Request body:**
+
+```json
+{
+  "tenantName": "Acme Corp",
+  "tenantSlug": "acme",
+  "adminEmail": "admin@acme.com",
+  "adminPassword": "secure-password"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "tenantId": "guid",
+  "tenantName": "Acme Corp",
+  "userId": "guid",
+  "email": "admin@acme.com",
+  "token": "jwt-token"
+}
+```
+
+---
+
+## Invitations
+
+### `POST /api/invitations`
+
+Invites a new user to the current tenant.
+
+**Auth:** JWT (Admin)
+
+**Request body:**
+
+```json
+{
+  "email": "user@acme.com",
+  "role": "Member"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "invitationId": "guid",
+  "email": "user@acme.com",
+  "token": "secure-token",
+  "expiresAt": "iso-date"
+}
+```
+
+### `POST /api/invitations/accept` (Public)
+
+Accepts an invitation and creates a new user.
+
+**Auth:** None
+
+**Request body:**
+
+```json
+{
+  "token": "secure-token",
+  "password": "secure-password"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "userId": "guid",
+  "email": "user@acme.com",
+  "token": "jwt-token"
+}
+```
+
+---
+
 ## Auth
 
 ### `POST /api/auth/register`

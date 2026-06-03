@@ -4,6 +4,7 @@ using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Invitations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
@@ -68,12 +69,19 @@ builder.Services.AddScoped<IDispatcher, Dispatcher>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<IEncryptionService, AesEncryptionService>();
+builder.Services.AddScoped<IQuotaService, QuotaService>();
 
 // Tenant feature
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<ITenantReadRepository, TenantRepository>();
 builder.Services.AddScoped<ICommandHandler<CreateTenantCommand, CreateTenantResult>, CreateTenantHandler>();
 builder.Services.AddScoped<ICommandHandler<GetTenantCommand, GetTenantResult?>, GetTenantHandler>();
+builder.Services.AddScoped<ICommandHandler<RegisterTenantCommand, RegisterTenantResult>, RegisterTenantHandler>();
+
+// Invitation feature
+builder.Services.AddScoped<IInvitationRepository, InvitationRepository>();
+builder.Services.AddScoped<ICommandHandler<InviteUserCommand, InviteUserResult>, InviteUserHandler>();
+builder.Services.AddScoped<ICommandHandler<AcceptInvitationCommand, AcceptInvitationResult>, AcceptInvitationHandler>();
 
 // Setup feature
 builder.Services.AddScoped<ISetupRepository, SetupRepository>();
@@ -189,6 +197,7 @@ app.UseAuthorization();
 app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
+app.MapInvitationEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
 app.MapPackageEndpoints();
