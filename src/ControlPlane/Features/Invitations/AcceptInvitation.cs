@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 using ControlPlane.Features.Auth;
 
@@ -11,7 +12,8 @@ public record AcceptInvitationResult(Guid UserId, string Email, string Token);
 public class AcceptInvitationHandler(
     IInvitationRepository invitationRepository,
     IUserRepository userRepository,
-    IJwtTokenService tokenService)
+    IJwtTokenService tokenService,
+    IAuditRecorder auditRecorder)
     : ICommandHandler<AcceptInvitationCommand, AcceptInvitationResult>
 {
     public async Task<AcceptInvitationResult> HandleAsync(AcceptInvitationCommand command, CancellationToken ct = default)
@@ -38,6 +40,14 @@ public class AcceptInvitationHandler(
         await invitationRepository.UpdateAsync(invitation, ct);
 
         var token = tokenService.GenerateToken(createdUser);
+
+        // The actor is the newly-created user, who has no authenticated context yet — record explicitly.
+        await auditRecorder.RecordAsync(new AuditDescriptor(
+            AuditAction.InvitationAccepted, "User", createdUser.Id.ToString(),
+            $"Accepted invitation as {createdUser.Role}",
+            ExplicitTenantId: createdUser.TenantId,
+            ExplicitActorUserId: createdUser.Id,
+            ExplicitActorEmail: createdUser.Email), ct);
 
         return new AcceptInvitationResult(createdUser.Id, createdUser.Email, token);
     }

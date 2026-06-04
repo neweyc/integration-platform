@@ -1,10 +1,16 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 using System.Security.Cryptography;
 
 namespace ControlPlane.Features.Invitations;
 
-public record InviteUserCommand(string Email, UserRole Role) : ICommand<InviteUserResult>;
+public record InviteUserCommand(string Email, UserRole Role) : ICommand<InviteUserResult>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.UserInvited, "Invitation",
+            (result as InviteUserResult)?.InvitationId.ToString(), $"Invited {Email} as {Role}");
+}
 
 public record InviteUserResult(Guid InvitationId, string Email, string Token, DateTime ExpiresAt);
 

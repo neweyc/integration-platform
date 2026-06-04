@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Cronos;
 using Shared.Domain;
 
@@ -18,7 +19,12 @@ public record CreateIntegrationCommand(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
+    Guid? PackageId = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.IntegrationCreated, "Integration",
+            (result as CreateIntegrationResult)?.Id.ToString(), $"Created integration '{Slug}'");
+}
 
 public record CreateIntegrationResult(
     Guid Id,

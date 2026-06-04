@@ -24,6 +24,7 @@ public class RolePermissionsTests
     [InlineData(Permission.ManageAgentTokens, true)]
     [InlineData(Permission.ManageUsers, false)]
     [InlineData(Permission.ManageBilling, false)]
+    [InlineData(Permission.ViewAuditLog, false)]
     public void Developer_CanDeployButNotAdminister(Permission permission, bool granted)
     {
         Assert.Equal(granted, RolePermissions.IsGranted(UserRole.Developer, permission));
@@ -40,6 +41,7 @@ public class RolePermissionsTests
     [InlineData(Permission.ManageAgentTokens, false)]
     [InlineData(Permission.ManageUsers, false)]
     [InlineData(Permission.ManageBilling, false)]
+    [InlineData(Permission.ViewAuditLog, false)]
     public void Operator_CanObserveAndTriggerOnly(Permission permission, bool granted)
     {
         Assert.Equal(granted, RolePermissions.IsGranted(UserRole.Operator, permission));
@@ -52,6 +54,7 @@ public class RolePermissionsTests
     [InlineData(Permission.ManageIntegrations, false)]
     [InlineData(Permission.ViewSecrets, false)]
     [InlineData(Permission.ManageSecrets, false)]
+    [InlineData(Permission.ViewAuditLog, false)]
     public void Member_IsReadOnly(Permission permission, bool granted)
     {
         Assert.Equal(granted, RolePermissions.IsGranted(UserRole.Member, permission));

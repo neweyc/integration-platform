@@ -26,5 +26,6 @@ public enum Permission
 
     // Tenant administration
     ManageUsers,          // invitations
-    ManageBilling
+    ManageBilling,
+    ViewAuditLog
 }

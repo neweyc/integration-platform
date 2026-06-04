@@ -8,7 +8,7 @@ cd "$ROOT_DIR"
 git diff --check
 
 "$HOME/.dotnet/dotnet" restore IntegrationPlatform.slnx
-"$HOME/.dotnet/dotnet" build IntegrationPlatform.slnx --no-restore -warnaserror /nr:false
+"$HOME/.dotnet/dotnet" build IntegrationPlatform.slnx --no-restore -warnaserror -warnnotaserror:NU1900 /nr:false
 "$HOME/.dotnet/dotnet" test IntegrationPlatform.slnx --no-build /nr:false
 
 if [ -d src/ControlPlane.Client/node_modules ]; then
@@ -18,4 +18,3 @@ else
   echo "Skipping frontend validation because src/ControlPlane.Client/node_modules is missing."
   echo "Run npm ci --prefix src/ControlPlane.Client, then rerun scripts/validate.sh."
 fi
-

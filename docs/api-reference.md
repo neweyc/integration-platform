@@ -941,6 +941,45 @@ Records one structured log event for an execution. The token must belong to the 
 
 ---
 
+## Audit log
+
+Audit entries record tenant-scoped security and configuration changes. Summaries are value-free: secret values, webhook secrets, and plaintext tokens are never returned.
+
+### `GET /api/audit-log`
+
+Lists recent audit entries for the authenticated user's tenant.
+
+**Auth:** JWT or PAT with `Admin` role
+
+**Query parameters:**
+
+| Name | Type | Default | Notes |
+|------|------|---------|-------|
+| `limit` | integer | `50` | Clamped to `1..200` |
+
+**Response:**
+
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "actorUserId": "uuid",
+      "actorEmail": "admin@example.com",
+      "action": "SecretSet",
+      "targetType": "Secret",
+      "targetId": "production/API_KEY",
+      "summary": "Set secret 'API_KEY' in production",
+      "occurredAt": "2026-06-03T12:00:00Z"
+    }
+  ]
+}
+```
+
+Actions include secret set/delete, integration create/update/delete, agent token create/revoke, personal access token create/revoke, package upload/delete, user invite, and invitation accept.
+
+---
+
 ## Error format
 
 All errors follow the RFC 9457 Problem Details format:

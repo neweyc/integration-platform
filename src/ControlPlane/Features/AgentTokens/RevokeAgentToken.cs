@@ -1,9 +1,14 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
 
-public record RevokeAgentTokenCommand(Guid TenantId, Guid TokenId) : ICommand<bool>;
+public record RevokeAgentTokenCommand(Guid TenantId, Guid TokenId) : ICommand<bool>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.AgentTokenRevoked, "AgentToken", TokenId.ToString(), "Revoked agent token");
+}
 
 public interface IAgentTokenDeleteRepository
 {

@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Cronos;
 using Shared.Domain;
 
@@ -14,7 +15,11 @@ public record UpdateIntegrationCommand(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null) : ICommand<CreateIntegrationResult>;
+    Guid? PackageId = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.IntegrationUpdated, "Integration", IntegrationId.ToString(), $"Updated integration '{Name}'");
+}
 
 public interface IIntegrationUpdateRepository
 {

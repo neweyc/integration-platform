@@ -1,8 +1,14 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
+using Shared.Domain;
 
 namespace ControlPlane.Features.Integrations;
 
-public record DeleteIntegrationCommand(Guid TenantId, Guid IntegrationId) : ICommand<bool>;
+public record DeleteIntegrationCommand(Guid TenantId, Guid IntegrationId) : ICommand<bool>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.IntegrationDeleted, "Integration", IntegrationId.ToString(), "Deleted integration");
+}
 
 public interface IIntegrationDeleteRepository
 {

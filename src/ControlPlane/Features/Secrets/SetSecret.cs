@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 
 namespace ControlPlane.Features.Secrets;
@@ -8,7 +9,12 @@ public record SetSecretCommand(
     Guid TenantId,
     string Environment,
     string Key,
-    string Value) : ICommand<SetSecretResult>;
+    string Value) : ICommand<SetSecretResult>, IAuditableCommand
+{
+    // Never include the secret value — only which key/environment changed.
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.SecretSet, "Secret", $"{Environment}/{Key}", $"Set secret '{Key}' in {Environment}");
+}
 
 public record SetSecretResult(Guid Id, string Environment, string Key, DateTime UpdatedAt);
 

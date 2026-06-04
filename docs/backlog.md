@@ -280,15 +280,23 @@ Completed notes:
 
 ### Audit Log Infrastructure
 
-**Status:** Todo
+**Status:** Done
 
 Implement an immutable record of all administrative actions to satisfy enterprise procurement requirements.
 
 Acceptance criteria:
-- Every secret create/update/delete is recorded.
-- Every integration deployment is recorded.
-- Every user invitation/acceptance is recorded.
-- Audit entries include Actor, Timestamp, Action, and Target.
+- Every secret create/update/delete is recorded. ✓ (values never stored)
+- Every integration deployment is recorded. ✓ (create/update/delete)
+- Every user invitation/acceptance is recorded. ✓
+- Audit entries include Actor, Timestamp, Action, and Target. ✓
+
+Completed notes:
+- `audit_log` table; `AuditLogEntry` records tenant, actor (id + denormalized email), action, target type/id, value-free summary, and timestamp.
+- Auditing is cross-cutting: commands implement `IAuditableCommand.Describe(result)`, and an `AuditingDispatcher` decorator records after the command succeeds — handlers and their unit tests are untouched. (AcceptInvitation records explicitly since the actor is the new, not-yet-authenticated user.)
+- Covers Secret set/delete, Integration create/update/delete, AgentToken create/revoke, personal access token create/revoke, Package upload/delete, User invite/accept.
+- Audit writes never break the primary operation (failures are logged, not thrown). Secret values and token plaintext are never recorded.
+- `GET /api/audit-log` is gated by a new `ViewAuditLog` permission (Admin only).
+- Tests: per-command descriptor unit tests (incl. explicit no-secret-value assertions) + end-to-end integration tests proving entries are recorded with correct actor/action/target, no secret leakage, and Admin-only access.
 
 ### Role-Based Access Control (RBAC)
 
@@ -791,17 +799,20 @@ Acceptance criteria:
 
 ### Audit Log
 
-**Status:** Todo
+**Status:** Done
 
 Record security- and configuration-relevant actions.
 
 Acceptance criteria:
 
-- Secret create/update/delete events are audited without secret values.
-- Integration create/update/delete events are audited.
-- Agent token create/revoke events are audited.
-- Package upload/delete events are audited.
-- Audit entries include actor, tenant, timestamp, action, and target id.
+- Secret create/update/delete events are audited without secret values. ✓
+- Integration create/update/delete events are audited. ✓
+- Agent token create/revoke events are audited. ✓
+- Personal access token create/revoke events are audited without plaintext values. ✓
+- Package upload/delete events are audited. ✓
+- Audit entries include actor, tenant, timestamp, action, and target id. ✓
+
+See "Audit Log Infrastructure" above for implementation notes.
 
 ### Role Enforcement
 
@@ -952,7 +963,6 @@ Remaining:
 
 - List active users and pending invitations in the UI.
 - Revoke/resend pending invitations.
-- Audit invite and accept events.
 
 ### Password Reset
 

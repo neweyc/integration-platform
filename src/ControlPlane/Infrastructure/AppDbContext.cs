@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+    public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
@@ -234,6 +235,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(w => w.Tenant)
              .WithMany()
              .HasForeignKey(w => w.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditLogEntry>(b =>
+        {
+            b.ToTable("audit_log");
+            b.HasKey(a => a.Id);
+            b.Property(a => a.ActorEmail).IsRequired().HasMaxLength(300);
+            b.Property(a => a.Action).HasConversion<string>().HasMaxLength(40);
+            b.Property(a => a.TargetType).IsRequired().HasMaxLength(40);
+            b.Property(a => a.TargetId).HasMaxLength(200);
+            b.Property(a => a.Summary).HasMaxLength(1000);
+
+            b.HasIndex(a => new { a.TenantId, a.OccurredAt });
+
+            b.HasOne(a => a.Tenant)
+             .WithMany()
+             .HasForeignKey(a => a.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -13,6 +13,7 @@ export type Permission =
   | 'ManageAgentTokens'
   | 'ManageUsers'
   | 'ManageBilling'
+  | 'ViewAuditLog'
 
 export interface CurrentUser {
   userId: string
@@ -32,6 +33,7 @@ const allPermissions: Permission[] = [
   'ManageAgentTokens',
   'ManageUsers',
   'ManageBilling',
+  'ViewAuditLog',
 ]
 
 export const rolePermissions: Record<UserRole, ReadonlySet<Permission>> = {

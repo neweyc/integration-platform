@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
@@ -12,6 +13,7 @@ using ControlPlane.Features.Tenants;
 using ControlPlane.Features.UserTokens;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -64,8 +66,10 @@ if (builder.Environment.IsDevelopment())
     });
 }
 
-// Dispatcher
-builder.Services.AddScoped<IDispatcher, Dispatcher>();
+// Dispatcher — wrapped so audited commands write an audit entry on success
+builder.Services.AddScoped<Dispatcher>();
+builder.Services.AddScoped<IAuditRecorder, AuditRecorder>();
+builder.Services.AddScoped<IDispatcher, AuditingDispatcher>();
 
 // Infrastructure services
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -103,6 +107,8 @@ builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrat
 builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
+builder.Services.AddScoped<IAuditLogReadRepository, AuditLogReadRepository>();
+builder.Services.AddScoped<ICommandHandler<ListAuditLogCommand, ListAuditLogResult>, ListAuditLogHandler>();
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
 builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
@@ -215,6 +221,7 @@ app.MapIntegrationEndpoints();
 app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
 app.MapWebhookEndpoints();
+app.MapAuditLogEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

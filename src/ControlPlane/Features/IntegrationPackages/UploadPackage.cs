@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 
 namespace ControlPlane.Features.IntegrationPackages;
@@ -12,7 +13,12 @@ public record UploadPackageCommand(
     string Name,
     string Version,
     string FileName,
-    byte[] Data) : ICommand<PackageMetadata>;
+    byte[] Data) : ICommand<PackageMetadata>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.PackageUploaded, "Package",
+            (result as PackageMetadata)?.Id.ToString(), $"Uploaded package '{Name}' v{Version}");
+}
 
 public record PackageMetadata(
     Guid Id,

@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
@@ -6,7 +7,13 @@ namespace ControlPlane.Features.AgentTokens;
 public record CreateAgentTokenCommand(
     Guid TenantId,
     string Name,
-    string Environment) : ICommand<CreateAgentTokenResult>;
+    string Environment) : ICommand<CreateAgentTokenResult>, IAuditableCommand
+{
+    // Never include the token plaintext — only its id, name, and environment.
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.AgentTokenCreated, "AgentToken",
+            (result as CreateAgentTokenResult)?.Id.ToString(), $"Created agent token '{Name}' for {Environment}");
+}
 
 // Plaintext is returned exactly once — it is never stored and cannot be retrieved again
 public record CreateAgentTokenResult(Guid Id, string Name, string Environment, string Token, DateTime CreatedAt);

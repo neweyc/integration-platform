@@ -9,7 +9,7 @@ public interface IUserTokenRepository
     Task<UserToken> CreateAsync(UserToken token, CancellationToken ct = default);
     Task<IReadOnlyList<UserToken>> ListAsync(Guid tenantId, Guid userId, CancellationToken ct = default);
     Task<UserToken?> FindByHashAsync(string hash, CancellationToken ct = default);
-    Task DeleteAsync(Guid tenantId, Guid userId, Guid tokenId, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid tenantId, Guid userId, Guid tokenId, CancellationToken ct = default);
 }
 
 public class UserTokenRepository(AppDbContext db) : IUserTokenRepository
@@ -36,15 +36,18 @@ public class UserTokenRepository(AppDbContext db) : IUserTokenRepository
             .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
     }
 
-    public async Task DeleteAsync(Guid tenantId, Guid userId, Guid tokenId, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Guid tenantId, Guid userId, Guid tokenId, CancellationToken ct = default)
     {
         var token = await db.UserTokens
             .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.UserId == userId && t.Id == tokenId, ct);
 
-        if (token != null)
+        if (token is null)
         {
-            db.UserTokens.Remove(token);
-            await db.SaveChangesAsync(ct);
+            return false;
         }
+
+        db.UserTokens.Remove(token);
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 }

@@ -187,7 +187,13 @@ Integrations can be pinned to uploaded package versions, and execution records r
 
 Server-side role enforcement is active through endpoint permission filters. The UI uses the same role/permission model to hide unavailable navigation items and actions. Disallowed direct API calls still receive `403 Forbidden`.
 
-Admins can invite tenant users from the Users page. The invite response shows a one-time invitation token and browser accept link; the invited user sets their password on the public accept-invitation page. Current limitations: the UI does not yet list active users or pending invitations, and invite/accept events are not audited yet.
+Admins can invite tenant users from the Users page. The invite response shows a one-time invitation token and browser accept link; the invited user sets their password on the public accept-invitation page. Invite and acceptance events are audited. Current limitations: the UI does not yet list active users or pending invitations.
+
+---
+
+## Audit log
+
+The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, and invitations. Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only.
 
 ---
 

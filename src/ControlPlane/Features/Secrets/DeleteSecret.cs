@@ -1,8 +1,14 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
+using Shared.Domain;
 
 namespace ControlPlane.Features.Secrets;
 
-public record DeleteSecretCommand(Guid TenantId, string Environment, string Key) : ICommand<bool>;
+public record DeleteSecretCommand(Guid TenantId, string Environment, string Key) : ICommand<bool>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.SecretDeleted, "Secret", $"{Environment}/{Key}", $"Deleted secret '{Key}' in {Environment}");
+}
 
 public interface ISecretDeleteRepository
 {

@@ -1,8 +1,16 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
+using Shared.Domain;
 
 namespace ControlPlane.Features.IntegrationPackages;
 
-public record DeletePackageCommand(Guid TenantId, Guid PackageId) : ICommand<bool>;
+public record DeletePackageCommand(Guid TenantId, Guid PackageId) : ICommand<bool>, IAuditableCommand
+{
+    public AuditDescriptor? Describe(object? result) =>
+        result is true
+            ? new(AuditAction.PackageDeleted, "Package", PackageId.ToString(), "Deleted package")
+            : null;
+}
 
 public interface IPackageDeleteRepository
 {

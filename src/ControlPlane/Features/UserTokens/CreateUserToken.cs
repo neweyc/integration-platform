@@ -1,9 +1,16 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
 
 namespace ControlPlane.Features.UserTokens;
 
-public record CreateUserTokenCommand(Guid TenantId, Guid UserId, string Name) : ICommand<CreateUserTokenResult>;
+public record CreateUserTokenCommand(Guid TenantId, Guid UserId, string Name) : ICommand<CreateUserTokenResult>, IAuditableCommand
+{
+    // Never include the plaintext token — only the token id and friendly name.
+    public AuditDescriptor? Describe(object? result) =>
+        new(AuditAction.UserTokenCreated, "UserToken",
+            (result as CreateUserTokenResult)?.Id.ToString(), $"Created personal access token '{Name}'");
+}
 
 public record CreateUserTokenResult(Guid Id, string Name, string PlaintextToken, DateTime CreatedAt);
 
