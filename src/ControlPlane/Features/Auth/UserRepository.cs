@@ -5,7 +5,7 @@ using Shared.Domain;
 namespace ControlPlane.Features.Auth;
 
 public class UserRepository(AppDbContext db)
-    : IUserRepository, IUserReadRepository
+    : IUserRepository, IUserReadRepository, IUserListRepository
 {
     public Task<bool> EmailExistsAsync(Guid tenantId, string email, CancellationToken ct = default) =>
         db.Users.AnyAsync(u => u.TenantId == tenantId && u.Email == email, ct);
@@ -22,4 +22,11 @@ public class UserRepository(AppDbContext db)
 
     public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) =>
         db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+
+    public async Task<IReadOnlyList<User>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default) =>
+        await db.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantId)
+            .OrderBy(u => u.Email)
+            .ToListAsync(ct);
 }

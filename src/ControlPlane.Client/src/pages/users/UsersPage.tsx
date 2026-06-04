@@ -1,17 +1,32 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { invitationsApi, type InviteUserResponse } from '@/api/invitations'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { authApi, type UserSummary } from '@/api/auth'
+import {
+  invitationsApi,
+  type InvitationSummary,
+  type InviteUserResponse,
+} from '@/api/invitations'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { getCurrentUser, hasPermission, type UserRole } from '@/lib/rbac'
 
 const inviteRoles = ['Developer', 'Operator', 'Member'] satisfies UserRole[]
 
 export function UsersPage() {
+  const queryClient = useQueryClient()
   const user = getCurrentUser()
   const canManageUsers = hasPermission('ManageUsers', user)
   const [form, setForm] = useState({ email: '', role: 'Developer' as UserRole })
@@ -22,12 +37,25 @@ export function UsersPage() {
   const inviteUser = useMutation({
     mutationFn: () => invitationsApi.invite(form),
     onSuccess: result => {
+      queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
       setInviteResult(result)
       setInviteRole(form.role)
       setForm({ email: '', role: 'Developer' })
       setFormError(null)
     },
     onError: (err: Error) => setFormError(err.message),
+  })
+
+  const users = useQuery({
+    queryKey: ['users'],
+    queryFn: authApi.listUsers,
+    enabled: canManageUsers,
+  })
+
+  const invitations = useQuery({
+    queryKey: ['pending-invitations'],
+    queryFn: invitationsApi.list,
+    enabled: canManageUsers,
   })
 
   if (!canManageUsers) {
@@ -46,15 +74,15 @@ export function UsersPage() {
     : null
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
+    <div className="space-y-6">
+      <div className="max-w-4xl">
         <h2 className="text-xl font-semibold">Users</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Invite tenant users and assign their starting role.
+          Manage tenant access and pending invitations.
         </p>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="max-w-4xl rounded-lg border">
         <form onSubmit={handleSubmit} className="grid gap-4 p-4 sm:grid-cols-[1fr_12rem_auto] sm:items-end">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -92,7 +120,7 @@ export function UsersPage() {
       </div>
 
       {inviteResult && acceptUrl && (
-        <div className="rounded-lg border p-4">
+        <div className="max-w-4xl rounded-lg border p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-medium">Invitation created</h3>
             <Badge variant="outline">{inviteRole}</Badge>
@@ -137,7 +165,45 @@ export function UsersPage() {
         </div>
       )}
 
-      <div className="rounded-lg border p-4">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-medium">Active users</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Users with accepted access to this tenant.
+          </p>
+        </div>
+        {users.error && (
+          <p className="text-sm text-destructive">
+            {users.error instanceof Error ? users.error.message : 'Failed to load users.'}
+          </p>
+        )}
+        {users.isLoading ? (
+          <TableSkeleton rows={4} />
+        ) : (
+          <UsersTable users={users.data?.users ?? []} />
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-medium">Pending invitations</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Invites that have not been accepted and have not expired.
+          </p>
+        </div>
+        {invitations.error && (
+          <p className="text-sm text-destructive">
+            {invitations.error instanceof Error ? invitations.error.message : 'Failed to load invitations.'}
+          </p>
+        )}
+        {invitations.isLoading ? (
+          <TableSkeleton rows={3} />
+        ) : (
+          <InvitationsTable invitations={invitations.data?.invitations ?? []} />
+        )}
+      </section>
+
+      <div className="max-w-4xl rounded-lg border p-4">
         <h3 className="text-sm font-medium">Roles</h3>
         <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
           <RoleSummary role="Developer" description="Deploys and operates integrations, secrets, packages, and agent tokens." />
@@ -147,6 +213,96 @@ export function UsersPage() {
       </div>
     </div>
   )
+}
+
+function UsersTable({ users }: { users: UserSummary[] }) {
+  if (users.length === 0) {
+    return (
+      <div className="rounded-lg border py-10 text-center text-sm text-muted-foreground">
+        No active users.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Created</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map(account => (
+            <TableRow key={account.id}>
+              <TableCell className="font-medium">{account.email}</TableCell>
+              <TableCell>
+                <Badge variant="outline">{account.role}</Badge>
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {formatDate(account.createdAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function InvitationsTable({ invitations }: { invitations: InvitationSummary[] }) {
+  if (invitations.length === 0) {
+    return (
+      <div className="rounded-lg border py-10 text-center text-sm text-muted-foreground">
+        No pending invitations.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Expires</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invitations.map(invitation => (
+            <TableRow key={invitation.id}>
+              <TableCell className="font-medium">{invitation.email}</TableCell>
+              <TableCell>
+                <Badge variant="outline">{invitation.role}</Badge>
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {formatDate(invitation.expiresAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function TableSkeleton({ rows }: { rows: number }) {
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString()
 }
 
 function RoleSummary({ role, description }: { role: UserRole; description: string }) {

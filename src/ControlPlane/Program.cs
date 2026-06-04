@@ -86,7 +86,9 @@ builder.Services.AddScoped<ICommandHandler<RegisterTenantCommand, RegisterTenant
 
 // Invitation feature
 builder.Services.AddScoped<IInvitationRepository, InvitationRepository>();
+builder.Services.AddScoped<IInvitationReadRepository, InvitationRepository>();
 builder.Services.AddScoped<ICommandHandler<InviteUserCommand, InviteUserResult>, InviteUserHandler>();
+builder.Services.AddScoped<ICommandHandler<ListInvitationsCommand, ListInvitationsResult>, ListInvitationsHandler>();
 builder.Services.AddScoped<ICommandHandler<AcceptInvitationCommand, AcceptInvitationResult>, AcceptInvitationHandler>();
 
 // Setup feature
@@ -169,7 +171,9 @@ builder.Services.AddScoped<ICommandHandler<RecordExecutionLogCommand, bool>, Rec
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserReadRepository, UserRepository>();
+builder.Services.AddScoped<IUserListRepository, UserRepository>();
 builder.Services.AddScoped<ICommandHandler<RegisterUserCommand, RegisterUserResult>, RegisterUserHandler>();
+builder.Services.AddScoped<ICommandHandler<ListUsersCommand, ListUsersResult>, ListUsersHandler>();
 builder.Services.AddScoped<ICommandHandler<LoginUserCommand, LoginUserResult>, LoginUserHandler>();
 
 // User token feature

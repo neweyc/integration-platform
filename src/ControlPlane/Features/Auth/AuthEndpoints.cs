@@ -21,6 +21,15 @@ public static class AuthEndpoints
             return Results.Created($"/api/users/{result.UserId}", new { result.UserId, result.Email });
         }).RequireAuthorization().RequirePermission(Permission.ManageUsers);
 
+        group.MapGet("/users", async (
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new ListUsersCommand(currentUser.TenantId), ct);
+            return Results.Ok(result);
+        }).RequireAuthorization().RequirePermission(Permission.ManageUsers);
+
         group.MapPost("/login", async (
             [FromBody] LoginUserRequest request,
             IDispatcher dispatcher,

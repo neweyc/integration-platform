@@ -20,6 +20,15 @@ public static class InvitationEndpoints
             return Results.Ok(result);
         }).RequirePermission(Permission.ManageUsers);
 
+        group.MapGet("/", async (
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new ListInvitationsCommand(currentUser.TenantId), ct);
+            return Results.Ok(result);
+        }).RequirePermission(Permission.ManageUsers);
+
         app.MapPost("/api/invitations/accept", async (
             [FromBody] AcceptInvitationRequest request,
             IDispatcher dispatcher,

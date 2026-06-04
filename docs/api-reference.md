@@ -85,6 +85,28 @@ Creates a new tenant and an initial admin user. Enables self-service SaaS onboar
 
 ## Invitations
 
+### `GET /api/invitations`
+
+Lists pending invitations for the authenticated user's tenant. Accepted and expired invitations are not returned.
+
+**Auth:** JWT (Admin)
+
+**Response (200 OK):**
+
+```json
+{
+  "invitations": [
+    {
+      "id": "guid",
+      "email": "user@acme.com",
+      "role": "Operator",
+      "expiresAt": "iso-date",
+      "acceptedAt": null
+    }
+  ]
+}
+```
+
 ### `POST /api/invitations`
 
 Invites a new user to the current tenant.
@@ -199,6 +221,26 @@ Revokes one of the current user's personal access tokens. Revocation is scoped t
 ---
 
 ## Auth
+
+### `GET /api/auth/users`
+
+Lists active users in the authenticated user's tenant.
+
+**Auth:** JWT (Admin)
+
+**Response**
+```json
+{
+  "users": [
+    {
+      "id": "uuid",
+      "email": "user@acme.com",
+      "role": "Developer",
+      "createdAt": "iso-date"
+    }
+  ]
+}
+```
 
 ### `POST /api/auth/register`
 

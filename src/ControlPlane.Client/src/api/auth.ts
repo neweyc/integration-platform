@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { UserRole } from '@/lib/rbac'
 
 export interface SetupRequest {
   tenantName: string
@@ -26,8 +27,20 @@ export interface LoginResponse {
   role: string
 }
 
+export interface UserSummary {
+  id: string
+  email: string
+  role: UserRole
+  createdAt: string
+}
+
+export interface ListUsersResponse {
+  users: UserSummary[]
+}
+
 export const authApi = {
   setupStatus: () => api.get<{ isComplete: boolean }>('/setup/status'),
   setup: (data: SetupRequest) => api.post<SetupResponse>('/setup', data),
   login: (data: LoginRequest) => api.post<LoginResponse>('/auth/login', data),
+  listUsers: () => api.get<ListUsersResponse>('/auth/users'),
 }

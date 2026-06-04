@@ -24,9 +24,22 @@ export interface AcceptInvitationResponse {
   token: string
 }
 
+export interface InvitationSummary {
+  id: string
+  email: string
+  role: UserRole
+  expiresAt: string
+  acceptedAt: string | null
+}
+
+export interface ListInvitationsResponse {
+  invitations: InvitationSummary[]
+}
+
 export const invitationsApi = {
   invite: (data: InviteUserRequest) =>
     api.post<InviteUserResponse>('/invitations', data),
+  list: () => api.get<ListInvitationsResponse>('/invitations'),
   accept: (data: AcceptInvitationRequest) =>
     api.post<AcceptInvitationResponse>('/invitations/accept', data),
 }

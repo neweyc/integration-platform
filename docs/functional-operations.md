@@ -187,7 +187,7 @@ Integrations can be pinned to uploaded package versions, and execution records r
 
 Server-side role enforcement is active through endpoint permission filters. The UI uses the same role/permission model to hide unavailable navigation items and actions. Disallowed direct API calls still receive `403 Forbidden`.
 
-Admins can invite tenant users from the Users page. The invite response shows a one-time invitation token and browser accept link; the invited user sets their password on the public accept-invitation page. Invite and acceptance events are audited. Current limitations: the UI does not yet list active users or pending invitations.
+Admins can invite tenant users from the Users page. The page lists active users and pending invitations. The invite response shows a one-time invitation token and browser accept link; the invited user sets their password on the public accept-invitation page. Invite and acceptance events are audited. Current limitation: pending invitations cannot yet be revoked or resent.
 
 ---
 
