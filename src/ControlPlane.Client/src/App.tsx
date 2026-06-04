@@ -8,6 +8,7 @@ import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
+import { AuditLogPage } from '@/pages/audit/AuditLogPage'
 import { AcceptInvitationPage } from '@/pages/users/AcceptInvitationPage'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/secrets" element={<SecretsPage />} />
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/audit-log" element={<AuditLogPage />} />
             </Route>
 
             {/* Unknown paths fall back to the landing page */}

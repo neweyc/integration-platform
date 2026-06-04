@@ -296,6 +296,7 @@ Completed notes:
 - Covers Secret set/delete, Integration create/update/delete, AgentToken create/revoke, personal access token create/revoke, Package upload/delete, User invite/accept.
 - Audit writes never break the primary operation (failures are logged, not thrown). Secret values and token plaintext are never recorded.
 - `GET /api/audit-log` is gated by a new `ViewAuditLog` permission (Admin only).
+- Admin UI includes an Audit log page that lists recent entries and is hidden from roles without `ViewAuditLog`.
 - Tests: per-command descriptor unit tests (incl. explicit no-secret-value assertions) + end-to-end integration tests proving entries are recorded with correct actor/action/target, no secret leakage, and Admin-only access.
 
 ### Role-Based Access Control (RBAC)
@@ -816,7 +817,7 @@ See "Audit Log Infrastructure" above for implementation notes.
 
 ### Role Enforcement
 
-**Status:** Done (server-side); UI hiding still Todo
+**Status:** Done
 
 Make user roles meaningful.
 

@@ -193,7 +193,7 @@ Admins can invite tenant users from the Users page. The invite response shows a 
 
 ## Audit log
 
-The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, and invitations. Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only.
+The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, and invitations. Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only through the API and the Audit log page.
 
 ---
 
