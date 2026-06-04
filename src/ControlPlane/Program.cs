@@ -124,6 +124,7 @@ builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunRes
 builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 builder.Services.AddScoped<IWorkflowProgressionService, WorkflowProgressionService>();
 builder.Services.AddScoped<ICommandHandler<CreateWorkflowCommand, WorkflowDefinitionResult>, CreateWorkflowHandler>();
+builder.Services.AddScoped<ICommandHandler<ListWorkflowsCommand, ListWorkflowsResult>, ListWorkflowsHandler>();
 builder.Services.AddScoped<ICommandHandler<RunWorkflowCommand, WorkflowRunResult>, RunWorkflowHandler>();
 builder.Services.AddScoped<ICommandHandler<ListWorkflowRunsCommand, ListWorkflowRunsResult>, ListWorkflowRunsHandler>();
 

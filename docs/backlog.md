@@ -59,6 +59,7 @@ Acceptance criteria:
 - Fan-in nodes wait for all parents to succeed.
 - Failed terminal nodes fail the workflow run and block downstream work.
 - Workflow runs expose node status for operational visibility.
+- UI lists workflow definitions, starts workflow runs, and shows latest node states.
 - Tests cover sequential DAGs, fan-in, failure blocking, and workflow work-item polling.
 
 Completed notes:
@@ -66,6 +67,7 @@ Completed notes:
 - Added `workflow_definitions`, `workflow_nodes`, `workflow_edges`, `workflow_runs`, and `workflow_node_runs`.
 - Added workflow context to `work_items` and a new `Workflow` trigger source.
 - Added API-first workflow creation, run start, and run-history endpoints.
+- Added workflow UI for listing workflows, starting runs, and viewing recent run/node state.
 - Runtime agents remain trigger-agnostic: workflow nodes are claimed and executed through the same work-item/start/complete path as other triggers.
 
 ### Version-Pinned Package Execution

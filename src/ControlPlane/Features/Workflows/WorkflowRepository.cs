@@ -7,6 +7,7 @@ namespace ControlPlane.Features.Workflows;
 public interface IWorkflowRepository
 {
     Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default);
+    Task<IReadOnlyList<WorkflowDefinition>> ListDefinitionsAsync(Guid tenantId, string? environment, CancellationToken ct = default);
     Task<IReadOnlyList<Integration>> GetIntegrationsAsync(Guid tenantId, IReadOnlyCollection<Guid> integrationIds, CancellationToken ct = default);
     Task<WorkflowDefinition> CreateAsync(WorkflowDefinition workflow, CancellationToken ct = default);
     Task<WorkflowDefinition?> GetDefinitionAsync(Guid tenantId, Guid workflowId, CancellationToken ct = default);
@@ -25,6 +26,21 @@ public class WorkflowRepository(AppDbContext db) : IWorkflowRepository
 {
     public Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default) =>
         db.WorkflowDefinitions.AnyAsync(w => w.TenantId == tenantId && w.Slug == slug, ct);
+
+    public async Task<IReadOnlyList<WorkflowDefinition>> ListDefinitionsAsync(Guid tenantId, string? environment, CancellationToken ct = default)
+    {
+        var query = db.WorkflowDefinitions
+            .AsNoTracking()
+            .Include(w => w.Nodes)
+            .Include(w => w.Edges).ThenInclude(e => e.FromNode)
+            .Include(w => w.Edges).ThenInclude(e => e.ToNode)
+            .Where(w => w.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(environment))
+            query = query.Where(w => w.Environment == environment);
+
+        return await query.OrderBy(w => w.Name).ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<Integration>> GetIntegrationsAsync(Guid tenantId, IReadOnlyCollection<Guid> integrationIds, CancellationToken ct = default) =>
         await db.Integrations

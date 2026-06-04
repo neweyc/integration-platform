@@ -73,6 +73,32 @@ public class WorkflowDagIntegrationTests
     }
 
     [Fact]
+    public async Task Workflows_CanBeListedForTenant()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await SetupAsync(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        var extract = await CreateIntegrationAsync(client, "list-extract");
+        var load = await CreateIntegrationAsync(client, "list-load");
+        var workflow = await CreateWorkflowAsync(client, extract.Id, load.Id);
+
+        var list = await GetJsonAsync<ListWorkflowsResponse>(client, "/api/workflows");
+
+        var listed = Assert.Single(list.Workflows, w => w.Id == workflow.Id);
+        Assert.Equal("production", listed.Environment);
+        Assert.Equal(2, listed.Nodes?.Count);
+        Assert.Single(listed.Edges!);
+    }
+
+
+    [Fact]
     public async Task WorkflowRun_FanInWaitsForAllParents()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();
@@ -283,7 +309,14 @@ public class WorkflowDagIntegrationTests
     private sealed record SetupResponse(Guid TenantId, string Token);
     private sealed record IntegrationResponse(Guid Id);
     private sealed record AgentTokenResponse(Guid Id, string Token);
-    private sealed record WorkflowDefinitionResponse(Guid Id);
+    private sealed record WorkflowDefinitionResponse(
+        Guid Id,
+        string? Environment = null,
+        IReadOnlyList<WorkflowNodeResponse>? Nodes = null,
+        IReadOnlyList<WorkflowEdgeResponse>? Edges = null);
+    private sealed record ListWorkflowsResponse(IReadOnlyList<WorkflowDefinitionResponse> Workflows);
+    private sealed record WorkflowNodeResponse(Guid Id, string Key, Guid IntegrationId);
+    private sealed record WorkflowEdgeResponse(string From, string To);
     private sealed record WorkflowRunResponse(Guid Id, string Status, IReadOnlyList<WorkflowNodeRunResponse> Nodes);
     private sealed record WorkflowNodeRunResponse(string NodeKey, string Status);
     private sealed record PollResponse(IReadOnlyList<PollIntegrationResponse> Integrations);

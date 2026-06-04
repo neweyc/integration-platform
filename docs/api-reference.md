@@ -808,6 +808,20 @@ Agents are considered stale when the latest heartbeat is older than two minutes.
 
 Workflow definitions are DAGs whose nodes reference existing integrations. Runtime agents execute workflow nodes through the same work-item claim/start/complete path used by scheduled, manual, webhook, and retry work.
 
+### `GET /api/workflows`
+
+Lists workflow definitions for the authenticated tenant.
+
+**Auth:** JWT or PAT with `Developer`, `Operator`, `Member`, or `Admin` role
+
+**Query parameters:**
+
+| Name | Type | Default | Notes |
+|------|------|---------|-------|
+| `environment` | string | none | Optional environment filter |
+
+**Response:** `200 OK`
+
 ### `POST /api/workflows`
 
 Creates a workflow definition.

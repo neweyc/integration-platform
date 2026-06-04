@@ -10,6 +10,17 @@ public static class WorkflowEndpoints
     {
         var group = app.MapGroup("/api/workflows").WithTags("Workflows").RequireAuthorization();
 
+        group.MapGet("/", async (
+            [FromQuery] string? environment,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new ListWorkflowsCommand(currentUser.TenantId, environment), ct);
+            return Results.Ok(result);
+        }).RequirePermission(Permission.ViewIntegrations);
+
         group.MapPost("/", async (
             [FromBody] CreateWorkflowRequest request,
             IDispatcher dispatcher,

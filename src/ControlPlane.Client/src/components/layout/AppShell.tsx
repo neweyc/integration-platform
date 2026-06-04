@@ -19,6 +19,7 @@ import { getCurrentUser, hasPermission, type Permission } from '@/lib/rbac'
 
 const navItems = [
   { label: 'Integrations', path: '/integrations', permission: 'ViewIntegrations' },
+  { label: 'Workflows', path: '/workflows', permission: 'ViewIntegrations' },
   { label: 'Secrets', path: '/secrets', permission: 'ViewSecrets' },
   { label: 'Agent tokens', path: '/agent-tokens', permission: 'ManageAgentTokens' },
   { label: 'Users', path: '/users', permission: 'ManageUsers' },

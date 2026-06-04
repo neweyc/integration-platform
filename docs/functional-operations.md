@@ -201,7 +201,7 @@ The control plane records tenant-scoped audit entries for security- and configur
 
 Workflow definitions can declare nodes and dependencies, with each node referencing an existing integration in the same environment. Starting a workflow run queues root nodes as workflow work items. When a node execution succeeds, downstream nodes are queued after all dependencies have succeeded. A failed terminal node marks the workflow run failed and blocks downstream nodes. Runtime agents execute workflow work through the same poll/start/complete path as scheduled, manual, webhook, and retry work.
 
-Current limitations: workflow authoring is API-first, there is no workflow UI yet, and workflow nodes are integration executions only. Human approvals, waits/signals, branch conditions, and visual editing are future work.
+The Workflows page lists workflow definitions, can start a workflow run, and shows recent run/node status. Current limitations: workflow authoring is API-first and workflow nodes are integration executions only. Human approvals, waits/signals, branch conditions, and visual editing are future work.
 
 ---
 

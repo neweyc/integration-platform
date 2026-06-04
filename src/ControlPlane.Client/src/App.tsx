@@ -5,6 +5,7 @@ import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { LandingPage } from '@/pages/landing/LandingPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
+import { WorkflowsPage } from '@/pages/workflows/WorkflowsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
@@ -54,6 +55,7 @@ export default function App() {
               }
             >
               <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/workflows" element={<WorkflowsPage />} />
               <Route path="/secrets" element={<SecretsPage />} />
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
               <Route path="/users" element={<UsersPage />} />
