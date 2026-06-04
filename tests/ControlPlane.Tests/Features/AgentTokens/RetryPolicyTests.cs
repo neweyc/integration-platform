@@ -1,4 +1,5 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Workflows;
 using NSubstitute;
 using Shared.Domain;
 
@@ -9,11 +10,12 @@ public class RetryPolicyTests
     private readonly IExecutionRepository _executionRepository = Substitute.For<IExecutionRepository>();
     private readonly IWorkItemRepository _workItemRepository = Substitute.For<IWorkItemRepository>();
     private readonly IIntegrationValidationRepository _integrationRepository = Substitute.For<IIntegrationValidationRepository>();
+    private readonly IWorkflowProgressionService _workflowProgression = Substitute.For<IWorkflowProgressionService>();
     private readonly CompleteExecutionHandler _handler;
 
     public RetryPolicyTests()
     {
-        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository);
+        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository, _workflowProgression);
     }
 
     [Fact]

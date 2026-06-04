@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Features.Workflows;
 using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
@@ -54,7 +55,8 @@ public class StartExecutionHandler(
     IIntegrationValidationRepository integrationRepository,
     IManualRunRequestRepository manualRunRepository,
     IPackageLookupRepository packageRepository,
-    IQuotaService quotaService)
+    IQuotaService quotaService,
+    IWorkflowProgressionService workflowProgression)
     : ICommandHandler<StartExecutionCommand, StartExecutionResult>
 {
     public async Task<StartExecutionResult> HandleAsync(StartExecutionCommand command, CancellationToken ct = default)
@@ -135,6 +137,8 @@ public class StartExecutionHandler(
         if (workItem.TriggerSource == TriggerSource.Manual && workItem.ManualRunRequestId.HasValue)
             await manualRunRepository.MarkStartedAsync(workItem.ManualRunRequestId.Value, created.Id, ct);
 
+        await workflowProgression.MarkStartedAsync(created, workItem, ct);
+
         return new StartExecutionResult(created.Id, created.StartedAt);
     }
 }
@@ -142,7 +146,8 @@ public class StartExecutionHandler(
 public class CompleteExecutionHandler(
     IExecutionRepository repository,
     IWorkItemRepository workItemRepository,
-    IIntegrationValidationRepository integrationRepository)
+    IIntegrationValidationRepository integrationRepository,
+    IWorkflowProgressionService workflowProgression)
     : ICommandHandler<CompleteExecutionCommand, bool>
 {
     public async Task<bool> HandleAsync(CompleteExecutionCommand command, CancellationToken ct = default)
@@ -191,6 +196,7 @@ public class CompleteExecutionHandler(
             }
         }
 
+        var retryQueued = false;
         if (!command.Succeeded
             && command.Retryable
             && integration is not null
@@ -213,7 +219,11 @@ public class CompleteExecutionHandler(
             };
 
             await workItemRepository.CreateAsync(retry, ct);
+            retryQueued = true;
         }
+
+        if (workItem is not null && (command.Succeeded || !retryQueued))
+            await workflowProgression.AdvanceAsync(record, workItem, command.Succeeded, ct);
 
         return true;
     }

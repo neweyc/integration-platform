@@ -43,6 +43,31 @@ Priority ladder:
 
 ## P0 — MVP Completion
 
+### Workflow DAG Foundation
+
+**Status:** Done
+
+Move the product from single integration runs to graph-based workflow orchestration.
+
+Acceptance criteria:
+
+- Workflow definitions can declare nodes and dependencies.
+- Each node references an existing integration in the workflow environment.
+- Workflow definitions reject cycles, duplicate node keys, unknown edge references, and cross-environment integrations.
+- Starting a workflow run queues root nodes as workflow work items.
+- Successful upstream completion queues downstream nodes.
+- Fan-in nodes wait for all parents to succeed.
+- Failed terminal nodes fail the workflow run and block downstream work.
+- Workflow runs expose node status for operational visibility.
+- Tests cover sequential DAGs, fan-in, failure blocking, and workflow work-item polling.
+
+Completed notes:
+
+- Added `workflow_definitions`, `workflow_nodes`, `workflow_edges`, `workflow_runs`, and `workflow_node_runs`.
+- Added workflow context to `work_items` and a new `Workflow` trigger source.
+- Added API-first workflow creation, run start, and run-history endpoints.
+- Runtime agents remain trigger-agnostic: workflow nodes are claimed and executed through the same work-item/start/complete path as other triggers.
+
 ### Version-Pinned Package Execution
 
 **Status:** Done

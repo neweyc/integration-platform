@@ -30,6 +30,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([]);
         SetupWebhook([]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -51,6 +52,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([]);
         SetupWebhook([]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         await _handler.HandleAsync(new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
 
@@ -66,6 +68,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([]);
         SetupWebhook([]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -88,6 +91,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([new ClaimedWork(integration, workItem)]);
         SetupWebhook([]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -116,6 +120,7 @@ public class PollIntegrationsHandlerTests
             MakeWorkItem(Guid.NewGuid(), manualId, TriggerSource.Manual, expires, Guid.NewGuid()))]);
         SetupWebhook([]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -143,6 +148,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([]);
         SetupWebhook([new ClaimedWork(integration, workItem)]);
         SetupRetry([]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -169,6 +175,7 @@ public class PollIntegrationsHandlerTests
         SetupManual([]);
         SetupWebhook([]);
         SetupRetry([new ClaimedWork(integration, workItem)]);
+        SetupWorkflow([]);
 
         var result = await _handler.HandleAsync(
             new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
@@ -176,6 +183,31 @@ public class PollIntegrationsHandlerTests
         var item = Assert.Single(result.Integrations);
         Assert.Equal(integrationId, item.Id);
         Assert.Equal(TriggerSource.Retry, item.TriggerSource);
+        Assert.Equal(workItemId, item.WorkItemId);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsClaimedWorkflowRuns()
+    {
+        var integrationId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
+
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Workflow, claimExpiresAt);
+
+        SetupScheduled([]);
+        SetupManual([]);
+        SetupWebhook([]);
+        SetupRetry([]);
+        SetupWorkflow([new ClaimedWork(integration, workItem)]);
+
+        var result = await _handler.HandleAsync(
+            new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
+
+        var item = Assert.Single(result.Integrations);
+        Assert.Equal(integrationId, item.Id);
+        Assert.Equal(TriggerSource.Workflow, item.TriggerSource);
         Assert.Equal(workItemId, item.WorkItemId);
     }
 
@@ -199,6 +231,12 @@ public class PollIntegrationsHandlerTests
 
     private void SetupRetry(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingRetryRunsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private void SetupWorkflow(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimPendingWorkflowRunsAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);

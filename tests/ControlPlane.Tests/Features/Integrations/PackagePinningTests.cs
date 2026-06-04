@@ -1,5 +1,6 @@
 using ControlPlane.Features.AgentTokens;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -141,9 +142,10 @@ public class PackagePinningTests
         var manualRunRepo = Substitute.For<IManualRunRequestRepository>();
         var packageRepo = Substitute.For<IPackageLookupRepository>();
         var quotaService = Substitute.For<IQuotaService>();
+        var workflowProgression = Substitute.For<IWorkflowProgressionService>();
 
         var handler = new StartExecutionHandler(
-            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService);
+            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService, workflowProgression);
 
         var tenantId = Guid.NewGuid();
         var agentId = Guid.NewGuid();
@@ -206,9 +208,10 @@ public class PackagePinningTests
         var manualRunRepo = Substitute.For<IManualRunRequestRepository>();
         var packageRepo = Substitute.For<IPackageLookupRepository>();
         var quotaService = Substitute.For<IQuotaService>();
+        var workflowProgression = Substitute.For<IWorkflowProgressionService>();
 
         var handler = new StartExecutionHandler(
-            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService);
+            executionRepo, workItemRepo, integrationRepo, manualRunRepo, packageRepo, quotaService, workflowProgression);
 
         var tenantId = Guid.NewGuid();
         var agentId = Guid.NewGuid();

@@ -16,6 +16,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
+    public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
+    public DbSet<WorkflowNode> WorkflowNodes => Set<WorkflowNode>();
+    public DbSet<WorkflowEdge> WorkflowEdges => Set<WorkflowEdge>();
+    public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
+    public DbSet<WorkflowNodeRun> WorkflowNodeRuns => Set<WorkflowNodeRun>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
@@ -218,9 +223,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(w => w.AttemptNumber);
             b.Property(w => w.ParentExecutionId);
             b.Property(w => w.RootExecutionId);
+            b.Property(w => w.WorkflowRunId);
+            b.Property(w => w.WorkflowNodeId);
 
             b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.Status });
             b.HasIndex(w => new { w.TenantId, w.Environment, w.Status, w.AvailableAt });
+            b.HasIndex(w => new { w.TenantId, w.WorkflowRunId, w.WorkflowNodeId });
 
             // Idempotent webhook delivery — unique per tenant where a delivery ID is present
             b.HasIndex(w => new { w.TenantId, w.DeliveryId })
@@ -236,6 +244,94 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(w => w.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowDefinition>(b =>
+        {
+            b.ToTable("workflow_definitions");
+            b.HasKey(w => w.Id);
+            b.Property(w => w.Name).IsRequired().HasMaxLength(200);
+            b.Property(w => w.Slug).IsRequired().HasMaxLength(100);
+            b.Property(w => w.Environment).IsRequired().HasMaxLength(50);
+            b.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
+            b.HasIndex(w => new { w.TenantId, w.Slug }).IsUnique();
+            b.HasOne(w => w.Tenant)
+             .WithMany()
+             .HasForeignKey(w => w.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowNode>(b =>
+        {
+            b.ToTable("workflow_nodes");
+            b.HasKey(n => n.Id);
+            b.Property(n => n.Key).IsRequired().HasMaxLength(100);
+            b.Property(n => n.Name).IsRequired().HasMaxLength(200);
+            b.HasIndex(n => new { n.TenantId, n.WorkflowDefinitionId, n.Key }).IsUnique();
+            b.HasOne(n => n.WorkflowDefinition)
+             .WithMany(w => w.Nodes)
+             .HasForeignKey(n => n.WorkflowDefinitionId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(n => n.Integration)
+             .WithMany()
+             .HasForeignKey(n => n.IntegrationId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WorkflowEdge>(b =>
+        {
+            b.ToTable("workflow_edges");
+            b.HasKey(e => e.Id);
+            b.HasIndex(e => new { e.TenantId, e.WorkflowDefinitionId, e.FromNodeId, e.ToNodeId }).IsUnique();
+            b.HasOne(e => e.WorkflowDefinition)
+             .WithMany(w => w.Edges)
+             .HasForeignKey(e => e.WorkflowDefinitionId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.FromNode)
+             .WithMany()
+             .HasForeignKey(e => e.FromNodeId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.ToNode)
+             .WithMany()
+             .HasForeignKey(e => e.ToNodeId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowRun>(b =>
+        {
+            b.ToTable("workflow_runs");
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            b.HasIndex(r => new { r.TenantId, r.WorkflowDefinitionId, r.StartedAt });
+            b.HasOne(r => r.WorkflowDefinition)
+             .WithMany()
+             .HasForeignKey(r => r.WorkflowDefinitionId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.Tenant)
+             .WithMany()
+             .HasForeignKey(r => r.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowNodeRun>(b =>
+        {
+            b.ToTable("workflow_node_runs");
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            b.HasIndex(r => new { r.TenantId, r.WorkflowRunId, r.WorkflowNodeId }).IsUnique();
+            b.HasOne(r => r.WorkflowRun)
+             .WithMany(w => w.NodeRuns)
+             .HasForeignKey(r => r.WorkflowRunId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.WorkflowNode)
+             .WithMany()
+             .HasForeignKey(r => r.WorkflowNodeId)
+             .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(r => r.WorkItem)
+             .WithMany()
+             .HasForeignKey(r => r.WorkItemId)
+             .OnDelete(DeleteBehavior.SetNull)
+             .IsRequired(false);
         });
 
         modelBuilder.Entity<AuditLogEntry>(b =>

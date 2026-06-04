@@ -240,6 +240,22 @@ public class PollRepository(AppDbContext db) : IPollRepository
             now,
             ct);
 
+    public Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkflowRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default) =>
+        ClaimPendingWorkItemsAsync(
+            tenantId,
+            environment,
+            TriggerSource.Workflow,
+            claimOwner,
+            claimDuration,
+            now,
+            ct);
+
     private async Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkItemsAsync(
         Guid tenantId,
         string environment,

@@ -32,6 +32,9 @@ public class WorkItem : Entity
     public Guid? ParentExecutionId { get; set; }
     public Guid? RootExecutionId { get; set; }
 
+    public Guid? WorkflowRunId { get; set; }
+    public Guid? WorkflowNodeId { get; set; }
+
     public bool HasActiveClaim(DateTime now) =>
         ClaimOwner.HasValue && ClaimExpiresAt.HasValue && ClaimExpiresAt.Value > now;
 

@@ -12,6 +12,7 @@ using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Features.UserTokens;
 using ControlPlane.Features.Webhooks;
+using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -118,6 +119,13 @@ builder.Services.AddScoped<ICommandHandler<ListAuditLogCommand, ListAuditLogResu
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
 builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
+
+// Workflows feature
+builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+builder.Services.AddScoped<IWorkflowProgressionService, WorkflowProgressionService>();
+builder.Services.AddScoped<ICommandHandler<CreateWorkflowCommand, WorkflowDefinitionResult>, CreateWorkflowHandler>();
+builder.Services.AddScoped<ICommandHandler<RunWorkflowCommand, WorkflowRunResult>, RunWorkflowHandler>();
+builder.Services.AddScoped<ICommandHandler<ListWorkflowRunsCommand, ListWorkflowRunsResult>, ListWorkflowRunsHandler>();
 
 // Webhooks feature
 builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
@@ -230,6 +238,7 @@ app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
 app.MapWebhookEndpoints();
 app.MapAuditLogEndpoints();
+app.MapWorkflowEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

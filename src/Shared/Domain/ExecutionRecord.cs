@@ -41,5 +41,6 @@ public enum TriggerSource
     Scheduled,
     Manual,
     Webhook,
-    Retry
+    Retry,
+    Workflow
 }

@@ -804,6 +804,78 @@ Agents are considered stale when the latest heartbeat is older than two minutes.
 
 ---
 
+## Workflows
+
+Workflow definitions are DAGs whose nodes reference existing integrations. Runtime agents execute workflow nodes through the same work-item claim/start/complete path used by scheduled, manual, webhook, and retry work.
+
+### `POST /api/workflows`
+
+Creates a workflow definition.
+
+**Auth:** JWT or PAT with `Developer` or `Admin` role
+
+**Request**
+```json
+{
+  "name": "Order workflow",
+  "slug": "order-workflow",
+  "environment": "production",
+  "nodes": [
+    { "key": "extract", "name": "Extract orders", "integrationId": "uuid" },
+    { "key": "load", "name": "Load orders", "integrationId": "uuid" }
+  ],
+  "edges": [
+    { "from": "extract", "to": "load" }
+  ]
+}
+```
+
+**Response:** `201 Created`
+
+### `POST /api/workflows/{id}/run`
+
+Starts a workflow run and queues root nodes.
+
+**Auth:** JWT or PAT with `Developer`, `Operator`, or `Admin` role
+
+**Response:** `202 Accepted`
+
+```json
+{
+  "id": "uuid",
+  "workflowDefinitionId": "uuid",
+  "status": "Running",
+  "startedAt": "2026-06-04T12:00:00Z",
+  "completedAt": null,
+  "nodes": [
+    {
+      "id": "uuid",
+      "workflowNodeId": "uuid",
+      "nodeKey": "extract",
+      "nodeName": "Extract orders",
+      "integrationId": "uuid",
+      "status": "Queued",
+      "workItemId": "uuid",
+      "executionRecordId": null
+    }
+  ]
+}
+```
+
+### `GET /api/workflows/{id}/runs`
+
+Lists recent workflow runs and node states.
+
+**Auth:** JWT or PAT with `Developer`, `Operator`, `Member`, or `Admin` role
+
+**Query parameters:**
+
+| Name | Type | Default | Notes |
+|------|------|---------|-------|
+| `limit` | integer | `25` | Clamped to `1..100` |
+
+---
+
 ## Agent (runtime use only)
 
 All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (not JWT).

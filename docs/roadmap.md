@@ -24,6 +24,7 @@ Product goal: replace legacy integration middleware with a modern, **Integration
 - **Marketplace Engine:** Support for `ip install connector-x` to build a moat.
 
 ## Phase 5 — Workflow Orchestration
+- **DAG Foundation:** Workflow definitions, node dependencies, workflow runs, and fan-out/fan-in release semantics.
 - **Long-Running Jobs:** Support for `await context.WaitForSignalAsync()`.
 - **Approvals:** Manual intervention steps within a code-first workflow.
 - **Fan-out/Fan-in:** Complex parallel processing primitives.
