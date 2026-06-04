@@ -32,11 +32,21 @@ public class ListIntegrationsHandlerTests
                 Slug = "sync-orders",
                 Environment = "production",
                 Status = IntegrationStatus.Enabled,
-                TriggerType = TriggerType.Scheduled,
-                CronExpression = "0 * * * *",
                 ClassName = "MyCompany.Integrations.SyncOrdersIntegration",
                 TimeoutSeconds = 300,
-                PackageId = packageId
+                PackageId = packageId,
+                Triggers =
+                [
+                    new IntegrationTrigger
+                    {
+                        TenantId = _tenantId,
+                        IntegrationId = integrationId,
+                        Name = "Hourly",
+                        Slug = "hourly",
+                        Type = TriggerType.Scheduled,
+                        CronExpression = "0 * * * *"
+                    }
+                ]
             }
         ]);
 

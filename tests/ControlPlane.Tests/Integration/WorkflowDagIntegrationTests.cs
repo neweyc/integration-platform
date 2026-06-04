@@ -297,7 +297,7 @@ public class WorkflowDagIntegrationTests
                 Slug = $"{slugPrefix}-{Guid.NewGuid():N}",
                 Description = "Workflow test integration",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = $"Tests.{slugPrefix.Replace("-", "")}"
             },
             HttpStatusCode.Created);

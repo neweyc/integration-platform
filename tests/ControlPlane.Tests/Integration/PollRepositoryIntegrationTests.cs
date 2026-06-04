@@ -133,13 +133,15 @@ public class PollRepositoryIntegrationTests
 
         var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
         var productionIntegration = CreateIntegration(tenant.Id, "webhook-production");
-        productionIntegration.TriggerType = TriggerType.Webhook;
-        productionIntegration.CronExpression = null;
+        var productionTrigger = WebhookTrigger(tenant.Id, productionIntegration.Id, "production-webhook");
+        productionIntegration.Triggers.Clear();
+        productionIntegration.Triggers.Add(productionTrigger);
 
         var stagingIntegration = CreateIntegration(tenant.Id, "webhook-staging");
-        stagingIntegration.TriggerType = TriggerType.Webhook;
-        stagingIntegration.CronExpression = null;
         stagingIntegration.Environment = "staging";
+        var stagingTrigger = WebhookTrigger(tenant.Id, stagingIntegration.Id, "staging-webhook");
+        stagingIntegration.Triggers.Clear();
+        stagingIntegration.Triggers.Add(stagingTrigger);
 
         var agentId = Guid.NewGuid();
         var now = DateTime.UtcNow;
@@ -153,6 +155,7 @@ public class PollRepositoryIntegrationTests
                 {
                     TenantId = tenant.Id,
                     IntegrationId = productionIntegration.Id,
+                    IntegrationTriggerId = productionTrigger.Id,
                     Environment = "production",
                     TriggerSource = TriggerSource.Webhook,
                     Status = WorkItemStatus.Pending,
@@ -163,6 +166,7 @@ public class PollRepositoryIntegrationTests
                 {
                     TenantId = tenant.Id,
                     IntegrationId = stagingIntegration.Id,
+                    IntegrationTriggerId = stagingTrigger.Id,
                     Environment = "staging",
                     TriggerSource = TriggerSource.Webhook,
                     Status = WorkItemStatus.Pending,
@@ -258,6 +262,7 @@ public class PollRepositoryIntegrationTests
             {
                 TenantId = tenant.Id,
                 IntegrationId = integration.Id,
+                IntegrationTriggerId = integration.Triggers.Single().Id,
                 Environment = "production",
                 TriggerSource = TriggerSource.Scheduled,
                 Status = WorkItemStatus.Started,
@@ -299,6 +304,7 @@ public class PollRepositoryIntegrationTests
             {
                 TenantId = tenant.Id,
                 IntegrationId = integration.Id,
+                IntegrationTriggerId = integration.Triggers.Single().Id,
                 Environment = "production",
                 TriggerSource = TriggerSource.Scheduled,
                 Status = WorkItemStatus.Claimed,
@@ -393,9 +399,31 @@ public class PollRepositoryIntegrationTests
         Slug = slug,
         Environment = "production",
         Status = IntegrationStatus.Enabled,
-        TriggerType = TriggerType.Scheduled,
-        CronExpression = "* * * * *",
         ClassName = $"Tests.{slug}.Integration",
-        CreatedAt = createdAt ?? DateTime.UtcNow
+        CreatedAt = createdAt ?? DateTime.UtcNow,
+        Triggers =
+        [
+            new IntegrationTrigger
+            {
+                TenantId = tenantId,
+                Name = "Schedule",
+                Slug = "schedule",
+                Type = TriggerType.Scheduled,
+                Enabled = true,
+                CronExpression = "* * * * *",
+                CreatedAt = createdAt ?? DateTime.UtcNow
+            }
+        ]
+    };
+
+    private static IntegrationTrigger WebhookTrigger(Guid tenantId, Guid integrationId, string slug) => new()
+    {
+        TenantId = tenantId,
+        IntegrationId = integrationId,
+        Name = slug,
+        Slug = slug,
+        Type = TriggerType.Webhook,
+        Enabled = true,
+        EncryptedWebhookSecret = "encrypted"
     };
 }

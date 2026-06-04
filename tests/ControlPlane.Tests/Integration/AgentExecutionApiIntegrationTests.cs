@@ -41,8 +41,7 @@ public class AgentExecutionApiIntegrationTests
                 Slug = $"sync-orders-{Guid.NewGuid():N}",
                 Description = "Test integration",
                 Environment = "production",
-                TriggerType = "Scheduled",
-                CronExpression = "0 * * * *",
+                Triggers = new[] { new { Name = "Schedule", Slug = "schedule", Type = "Scheduled", CronExpression = "0 * * * *" } },
                 ClassName = "Tests.SyncOrdersIntegration"
             },
             HttpStatusCode.Created);
@@ -190,7 +189,7 @@ public class AgentExecutionApiIntegrationTests
                 Name = "Retry Job",
                 Slug = $"retry-job-{Guid.NewGuid():N}",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = "Tests.RetryJob",
                 RetryMaxAttempts = 1,
                 RetryBackoffSeconds = 0

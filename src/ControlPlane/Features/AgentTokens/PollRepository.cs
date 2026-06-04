@@ -17,19 +17,23 @@ public class PollRepository(AppDbContext db) : IPollRepository
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
-        var integrations = await db.Integrations
-            .Where(i => i.TenantId == tenantId
-                     && i.Environment == environment
-                     && i.Status == IntegrationStatus.Enabled
-                     && i.TriggerType == TriggerType.Scheduled
-                     && i.CronExpression != null)
+        var triggers = await db.IntegrationTriggers
+            .Include(t => t.Integration)
+            .Where(t => t.TenantId == tenantId
+                     && t.Type == TriggerType.Scheduled
+                     && t.Enabled
+                     && t.CronExpression != null
+                     && t.Integration.Environment == environment
+                     && t.Integration.Status == IntegrationStatus.Enabled)
             .ToListAsync(ct);
 
-        var integrationIds = integrations.Select(i => i.Id).ToList();
+        var integrationIds = triggers.Select(t => t.IntegrationId).Distinct().ToList();
+        var triggerIds = triggers.Select(t => t.Id).ToList();
 
         var states = await db.IntegrationScheduleStates
-            .Where(s => s.TenantId == tenantId && integrationIds.Contains(s.IntegrationId))
-            .ToDictionaryAsync(s => s.IntegrationId, ct);
+            .Where(s => s.TenantId == tenantId
+                     && triggerIds.Contains(s.IntegrationTriggerId))
+            .ToDictionaryAsync(s => s.IntegrationTriggerId, ct);
 
         var activeWorkItemIntegrations = await db.WorkItems
             .Where(w => w.TenantId == tenantId
@@ -44,9 +48,12 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
         var expiredClaims = await db.WorkItems
             .Include(w => w.Integration)
+            .Include(w => w.IntegrationTrigger)
             .Where(w => w.TenantId == tenantId
                      && w.Environment == environment
                      && integrationIds.Contains(w.IntegrationId)
+                     && w.IntegrationTriggerId != null
+                     && triggerIds.Contains(w.IntegrationTriggerId.Value)
                      && w.TriggerSource == TriggerSource.Scheduled
                      && w.Status == WorkItemStatus.Claimed
                      && w.ClaimExpiresAt != null
@@ -79,11 +86,17 @@ public class PollRepository(AppDbContext db) : IPollRepository
             claimed.Add(new ClaimedWork(workItem.Integration, workItem));
         }
 
-        var reclaimedIntegrationIds = claimed.Select(c => c.Integration.Id).ToHashSet();
+        var reclaimedTriggerIds = claimed
+            .Select(c => c.WorkItem.IntegrationTriggerId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
 
-        foreach (var integration in integrations)
+        foreach (var trigger in triggers)
         {
-            if (reclaimedIntegrationIds.Contains(integration.Id))
+            var integration = trigger.Integration;
+
+            if (reclaimedTriggerIds.Contains(trigger.Id))
                 continue;
 
             if (activeWorkItemIntegrations.Contains(integration.Id))
@@ -92,18 +105,19 @@ public class PollRepository(AppDbContext db) : IPollRepository
             if (runningIntegrations.Contains(integration.Id))
                 continue;
 
-            states.TryGetValue(integration.Id, out var state);
+            states.TryGetValue(trigger.Id, out var state);
 
             try
             {
-                var decision = ScheduleStateCalculator.Evaluate(integration, state, now);
+                var decision = ScheduleStateCalculator.Evaluate(trigger, state, now);
 
                 if (state is null)
                 {
                     state = new IntegrationScheduleState
                     {
                         TenantId = tenantId,
-                        IntegrationId = integration.Id
+                        IntegrationId = integration.Id,
+                        IntegrationTriggerId = trigger.Id
                     };
                     db.IntegrationScheduleStates.Add(state);
                 }
@@ -120,6 +134,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
                     {
                         TenantId = tenantId,
                         IntegrationId = integration.Id,
+                        IntegrationTriggerId = trigger.Id,
                         Environment = environment,
                         TriggerSource = TriggerSource.Scheduled,
                         Status = WorkItemStatus.Claimed,
@@ -163,6 +178,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         // Find pending work items or those with an expired claim
         var claimable = await db.WorkItems
             .Include(w => w.Integration)
+            .Include(w => w.IntegrationTrigger)
             .Where(w => w.TenantId == tenantId
                      && w.Environment == environment
                      && w.TriggerSource == TriggerSource.Manual
@@ -269,6 +285,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
 
         var claimable = await db.WorkItems
             .Include(w => w.Integration)
+            .Include(w => w.IntegrationTrigger)
             .Where(w => w.TenantId == tenantId
                      && w.Environment == environment
                      && w.TriggerSource == triggerSource

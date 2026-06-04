@@ -8,11 +8,6 @@ public class Integration : Entity
     public string? Description { get; set; }
     public string Environment { get; set; } = string.Empty;
     public IntegrationStatus Status { get; set; } = IntegrationStatus.Enabled;
-    public TriggerType TriggerType { get; set; }
-
-    // For Scheduled triggers this holds the cron expression (e.g. "0 */6 * * *").
-    // Null for Webhook and Manual triggers.
-    public string? CronExpression { get; set; }
 
     // Fully qualified class name that implements IIntegration (e.g. "MyCompany.Integrations.SyncOrdersIntegration").
     // The runtime agent uses this to locate and instantiate the integration class.
@@ -30,10 +25,8 @@ public class Integration : Entity
     // Pinned package. Null means the agent resolves from its local IntegrationsPath in dev mode.
     public Guid? PackageId { get; set; }
 
-    // AES-encrypted webhook secret. Only set for TriggerType=Webhook.
-    public string? EncryptedWebhookSecret { get; set; }
-
     public Tenant Tenant { get; set; } = null!;
+    public List<IntegrationTrigger> Triggers { get; set; } = [];
 }
 
 public enum IntegrationStatus

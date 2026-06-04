@@ -104,8 +104,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 c.Integration.Id,
                 c.Integration.Name,
                 c.Integration.Slug,
-                c.Integration.TriggerType,
-                c.Integration.CronExpression,
+                TriggerTypeFor(c.WorkItem),
+                c.WorkItem.IntegrationTrigger?.CronExpression,
                 c.Integration.ClassName,
                 c.WorkItem.ClaimExpiresAt,
                 TriggerSource.Scheduled,
@@ -122,8 +122,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 m.Integration.Id,
                 m.Integration.Name,
                 m.Integration.Slug,
-                m.Integration.TriggerType,
-                m.Integration.CronExpression,
+                TriggerType.Manual,
+                null,
                 m.Integration.ClassName,
                 m.WorkItem.ClaimExpiresAt,
                 TriggerSource.Manual,
@@ -140,8 +140,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.Integration.Id,
                 w.Integration.Name,
                 w.Integration.Slug,
-                w.Integration.TriggerType,
-                w.Integration.CronExpression,
+                TriggerType.Webhook,
+                null,
                 w.Integration.ClassName,
                 w.WorkItem.ClaimExpiresAt,
                 TriggerSource.Webhook,
@@ -158,8 +158,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 r.Integration.Id,
                 r.Integration.Name,
                 r.Integration.Slug,
-                r.Integration.TriggerType,
-                r.Integration.CronExpression,
+                TriggerType.Manual,
+                null,
                 r.Integration.ClassName,
                 r.WorkItem.ClaimExpiresAt,
                 TriggerSource.Retry,
@@ -176,8 +176,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.Integration.Id,
                 w.Integration.Name,
                 w.Integration.Slug,
-                w.Integration.TriggerType,
-                w.Integration.CronExpression,
+                TriggerType.Manual,
+                null,
                 w.Integration.ClassName,
                 w.WorkItem.ClaimExpiresAt,
                 TriggerSource.Workflow,
@@ -190,4 +190,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
 
         return new PollIntegrationsResult(items);
     }
+
+    private static TriggerType TriggerTypeFor(WorkItem workItem) =>
+        workItem.IntegrationTrigger?.Type
+        ?? (workItem.TriggerSource == TriggerSource.Webhook ? TriggerType.Webhook : TriggerType.Manual);
 }

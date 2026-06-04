@@ -8,6 +8,9 @@ public class IntegrationScheduleState : Entity
     public Guid IntegrationId { get; set; }
     public Integration Integration { get; set; } = null!;
 
+    public Guid IntegrationTriggerId { get; set; }
+    public IntegrationTrigger IntegrationTrigger { get; set; } = null!;
+
     public DateTime? LastDispatchedAt { get; set; }
     public DateTime? NextRunAt { get; set; }
 }

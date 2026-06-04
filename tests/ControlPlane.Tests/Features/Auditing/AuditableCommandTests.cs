@@ -42,9 +42,9 @@ public class AuditableCommandTests
     public void CreateIntegration_UsesResultIdAsTarget()
     {
         var cmd = new CreateIntegrationCommand(
-            Guid.NewGuid(), "Sync", "sync", null, "production", TriggerType.Manual, null, "Acme.Sync");
+            Guid.NewGuid(), "Sync", "sync", null, "production", "Acme.Sync", []);
         var id = Guid.NewGuid();
-        var result = new CreateIntegrationResult(id, "Sync", "sync", "production", "Enabled", "Manual", null, "Acme.Sync");
+        var result = new CreateIntegrationResult(id, "Sync", "sync", "production", "Enabled", "Acme.Sync", []);
 
         var d = cmd.Describe(result);
 

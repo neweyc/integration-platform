@@ -23,7 +23,7 @@ public class AuditLogIntegrationTests
             Name = "Sync",
             Slug = $"sync-{Guid.NewGuid():N}",
             Environment = "production",
-            TriggerType = "Manual",
+            Triggers = Array.Empty<object>(),
             ClassName = "Acme.Sync"
         });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   integrationsApi,
   type Integration,
+  type IntegrationTrigger,
   type ExecutionSummary,
   type ExecutionLogItem,
   type TriggerType,
@@ -70,6 +71,7 @@ export function IntegrationsPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [formMode, setFormMode] = useState<FormMode>('create')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTriggers, setEditingTriggers] = useState<IntegrationTrigger[]>([])
   const [historyIntegration, setHistoryIntegration] = useState<Integration | null>(null)
   const [selectedExecution, setSelectedExecution] = useState<ExecutionSummary | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -88,6 +90,7 @@ export function IntegrationsPage() {
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
       setSheetOpen(false)
       setForm(emptyForm)
+      setEditingTriggers([])
     },
     onError: (err: Error) => setFormError(err.message),
   })
@@ -100,6 +103,7 @@ export function IntegrationsPage() {
       setSheetOpen(false)
       setForm(emptyForm)
       setEditingId(null)
+      setEditingTriggers([])
     },
     onError: (err: Error) => setFormError(err.message),
   })
@@ -150,20 +154,22 @@ export function IntegrationsPage() {
 
   function handleOpenEdit(integration: Integration) {
     if (!canManageIntegrations) return
+    const primaryTrigger = integration.triggers[0]
     setFormMode('edit')
     setForm({
       name: integration.name,
       slug: integration.slug,
       description: integration.description ?? '',
       environment: integration.environment,
-      triggerType: integration.triggerType,
-      cronExpression: integration.cronExpression ?? '',
+      triggerType: primaryTrigger?.type ?? 'Manual',
+      cronExpression: primaryTrigger?.cronExpression ?? '',
       className: integration.className,
       timeoutSeconds: integration.timeoutSeconds?.toString() ?? '',
       status: integration.status,
     })
     setFormError(null)
     setEditingId(integration.id)
+    setEditingTriggers(integration.triggers)
     setSheetOpen(true)
   }
 
@@ -178,9 +184,8 @@ export function IntegrationsPage() {
         slug: form.slug,
         description: form.description || undefined,
         environment: form.environment,
-        triggerType: form.triggerType,
-        cronExpression: form.triggerType === 'Scheduled' ? form.cronExpression : undefined,
         className: form.className,
+        triggers: buildSubmittedTriggers(),
         timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
       })
     } else if (editingId) {
@@ -190,11 +195,31 @@ export function IntegrationsPage() {
           name: form.name,
           description: form.description || undefined,
           status: form.status,
-          cronExpression: form.triggerType === 'Scheduled' ? form.cronExpression : undefined,
+          triggers: buildSubmittedTriggers(editingTriggers),
           timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
         },
       })
     }
+  }
+
+  function buildSubmittedTriggers(existing: IntegrationTrigger[] = []): IntegrationTrigger[] {
+    if (form.triggerType === 'Manual') {
+      return existing.filter(t => t.type !== 'Scheduled' && t.type !== 'Webhook')
+    }
+
+    const slug = form.triggerType.toLowerCase()
+    const trigger: IntegrationTrigger = {
+      name: form.triggerType === 'Scheduled' ? 'Schedule' : 'Webhook',
+      slug,
+      type: form.triggerType,
+      enabled: form.status === 'Enabled',
+      cronExpression: form.triggerType === 'Scheduled' ? form.cronExpression : undefined,
+    }
+
+    return [
+      ...existing.filter(t => t.slug !== slug && t.type !== form.triggerType),
+      trigger,
+    ]
   }
 
   function generateSlug(name: string): string {
@@ -569,12 +594,22 @@ function IntegrationsTable({
                 <Badge variant="outline">{integration.environment}</Badge>
               </TableCell>
               <TableCell>
-                <span className="text-sm">{integration.triggerType}</span>
-                {integration.cronExpression && (
-                  <code className="ml-2 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    {integration.cronExpression}
-                  </code>
-                )}
+                <div className="flex flex-wrap gap-1.5">
+                  {integration.triggers.length === 0 ? (
+                    <Badge variant="outline">Manual</Badge>
+                  ) : (
+                    integration.triggers.map(trigger => (
+                      <span key={trigger.id ?? trigger.slug} className="inline-flex items-center gap-1.5">
+                        <Badge variant="outline">{trigger.type}</Badge>
+                        {trigger.cronExpression && (
+                          <code className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {trigger.cronExpression}
+                          </code>
+                        )}
+                      </span>
+                    ))
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 <StatusBadge status={integration.status} />

@@ -34,7 +34,7 @@ public class WebhookApiIntegrationTests
             Name = "Incoming Orders",
             Slug = $"incoming-orders-{Guid.NewGuid():N}",
             Environment = "production",
-            TriggerType = "Webhook",
+            Triggers = new[] { new { Name = "Webhook", Slug = "webhook", Type = "Webhook" } },
             ClassName = "Acme.IncomingOrders"
         }, HttpStatusCode.Created);
 
@@ -118,7 +118,7 @@ public class WebhookApiIntegrationTests
             Name = "Second Hook",
             Slug = $"second-hook-{Guid.NewGuid():N}",
             Environment = "production",
-            TriggerType = "Webhook",
+            Triggers = new[] { new { Name = "Webhook", Slug = "webhook", Type = "Webhook" } },
             ClassName = "Acme.SecondHook"
         }, HttpStatusCode.Created);
         client.DefaultRequestHeaders.Authorization = null;
@@ -205,17 +205,18 @@ public class WebhookApiIntegrationTests
         await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
         using var client = factory.CreateClient();
 
-        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", new
+        var tenantSlug = $"acme-{Guid.NewGuid():N}";
+        await PostJsonAsync<SetupResponse>(client, "/api/setup", new
         {
             TenantName = "Acme",
-            TenantSlug = $"acme-{Guid.NewGuid():N}",
+            TenantSlug = tenantSlug,
             AdminEmail = "admin@example.com",
             AdminPassword = "Password123!"
         });
 
         using var content = new StringContent("{}", Encoding.UTF8);
         content.Headers.Add("X-Integration-Signature", "sha256=x");
-        var response = await client.PostAsync($"/webhooks/{setup.TenantId}/ghost-integration", content);
+        var response = await client.PostAsync($"/webhooks/{tenantSlug}/ghost-integration/default", content);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -236,7 +237,7 @@ public class WebhookApiIntegrationTests
             Name = "Hook",
             Slug = $"hook-{Guid.NewGuid():N}",
             Environment = "production",
-            TriggerType = "Webhook",
+            Triggers = new[] { new { Name = "Webhook", Slug = "webhook", Type = "Webhook" } },
             ClassName = "Acme.Hook"
         }, HttpStatusCode.Created);
 
@@ -280,8 +281,16 @@ public class WebhookApiIntegrationTests
     }
 
     private sealed record SetupResponse(Guid TenantId, string Token);
-    private sealed record IntegrationResponse(
-        Guid Id, string? WebhookSecret, string? WebhookUrl, WebhookSigningResponse? WebhookSigning);
+    private sealed record IntegrationResponse(Guid Id, IReadOnlyList<TriggerResponse> Triggers)
+    {
+        private TriggerResponse Webhook => Triggers.Single(t => t.Type == "Webhook");
+        public string? WebhookSecret => Webhook.WebhookSecret;
+        public string? WebhookUrl => Webhook.WebhookUrl;
+        public WebhookSigningResponse? WebhookSigning => Webhook.WebhookSigning;
+    }
+    private sealed record TriggerResponse(
+        Guid Id, string Name, string Slug, string Type, bool Enabled, string? WebhookSecret,
+        string? WebhookUrl, WebhookSigningResponse? WebhookSigning);
     private sealed record WebhookSigningResponse(
         string Algorithm, string SignatureHeader, string SignatureFormat, string DeliveryIdHeader,
         string TimestampHeader, int ToleranceSeconds);

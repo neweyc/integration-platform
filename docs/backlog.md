@@ -73,11 +73,11 @@ Completed notes:
 
 ### Multi-Trigger Integration Model
 
-**Status:** Todo
+**Status:** Done
 
 Separate "what code runs" from "what causes it to run." Today an integration has a single `TriggerType`, a single `CronExpression`, and webhook secret fields directly on the integration. That blocks realistic workflows where the same integration should be runnable by schedule, manual action, webhook, queue event, file arrival, API event, or multiple schedules/webhooks.
 
-This should be completed before assembly scanning and auto-provisioning so package discovery does not bake in the current one-integration-one-trigger constraint.
+This was completed before assembly scanning and auto-provisioning so package discovery does not bake in the old one-integration-one-trigger constraint.
 
 Acceptance criteria:
 
@@ -96,8 +96,18 @@ Design notes:
 
 - Target shape: `integrations` stores code/run policy; `integration_triggers` stores trigger type, name, enabled state, and typed or JSON configuration.
 - Schedule state should reference a trigger, not only an integration, so multiple schedules can coexist.
-- Webhook delivery records should reference the webhook trigger when available, not only the integration.
+- Webhook delivery records reference the webhook trigger, not only the integration.
 - Assembly scanning should sync integration metadata and trigger records from attributes after this foundation exists.
+
+Completed notes:
+
+- Added `integration_triggers` as the trigger configuration table.
+- Removed trigger type, cron expression, and webhook secret from the integration model.
+- Scheduled polling reads enabled scheduled triggers and stores schedule state by trigger.
+- Webhook delivery resolves `/webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}` and stores work/delivery linkage by trigger.
+- Integration API create/update/list/get uses trigger arrays.
+- UI sends and displays trigger records while keeping a simple single-trigger editor for now.
+- Migration moves existing scheduled/webhook configuration into trigger rows.
 
 ### Version-Pinned Package Execution
 
@@ -266,10 +276,10 @@ Notes:
 
 Completed notes:
 
-- Webhook integrations get a generated shared secret and stable `/webhooks/{tenantSlug}/{integrationSlug}` URL.
+- Webhook triggers get a generated shared secret and stable `/webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}` URL.
 - Webhook delivery verifies `X-Integration-Signature` as an HMAC-SHA256 signature over `{X-Integration-Timestamp}.{raw request body}`.
 - `X-Integration-Timestamp` enforces a 5-minute replay window.
-- Optional `X-Integration-Delivery` provides idempotency and prevents duplicate work item creation per webhook integration.
+- Optional `X-Integration-Delivery` provides idempotency and prevents duplicate work item creation per webhook trigger.
 - Valid webhook requests create pending webhook work items with payload and delivery ID.
 - Agent polling claims webhook work items through the same work-item queue path as scheduled and manual runs.
 - Runtime agent passes webhook payload into `IIntegrationContext.Payload`.

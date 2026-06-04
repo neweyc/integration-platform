@@ -11,15 +11,17 @@ public record ScheduleDecision(
 public static class ScheduleStateCalculator
 {
     public static ScheduleDecision Evaluate(
-        Integration integration,
+        IntegrationTrigger trigger,
         IntegrationScheduleState? state,
         DateTime now)
     {
-        if (integration.TriggerType != TriggerType.Scheduled || string.IsNullOrWhiteSpace(integration.CronExpression))
+        if (trigger.Type != TriggerType.Scheduled
+            || !trigger.Enabled
+            || string.IsNullOrWhiteSpace(trigger.CronExpression))
             return new ScheduleDecision(false, state?.LastDispatchedAt, state?.NextRunAt);
 
-        var cron = CronExpression.Parse(integration.CronExpression);
-        var nextRunAt = state?.NextRunAt ?? cron.GetNextOccurrence(integration.CreatedAt, TimeZoneInfo.Utc);
+        var cron = CronExpression.Parse(trigger.CronExpression);
+        var nextRunAt = state?.NextRunAt ?? cron.GetNextOccurrence(trigger.CreatedAt, TimeZoneInfo.Utc);
 
         if (nextRunAt is null)
             return new ScheduleDecision(false, state?.LastDispatchedAt, null);

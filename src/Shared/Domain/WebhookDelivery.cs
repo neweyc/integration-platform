@@ -13,6 +13,9 @@ public class WebhookDelivery : Entity
     public Guid IntegrationId { get; set; }
     public Integration Integration { get; set; } = null!;
 
+    public Guid IntegrationTriggerId { get; set; }
+    public IntegrationTrigger IntegrationTrigger { get; set; } = null!;
+
     // The sender-supplied delivery id (untrusted), if any.
     public string? DeliveryId { get; set; }
 

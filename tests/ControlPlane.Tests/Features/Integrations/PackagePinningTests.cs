@@ -27,12 +27,12 @@ public class PackagePinningTests
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
         repo.PackageExistsAsync(_tenantId, packageId).Returns(true);
-        repo.CreateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        repo.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call => call.Arg<Integration>());
 
         var result = await handler.HandleAsync(new CreateIntegrationCommand(
             _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null,
-            "MyCompany.SyncOrders", PackageId: packageId));
+            "production", "MyCompany.SyncOrders", [], PackageId: packageId));
 
         Assert.Equal(packageId, result.PackageId);
     }
@@ -50,8 +50,7 @@ public class PackagePinningTests
         await Assert.ThrowsAsync<NotFoundException>(() => handler.HandleAsync(
             new CreateIntegrationCommand(
                 _tenantId, "Sync Orders", "sync-orders", null,
-                "production", TriggerType.Manual, null,
-                "MyCompany.SyncOrders", PackageId: unknownId)));
+                "production", "MyCompany.SyncOrders", [], PackageId: unknownId)));
     }
 
     [Fact]
@@ -61,11 +60,12 @@ public class PackagePinningTests
         var handler = new CreateIntegrationHandler(repo, _encryption);
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
-        repo.CreateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        repo.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call => call.Arg<Integration>());
 
         var result = await handler.HandleAsync(new CreateIntegrationCommand(
             _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null, "MyCompany.SyncOrders"));
+            "production", "MyCompany.SyncOrders", []));
 
         Assert.Null(result.PackageId);
     }
@@ -76,7 +76,7 @@ public class PackagePinningTests
     public async Task UpdateIntegration_RepointsToNewPackage_StoresNewPackageId()
     {
         var repo = Substitute.For<IIntegrationUpdateRepository>();
-        var handler = new UpdateIntegrationHandler(repo);
+        var handler = new UpdateIntegrationHandler(repo, _encryption);
         var oldPackageId = Guid.NewGuid();
         var newPackageId = Guid.NewGuid();
 
@@ -87,18 +87,18 @@ public class PackagePinningTests
             Name = "Sync Orders",
             Slug = "sync-orders",
             Environment = "production",
-            TriggerType = TriggerType.Manual,
             ClassName = "MyCompany.SyncOrders",
             PackageId = oldPackageId
         };
 
         repo.GetByIdAsync(_tenantId, integration.Id).Returns(integration);
         repo.PackageExistsAsync(_tenantId, newPackageId).Returns(true);
-        repo.UpdateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        repo.UpdateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call => call.Arg<Integration>());
 
         var result = await handler.HandleAsync(new UpdateIntegrationCommand(
             _tenantId, integration.Id, "Sync Orders", null,
-            IntegrationStatus.Enabled, null, PackageId: newPackageId));
+            IntegrationStatus.Enabled, [], PackageId: newPackageId));
 
         Assert.Equal(newPackageId, result.PackageId);
     }
@@ -107,7 +107,7 @@ public class PackagePinningTests
     public async Task UpdateIntegration_ClearsPackagePin_PackageIdBecomesNull()
     {
         var repo = Substitute.For<IIntegrationUpdateRepository>();
-        var handler = new UpdateIntegrationHandler(repo);
+        var handler = new UpdateIntegrationHandler(repo, _encryption);
 
         var integration = new Integration
         {
@@ -116,17 +116,17 @@ public class PackagePinningTests
             Name = "Sync Orders",
             Slug = "sync-orders",
             Environment = "production",
-            TriggerType = TriggerType.Manual,
             ClassName = "MyCompany.SyncOrders",
             PackageId = Guid.NewGuid()
         };
 
         repo.GetByIdAsync(_tenantId, integration.Id).Returns(integration);
-        repo.UpdateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        repo.UpdateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call => call.Arg<Integration>());
 
         var result = await handler.HandleAsync(new UpdateIntegrationCommand(
             _tenantId, integration.Id, "Sync Orders", null,
-            IntegrationStatus.Enabled, null, PackageId: null));
+            IntegrationStatus.Enabled, [], PackageId: null));
 
         Assert.Null(result.PackageId);
     }
@@ -177,7 +177,6 @@ public class PackagePinningTests
             Slug = "sync-orders",
             Environment = "production",
             Status = IntegrationStatus.Enabled,
-            TriggerType = TriggerType.Scheduled,
             ClassName = "MyCompany.SyncOrders",
             PackageId = packageId
         };
@@ -242,7 +241,6 @@ public class PackagePinningTests
             Slug = "sync-orders",
             Environment = "production",
             Status = IntegrationStatus.Enabled,
-            TriggerType = TriggerType.Scheduled,
             ClassName = "MyCompany.SyncOrders",
             PackageId = null
         };

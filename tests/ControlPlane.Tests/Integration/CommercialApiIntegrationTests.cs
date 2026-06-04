@@ -97,7 +97,7 @@ public class CommercialApiIntegrationTests
                 Name = "PAT Created Job",
                 Slug = $"pat-created-job-{Guid.NewGuid():N}",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = "Tests.PatCreatedJob"
             },
             HttpStatusCode.Created);

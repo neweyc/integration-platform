@@ -15,15 +15,23 @@ public class CreateIntegrationHandlerTests
     public CreateIntegrationHandlerTests()
     {
         _handler = new CreateIntegrationHandler(_repository, _encryption);
-        _repository.CreateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        _repository.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                foreach (var trigger in call.Arg<IReadOnlyList<IntegrationTrigger>>())
+                    integration.Triggers.Add(trigger);
+                return integration;
+            });
     }
 
     [Fact]
-    public async Task HandleAsync_ValidManualIntegration_CreatesAndReturnsResult()
+    public async Task HandleAsync_ValidIntegration_CreatesAndReturnsResult()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Sync Orders", "sync-orders", "Syncs orders from Shopify",
-            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration");
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Run hourly", "hourly", TriggerType.Scheduled, CronExpression: "0 * * * *")
+        ]);
 
         _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
 
@@ -32,33 +40,35 @@ public class CreateIntegrationHandlerTests
         Assert.Equal("Sync Orders", result.Name);
         Assert.Equal("sync-orders", result.Slug);
         Assert.Equal("Enabled", result.Status);
-        Assert.Equal("Manual", result.TriggerType);
         Assert.Equal("MyCompany.Integrations.SyncOrdersIntegration", result.ClassName);
+        var trigger = Assert.Single(result.Triggers);
+        Assert.Equal("Scheduled", trigger.Type);
+        Assert.Equal("0 * * * *", trigger.CronExpression);
     }
 
     [Fact]
-    public async Task HandleAsync_ValidScheduledIntegration_StoresCronExpression()
+    public async Task HandleAsync_WebhookTrigger_ReturnsOneTimeSecretAndSigning()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Nightly Report", "nightly-report", null,
-            "production", TriggerType.Scheduled, "0 2 * * *", "MyCompany.Integrations.NightlyReportIntegration");
-
-        _repository.SlugExistsAsync(_tenantId, "nightly-report").Returns(false);
+        _encryption.Encrypt(Arg.Any<string>()).Returns("encrypted");
+        _repository.GetTenantSlugAsync(_tenantId).Returns("acme");
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Orders webhook", "orders", TriggerType.Webhook)
+        ]);
 
         var result = await _handler.HandleAsync(command);
 
-        Assert.Equal("0 2 * * *", result.CronExpression);
+        var trigger = Assert.Single(result.Triggers);
+        Assert.Equal("Webhook", trigger.Type);
+        Assert.StartsWith("whs_", trigger.WebhookSecret);
+        Assert.Equal("/webhooks/acme/sync-orders/orders", trigger.WebhookUrl);
+        Assert.NotNull(trigger.WebhookSigning);
     }
 
     [Fact]
     public async Task HandleAsync_ValidTimeout_StoresTimeoutSeconds()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration",
-            TimeoutSeconds: 300);
-
-        _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
+        var command = Command(timeoutSeconds: 300);
 
         var result = await _handler.HandleAsync(command);
 
@@ -68,9 +78,7 @@ public class CreateIntegrationHandlerTests
     [Fact]
     public async Task HandleAsync_DuplicateSlug_ThrowsConflictException()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration");
+        var command = Command();
 
         _repository.SlugExistsAsync(_tenantId, "sync-orders").Returns(true);
 
@@ -87,8 +95,7 @@ public class CreateIntegrationHandlerTests
     public async Task HandleAsync_InvalidInput_ThrowsValidationException(
         string name, string slug, string environment, string className, string expectedMessage)
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, name, slug, null, environment, TriggerType.Manual, null, className);
+        var command = Command(name, slug, environment, className: className);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
@@ -98,25 +105,23 @@ public class CreateIntegrationHandlerTests
     [Fact]
     public async Task HandleAsync_ScheduledWithoutCron_ThrowsValidationException()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Report", "report", null,
-            "production", TriggerType.Scheduled, null, "MyCompany.Integrations.ReportIntegration");
-
-        _repository.SlugExistsAsync(_tenantId, "report").Returns(false);
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Report", "report", TriggerType.Scheduled)
+        ]);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
-        Assert.Equal("A cron expression is required for scheduled integrations.", ex.Message);
+        Assert.Equal("A cron expression is required for scheduled triggers.", ex.Message);
     }
 
     [Fact]
     public async Task HandleAsync_InvalidCronExpression_ThrowsValidationException()
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Report", "report", null,
-            "production", TriggerType.Scheduled, "not-a-cron", "MyCompany.Integrations.ReportIntegration");
-
-        _repository.SlugExistsAsync(_tenantId, "report").Returns(false);
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Report", "report", TriggerType.Scheduled, CronExpression: "not-a-cron")
+        ]);
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
     }
@@ -126,13 +131,27 @@ public class CreateIntegrationHandlerTests
     [InlineData(-1)]
     public async Task HandleAsync_InvalidTimeout_ThrowsValidationException(int timeoutSeconds)
     {
-        var command = new CreateIntegrationCommand(
-            _tenantId, "Sync Orders", "sync-orders", null,
-            "production", TriggerType.Manual, null, "MyCompany.Integrations.SyncOrdersIntegration",
-            TimeoutSeconds: timeoutSeconds);
+        var command = Command(timeoutSeconds: timeoutSeconds);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
         Assert.Equal("Timeout must be greater than zero seconds.", ex.Message);
     }
+
+    private CreateIntegrationCommand Command(
+        string name = "Sync Orders",
+        string slug = "sync-orders",
+        string environment = "production",
+        string className = "MyCompany.Integrations.SyncOrdersIntegration",
+        IReadOnlyList<IntegrationTriggerInput>? triggers = null,
+        int? timeoutSeconds = null) =>
+        new(
+            _tenantId,
+            name,
+            slug,
+            "Syncs orders from Shopify",
+            environment,
+            className,
+            triggers ?? [],
+            timeoutSeconds);
 }

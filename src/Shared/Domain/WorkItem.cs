@@ -8,6 +8,9 @@ public class WorkItem : Entity
     public Guid IntegrationId { get; set; }
     public Integration Integration { get; set; } = null!;
 
+    public Guid? IntegrationTriggerId { get; set; }
+    public IntegrationTrigger? IntegrationTrigger { get; set; }
+
     public string Environment { get; set; } = string.Empty;
     public TriggerSource TriggerSource { get; set; }
     public WorkItemStatus Status { get; set; } = WorkItemStatus.Pending;

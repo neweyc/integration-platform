@@ -23,9 +23,10 @@ public static class WebhookEndpoints
     {
         var group = app.MapGroup("/webhooks").WithTags("Webhooks");
 
-        group.MapPost("/{tenantSlug}/{integrationSlug}", async (
+        group.MapPost("/{tenantSlug}/{integrationSlug}/{triggerSlug}", async (
             string tenantSlug,
             string integrationSlug,
+            string triggerSlug,
             HttpContext http,
             IDispatcher dispatcher,
             CancellationToken ct) =>
@@ -47,6 +48,7 @@ public static class WebhookEndpoints
                 new DeliverWebhookCommand(
                     tenantSlug,
                     integrationSlug,
+                    triggerSlug,
                     http.Request.Headers[WebhookHeaders.Signature].FirstOrDefault(),
                     http.Request.Headers[WebhookHeaders.Timestamp].FirstOrDefault(),
                     http.Request.Headers[WebhookHeaders.Delivery].FirstOrDefault(),

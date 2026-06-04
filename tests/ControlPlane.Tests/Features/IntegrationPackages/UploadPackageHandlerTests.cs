@@ -13,12 +13,13 @@ public class UploadPackageHandlerTests
     private readonly IPackageRepository _repository = Substitute.For<IPackageRepository>();
     private readonly IAssemblyScanner _scanner = Substitute.For<IAssemblyScanner>();
     private readonly IIntegrationRepository _integrationRepository = Substitute.For<IIntegrationRepository>();
+    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly UploadPackageHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public UploadPackageHandlerTests()
     {
-        _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository);
+        _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository, _encryption);
         _repository.CreateAsync(Arg.Any<AssemblyPackage>()).Returns(call => call.Arg<AssemblyPackage>());
         _scanner.ScanZip(Arg.Any<byte[]>()).Returns([]);
     }
@@ -74,14 +75,16 @@ public class UploadPackageHandlerTests
             && i.Slug == "nightly-sync"
             && i.Description == "Syncs nightly data"
             && i.Environment == "production"
-            && i.TriggerType == TriggerType.Scheduled
-            && i.CronExpression == "0 0 * * *"
             && i.ClassName == "Acme.NightlySync"
             && i.TimeoutSeconds == 300
             && i.RetryMaxAttempts == 2
             && i.RetryBackoffSeconds == 60
             && i.PackageId == result.Id
-            && i.Status == IntegrationStatus.Enabled));
+            && i.Status == IntegrationStatus.Enabled),
+            Arg.Is<IReadOnlyList<IntegrationTrigger>>(triggers =>
+                triggers.Count == 1
+                && triggers[0].Type == TriggerType.Scheduled
+                && triggers[0].CronExpression == "0 0 * * *"));
     }
 
     [Fact]

@@ -149,7 +149,7 @@ public class RbacEnforcementIntegrationTests
         Name = "Job",
         Slug = $"job-{Guid.NewGuid():N}",
         Environment = "production",
-        TriggerType = "Manual",
+        Triggers = Array.Empty<object>(),
         ClassName = "Acme.Job"
     };
 

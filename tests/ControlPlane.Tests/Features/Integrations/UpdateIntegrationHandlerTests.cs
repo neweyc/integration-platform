@@ -8,35 +8,31 @@ namespace ControlPlane.Tests.Features.Integrations;
 public class UpdateIntegrationHandlerTests
 {
     private readonly IIntegrationUpdateRepository _repository = Substitute.For<IIntegrationUpdateRepository>();
+    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly UpdateIntegrationHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly Guid _integrationId = Guid.NewGuid();
 
     public UpdateIntegrationHandlerTests()
     {
-        _handler = new UpdateIntegrationHandler(_repository);
-        _repository.UpdateAsync(Arg.Any<Integration>()).Returns(call => call.Arg<Integration>());
+        _handler = new UpdateIntegrationHandler(_repository, _encryption);
+        _repository.UpdateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                integration.Triggers.Clear();
+                integration.Triggers.AddRange(call.Arg<IReadOnlyList<IntegrationTrigger>>());
+                return integration;
+            });
     }
 
     [Fact]
     public async Task HandleAsync_ValidUpdate_ReturnsUpdatedResult()
     {
-        var existing = new Integration
-        {
-            Id = _integrationId,
-            TenantId = _tenantId,
-            Name = "Old Name",
-            Slug = "old-name",
-            Environment = "production",
-            TriggerType = TriggerType.Manual,
-            Status = IntegrationStatus.Enabled
-        };
-
+        var existing = Existing();
         _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
 
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "New Name", "Updated description",
-            IntegrationStatus.Disabled, null);
+        var command = Command("New Name", "Updated description", IntegrationStatus.Disabled);
 
         var result = await _handler.HandleAsync(command);
 
@@ -47,22 +43,10 @@ public class UpdateIntegrationHandlerTests
     [Fact]
     public async Task HandleAsync_ValidTimeout_UpdatesTimeoutSeconds()
     {
-        var existing = new Integration
-        {
-            Id = _integrationId,
-            TenantId = _tenantId,
-            Name = "Integration",
-            Slug = "integration",
-            Environment = "production",
-            TriggerType = TriggerType.Manual,
-            Status = IntegrationStatus.Enabled
-        };
-
+        var existing = Existing();
         _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
 
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "Integration", null,
-            IntegrationStatus.Enabled, null, TimeoutSeconds: 120);
+        var command = Command(timeoutSeconds: 120);
 
         var result = await _handler.HandleAsync(command);
 
@@ -75,53 +59,46 @@ public class UpdateIntegrationHandlerTests
     {
         _repository.GetByIdAsync(_tenantId, _integrationId).Returns((Integration?)null);
 
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "Name", null, IntegrationStatus.Enabled, null);
+        var command = Command();
 
         await Assert.ThrowsAsync<NotFoundException>(() => _handler.HandleAsync(command));
     }
 
     [Fact]
-    public async Task HandleAsync_ScheduledIntegration_UpdatesCronExpression()
+    public async Task HandleAsync_ScheduledTrigger_UpdatesCronExpression()
     {
-        var existing = new Integration
+        var existing = Existing();
+        existing.Triggers.Add(new IntegrationTrigger
         {
-            Id = _integrationId,
             TenantId = _tenantId,
-            Name = "Report",
-            Slug = "report",
-            Environment = "production",
-            TriggerType = TriggerType.Scheduled,
-            CronExpression = "0 2 * * *",
-            Status = IntegrationStatus.Enabled
-        };
-
+            IntegrationId = _integrationId,
+            Name = "Schedule",
+            Slug = "schedule",
+            Type = TriggerType.Scheduled,
+            CronExpression = "0 2 * * *"
+        });
         _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
 
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "Report", null,
-            IntegrationStatus.Enabled, "0 6 * * *");
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Schedule", "schedule", TriggerType.Scheduled, CronExpression: "0 6 * * *")
+        ]);
 
         var result = await _handler.HandleAsync(command);
 
-        Assert.Equal("0 6 * * *", result.CronExpression);
+        var trigger = Assert.Single(result.Triggers);
+        Assert.Equal("0 6 * * *", trigger.CronExpression);
     }
 
     [Fact]
-    public async Task HandleAsync_ScheduledIntegrationWithInvalidCron_ThrowsValidationException()
+    public async Task HandleAsync_ScheduledTriggerWithInvalidCron_ThrowsValidationException()
     {
-        var existing = new Integration
-        {
-            Id = _integrationId,
-            TenantId = _tenantId,
-            TriggerType = TriggerType.Scheduled
-        };
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(Existing());
 
-        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
-
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "Report", null,
-            IntegrationStatus.Enabled, "not-valid");
+        var command = Command(triggers:
+        [
+            new IntegrationTriggerInput("Schedule", "schedule", TriggerType.Scheduled, CronExpression: "not-valid")
+        ]);
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
     }
@@ -131,21 +108,37 @@ public class UpdateIntegrationHandlerTests
     [InlineData(-1)]
     public async Task HandleAsync_InvalidTimeout_ThrowsValidationException(int timeoutSeconds)
     {
-        var existing = new Integration
-        {
-            Id = _integrationId,
-            TenantId = _tenantId,
-            TriggerType = TriggerType.Manual
-        };
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(Existing());
 
-        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
-
-        var command = new UpdateIntegrationCommand(
-            _tenantId, _integrationId, "Integration", null,
-            IntegrationStatus.Enabled, null, TimeoutSeconds: timeoutSeconds);
+        var command = Command(timeoutSeconds: timeoutSeconds);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
         Assert.Equal("Timeout must be greater than zero seconds.", ex.Message);
     }
+
+    private Integration Existing() => new()
+    {
+        Id = _integrationId,
+        TenantId = _tenantId,
+        Name = "Integration",
+        Slug = "integration",
+        Environment = "production",
+        Status = IntegrationStatus.Enabled
+    };
+
+    private UpdateIntegrationCommand Command(
+        string name = "Integration",
+        string? description = null,
+        IntegrationStatus status = IntegrationStatus.Enabled,
+        IReadOnlyList<IntegrationTriggerInput>? triggers = null,
+        int? timeoutSeconds = null) =>
+        new(
+            _tenantId,
+            _integrationId,
+            name,
+            description,
+            status,
+            triggers ?? [],
+            timeoutSeconds);
 }

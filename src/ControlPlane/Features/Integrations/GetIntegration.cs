@@ -22,24 +22,11 @@ public class GetIntegrationHandler(IIntegrationReadRepository repository)
         if (integration is null)
             return null;
 
-        string? webhookUrl = null;
-        WebhookSigning? signing = null;
-        if (integration.TriggerType == TriggerType.Webhook)
-        {
-            var tenantSlug = await repository.GetTenantSlugAsync(command.TenantId, ct);
-            if (tenantSlug is not null)
-                webhookUrl = $"/webhooks/{tenantSlug}/{integration.Slug}";
-
-            signing = new WebhookSigning(
-                Webhooks.WebhookHeaders.Algorithm,
-                Webhooks.WebhookHeaders.Signature,
-                Webhooks.WebhookHeaders.SignatureFormat,
-                Webhooks.WebhookHeaders.Delivery,
-                Webhooks.WebhookHeaders.Timestamp,
-                Webhooks.WebhookHeaders.ToleranceSeconds);
-        }
+        var tenantSlug = integration.Triggers.Any(t => t.Type == TriggerType.Webhook)
+            ? await repository.GetTenantSlugAsync(command.TenantId, ct)
+            : null;
 
         // Secret is intentionally never re-returned — only shown once at creation.
-        return CreateIntegrationHandler.ToResult(integration, webhookUrl: webhookUrl, webhookSigning: signing);
+        return CreateIntegrationHandler.ToResult(integration, tenantSlug);
     }
 }

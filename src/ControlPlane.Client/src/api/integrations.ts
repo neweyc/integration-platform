@@ -3,6 +3,17 @@ import { api } from './client'
 export type TriggerType = 'Scheduled' | 'Webhook' | 'Manual'
 export type IntegrationStatus = 'Enabled' | 'Disabled'
 
+export interface IntegrationTrigger {
+  id?: string
+  name: string
+  slug: string
+  type: TriggerType
+  enabled: boolean
+  cronExpression?: string | null
+  webhookUrl?: string | null
+  webhookSecret?: string | null
+}
+
 export interface Integration {
   id: string
   name: string
@@ -10,9 +21,8 @@ export interface Integration {
   description?: string
   environment: string
   status: IntegrationStatus
-  triggerType: TriggerType
-  cronExpression?: string
   className: string
+  triggers: IntegrationTrigger[]
   timeoutSeconds?: number | null
   lastExecution?: ExecutionSummary | null
 }
@@ -43,9 +53,8 @@ export interface CreateIntegrationRequest {
   slug: string
   description?: string
   environment: string
-  triggerType: TriggerType
-  cronExpression?: string
   className: string
+  triggers: IntegrationTrigger[]
   timeoutSeconds?: number
 }
 
@@ -53,7 +62,7 @@ export interface UpdateIntegrationRequest {
   name: string
   description?: string
   status: IntegrationStatus
-  cronExpression?: string
+  triggers: IntegrationTrigger[]
   timeoutSeconds?: number
 }
 

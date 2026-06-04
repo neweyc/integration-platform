@@ -7,15 +7,21 @@ using Shared.Domain;
 
 namespace ControlPlane.Features.Integrations;
 
+public record IntegrationTriggerInput(
+    string Name,
+    string Slug,
+    TriggerType Type,
+    bool Enabled = true,
+    string? CronExpression = null);
+
 public record CreateIntegrationCommand(
     Guid TenantId,
     string Name,
     string Slug,
     string? Description,
     string Environment,
-    TriggerType TriggerType,
-    string? CronExpression,
     string ClassName,
+    IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
@@ -32,17 +38,22 @@ public record CreateIntegrationResult(
     string Slug,
     string Environment,
     string Status,
-    string TriggerType,
-    string? CronExpression,
     string ClassName,
+    IReadOnlyList<IntegrationTriggerResult> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null,
-    // Webhook integrations only. The secret is shown once; the URL is the stable delivery path.
-    string? WebhookSecret = null,
+    Guid? PackageId = null);
+
+public record IntegrationTriggerResult(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Type,
+    bool Enabled,
+    string? CronExpression = null,
     string? WebhookUrl = null,
-    // Self-documenting signing instructions so integrators don't have to guess
+    string? WebhookSecret = null,
     WebhookSigning? WebhookSigning = null);
 
 /// <summary>
@@ -61,8 +72,8 @@ public interface IIntegrationRepository
     Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default);
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
-    Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default);
-    Task<Integration> UpsertBySlugAsync(Integration integration, CancellationToken ct = default);
+    Task<Integration> CreateAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
+    Task<Integration> UpsertBySlugAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
 }
 
 public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
@@ -79,15 +90,8 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
             && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
             throw new NotFoundException($"Package '{command.PackageId}' not found.");
 
-        // Generate a webhook secret for Webhook integrations. It is shown once and never retrievable again.
-        string? plainWebhookSecret = null;
-        string? encryptedWebhookSecret = null;
-        if (command.TriggerType == TriggerType.Webhook)
-        {
-            var secretBytes = RandomNumberGenerator.GetBytes(32);
-            plainWebhookSecret = "whs_" + Convert.ToHexString(secretBytes).ToLowerInvariant();
-            encryptedWebhookSecret = encryption.Encrypt(plainWebhookSecret);
-        }
+        var oneTimeSecrets = new Dictionary<string, string>();
+        var triggers = BuildTriggers(command.TenantId, command.Triggers, encryption, oneTimeSecrets);
 
         var integration = new Integration
         {
@@ -96,40 +100,55 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
             Slug = command.Slug,
             Description = command.Description,
             Environment = command.Environment,
-            TriggerType = command.TriggerType,
-            CronExpression = command.CronExpression,
             ClassName = command.ClassName,
             TimeoutSeconds = command.TimeoutSeconds,
             RetryMaxAttempts = command.RetryMaxAttempts,
             RetryBackoffSeconds = command.RetryBackoffSeconds,
             PackageId = command.PackageId,
-            EncryptedWebhookSecret = encryptedWebhookSecret,
             Status = IntegrationStatus.Enabled
         };
 
-        var created = await repository.CreateAsync(integration, ct);
+        var created = await repository.CreateAsync(integration, triggers, ct);
+        var tenantSlug = await repository.GetTenantSlugAsync(command.TenantId, ct);
 
-        string? webhookUrl = null;
-        WebhookSigning? signing = null;
-        if (created.TriggerType == TriggerType.Webhook)
-        {
-            var tenantSlug = await repository.GetTenantSlugAsync(command.TenantId, ct);
-            if (tenantSlug is not null)
-                webhookUrl = $"/webhooks/{tenantSlug}/{created.Slug}";
-
-            signing = new WebhookSigning(
-                WebhookHeaders.Algorithm,
-                WebhookHeaders.Signature,
-                WebhookHeaders.SignatureFormat,
-                WebhookHeaders.Delivery,
-                WebhookHeaders.Timestamp,
-                WebhookHeaders.ToleranceSeconds);
-        }
-
-        return ToResult(created, plainWebhookSecret, webhookUrl, signing);
+        return ToResult(created, tenantSlug, oneTimeSecrets);
     }
 
-    private static void ValidateCommand(CreateIntegrationCommand command)
+    internal static List<IntegrationTrigger> BuildTriggers(
+        Guid tenantId,
+        IReadOnlyList<IntegrationTriggerInput> inputs,
+        IEncryptionService encryption,
+        Dictionary<string, string>? oneTimeSecrets = null)
+    {
+        var triggers = new List<IntegrationTrigger>();
+
+        foreach (var input in inputs)
+        {
+            string? encryptedWebhookSecret = null;
+            if (input.Type == TriggerType.Webhook)
+            {
+                var secretBytes = RandomNumberGenerator.GetBytes(32);
+                var plainSecret = "whs_" + Convert.ToHexString(secretBytes).ToLowerInvariant();
+                encryptedWebhookSecret = encryption.Encrypt(plainSecret);
+                oneTimeSecrets?.Add(input.Slug, plainSecret);
+            }
+
+            triggers.Add(new IntegrationTrigger
+            {
+                TenantId = tenantId,
+                Name = input.Name,
+                Slug = input.Slug,
+                Type = input.Type,
+                Enabled = input.Enabled,
+                CronExpression = input.Type == TriggerType.Scheduled ? input.CronExpression : null,
+                EncryptedWebhookSecret = encryptedWebhookSecret
+            });
+        }
+
+        return triggers;
+    }
+
+    internal static void ValidateCommand(CreateIntegrationCommand command)
     {
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Name is required.");
@@ -137,8 +156,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
         if (string.IsNullOrWhiteSpace(command.Slug))
             throw new ValidationException("Slug is required.");
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(command.Slug, @"^[a-z0-9-]+$"))
-            throw new ValidationException("Slug may only contain lowercase letters, numbers, and hyphens.");
+        ValidateSlug(command.Slug, "Slug");
 
         if (string.IsNullOrWhiteSpace(command.Environment))
             throw new ValidationException("Environment is required.");
@@ -158,14 +176,41 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
         if (command.RetryBackoffSeconds is < 0)
             throw new ValidationException("Retry backoff cannot be negative.");
 
-        if (command.TriggerType == TriggerType.Scheduled)
-        {
-            if (string.IsNullOrWhiteSpace(command.CronExpression))
-                throw new ValidationException("A cron expression is required for scheduled integrations.");
+        ValidateTriggers(command.Triggers);
+    }
 
-            if (!IsValidCronExpression(command.CronExpression))
-                throw new ValidationException($"'{command.CronExpression}' is not a valid cron expression.");
+    internal static void ValidateTriggers(IReadOnlyList<IntegrationTriggerInput> triggers)
+    {
+        var slugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var trigger in triggers)
+        {
+            if (string.IsNullOrWhiteSpace(trigger.Name))
+                throw new ValidationException("Trigger name is required.");
+
+            if (string.IsNullOrWhiteSpace(trigger.Slug))
+                throw new ValidationException("Trigger slug is required.");
+
+            ValidateSlug(trigger.Slug, "Trigger slug");
+
+            if (!slugs.Add(trigger.Slug))
+                throw new ValidationException($"Duplicate trigger slug '{trigger.Slug}'.");
+
+            if (trigger.Type == TriggerType.Scheduled)
+            {
+                if (string.IsNullOrWhiteSpace(trigger.CronExpression))
+                    throw new ValidationException("A cron expression is required for scheduled triggers.");
+
+                if (!IsValidCronExpression(trigger.CronExpression))
+                    throw new ValidationException($"'{trigger.CronExpression}' is not a valid cron expression.");
+            }
         }
+    }
+
+    private static void ValidateSlug(string slug, string label)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(slug, @"^[a-z0-9-]+$"))
+            throw new ValidationException($"{label} may only contain lowercase letters, numbers, and hyphens.");
     }
 
     private static bool IsValidCronExpression(string expression)
@@ -182,11 +227,51 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
     }
 
     internal static CreateIntegrationResult ToResult(
-        Integration i,
-        string? webhookSecret = null,
-        string? webhookUrl = null,
-        WebhookSigning? webhookSigning = null) =>
-        new(i.Id, i.Name, i.Slug, i.Environment, i.Status.ToString(), i.TriggerType.ToString(),
-            i.CronExpression, i.ClassName, i.TimeoutSeconds, i.RetryMaxAttempts, i.RetryBackoffSeconds, i.PackageId,
-            webhookSecret, webhookUrl, webhookSigning);
+        Integration integration,
+        string? tenantSlug = null,
+        IReadOnlyDictionary<string, string>? oneTimeSecrets = null) =>
+        new(
+            integration.Id,
+            integration.Name,
+            integration.Slug,
+            integration.Environment,
+            integration.Status.ToString(),
+            integration.ClassName,
+            integration.Triggers.Select(t => ToTriggerResult(integration, t, tenantSlug, oneTimeSecrets)).ToList(),
+            integration.TimeoutSeconds,
+            integration.RetryMaxAttempts,
+            integration.RetryBackoffSeconds,
+            integration.PackageId);
+
+    internal static IntegrationTriggerResult ToTriggerResult(
+        Integration integration,
+        IntegrationTrigger trigger,
+        string? tenantSlug = null,
+        IReadOnlyDictionary<string, string>? oneTimeSecrets = null)
+    {
+        var webhookUrl = trigger.Type == TriggerType.Webhook && tenantSlug is not null
+            ? $"/webhooks/{tenantSlug}/{integration.Slug}/{trigger.Slug}"
+            : null;
+        var webhookSecret = oneTimeSecrets?.GetValueOrDefault(trigger.Slug);
+        var signing = trigger.Type == TriggerType.Webhook
+            ? new WebhookSigning(
+                WebhookHeaders.Algorithm,
+                WebhookHeaders.Signature,
+                WebhookHeaders.SignatureFormat,
+                WebhookHeaders.Delivery,
+                WebhookHeaders.Timestamp,
+                WebhookHeaders.ToleranceSeconds)
+            : null;
+
+        return new IntegrationTriggerResult(
+            trigger.Id,
+            trigger.Name,
+            trigger.Slug,
+            trigger.Type.ToString(),
+            trigger.Enabled,
+            trigger.CronExpression,
+            webhookUrl,
+            webhookSecret,
+            signing);
+    }
 }

@@ -350,16 +350,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("CronExpression")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("EncryptedWebhookSecret")
-                        .HasColumnType("text");
 
                     b.Property<string>("Environment")
                         .IsRequired()
@@ -395,10 +388,6 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<int?>("TimeoutSeconds")
                         .HasColumnType("integer");
 
-                    b.Property<string>("TriggerType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -412,6 +401,61 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("integrations", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.IntegrationTrigger", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CronExpression")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("EncryptedWebhookSecret")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntegrationId");
+
+                    b.HasIndex("TenantId", "IntegrationId", "Slug")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Type", "Enabled");
+
+                    b.ToTable("integration_triggers", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
                 {
                     b.Property<Guid>("Id")
@@ -422,6 +466,9 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("IntegrationTriggerId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("LastDispatchedAt")
@@ -438,7 +485,7 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IntegrationId")
+                    b.HasIndex("IntegrationTriggerId")
                         .IsUnique();
 
                     b.HasIndex("TenantId", "NextRunAt");
@@ -725,6 +772,9 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Property<Guid>("IntegrationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("IntegrationTriggerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -747,6 +797,10 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.HasIndex("IntegrationId");
 
                     b.HasIndex("TenantId", "IntegrationId", "ReceivedAt");
+
+                    b.HasIndex("IntegrationTriggerId");
+
+                    b.HasIndex("TenantId", "IntegrationTriggerId", "ReceivedAt");
 
                     b.ToTable("webhook_deliveries", (string)null);
                 });
@@ -782,6 +836,9 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IntegrationTriggerId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ManualRunRequestId")
@@ -822,11 +879,15 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("IntegrationId");
 
-                    b.HasIndex("TenantId", "IntegrationId", "DeliveryId")
+                    b.HasIndex("IntegrationTriggerId");
+
+                    b.HasIndex("TenantId", "IntegrationTriggerId", "DeliveryId")
                         .IsUnique()
-                        .HasFilter("\"DeliveryId\" IS NOT NULL");
+                        .HasFilter("\"IntegrationTriggerId\" IS NOT NULL AND \"DeliveryId\" IS NOT NULL");
 
                     b.HasIndex("TenantId", "IntegrationId", "Status");
+
+                    b.HasIndex("TenantId", "IntegrationTriggerId", "Status");
 
                     b.HasIndex("TenantId", "WorkflowRunId", "WorkflowNodeId");
 
@@ -1155,10 +1216,10 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
+            modelBuilder.Entity("Shared.Domain.IntegrationTrigger", b =>
                 {
                     b.HasOne("Shared.Domain.Integration", "Integration")
-                        .WithMany()
+                        .WithMany("Triggers")
                         .HasForeignKey("IntegrationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1170,6 +1231,33 @@ namespace ControlPlane.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Integration");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
+                {
+                    b.HasOne("Shared.Domain.Integration", "Integration")
+                        .WithMany()
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.IntegrationTrigger", "IntegrationTrigger")
+                        .WithMany()
+                        .HasForeignKey("IntegrationTriggerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Integration");
+
+                    b.Navigation("IntegrationTrigger");
 
                     b.Navigation("Tenant");
                 });
@@ -1253,6 +1341,12 @@ namespace ControlPlane.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Shared.Domain.IntegrationTrigger", "IntegrationTrigger")
+                        .WithMany()
+                        .HasForeignKey("IntegrationTriggerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Shared.Domain.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -1260,6 +1354,8 @@ namespace ControlPlane.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Integration");
+
+                    b.Navigation("IntegrationTrigger");
 
                     b.Navigation("Tenant");
                 });
@@ -1272,6 +1368,11 @@ namespace ControlPlane.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Shared.Domain.IntegrationTrigger", "IntegrationTrigger")
+                        .WithMany()
+                        .HasForeignKey("IntegrationTriggerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Shared.Domain.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -1279,6 +1380,8 @@ namespace ControlPlane.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Integration");
+
+                    b.Navigation("IntegrationTrigger");
 
                     b.Navigation("Tenant");
                 });
@@ -1390,6 +1493,11 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Navigation("Edges");
 
                     b.Navigation("Nodes");
+                });
+
+            modelBuilder.Entity("Shared.Domain.Integration", b =>
+                {
+                    b.Navigation("Triggers");
                 });
 
             modelBuilder.Entity("Shared.Domain.WorkflowRun", b =>

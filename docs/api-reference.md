@@ -336,9 +336,17 @@ Legacy direct user registration within the authenticated user's tenant. This end
       "description": "Syncs orders from Shopify to the ERP",
       "environment": "production",
       "status": "Enabled",
-      "triggerType": "Scheduled",
-      "cronExpression": "0 * * * *",
       "className": "MyCompany.Integrations.SyncOrdersIntegration",
+      "triggers": [
+        {
+          "id": "uuid",
+          "name": "Schedule",
+          "slug": "schedule",
+          "type": "Scheduled",
+          "enabled": true,
+          "cronExpression": "0 * * * *"
+        }
+      ],
       "timeoutSeconds": 300,
       "retryMaxAttempts": 2,
       "retryBackoffSeconds": 60,
@@ -369,9 +377,16 @@ Legacy direct user registration within the authenticated user's tenant. This end
   "slug": "sync-orders",
   "description": "Optional description",
   "environment": "production",
-  "triggerType": "Scheduled",
-  "cronExpression": "0 * * * *",
   "className": "MyCompany.Integrations.SyncOrdersIntegration",
+  "triggers": [
+    {
+      "name": "Schedule",
+      "slug": "schedule",
+      "type": "Scheduled",
+      "enabled": true,
+      "cronExpression": "0 * * * *"
+    }
+  ],
   "timeoutSeconds": 300,
   "retryMaxAttempts": 2,
   "retryBackoffSeconds": 60,
@@ -384,15 +399,14 @@ Legacy direct user registration within the authenticated user's tenant. This end
 | `name` | Yes | Display name |
 | `slug` | Yes | URL-safe identifier (lowercase, hyphens only) |
 | `environment` | Yes | Target environment (e.g. `production`, `staging`) |
-| `triggerType` | Yes | `Scheduled`, `Webhook`, or `Manual` |
-| `cronExpression` | When Scheduled | Cron expression for scheduling |
 | `className` | Yes | Fully-qualified .NET type name that implements `IIntegration` |
+| `triggers` | Yes | Trigger records. Empty array means manual/operator-triggered only. |
 | `timeoutSeconds` | No | Maximum execution duration in seconds. Must be greater than zero when provided. |
 | `retryMaxAttempts` | No | Number of retry attempts after the initial attempt. Defaults to `0`. Must be non-negative. |
 | `retryBackoffSeconds` | No | Delay before a retry work item becomes available. Defaults to immediate retry. Must be non-negative when provided. |
 | `packageId` | No | Uploaded package version to execute. `null` keeps local agent path fallback. |
 
-**Response:** `201 Created` with integration object. Webhook integrations also return `webhookUrl` and one-time `webhookSecret`.
+**Response:** `201 Created` with integration object. Webhook trigger records also return `webhookUrl` and one-time `webhookSecret`.
 
 ---
 
@@ -404,7 +418,7 @@ Legacy direct user registration within the authenticated user's tenant. This end
 
 ---
 
-### `POST /webhooks/{tenantSlug}/{integrationSlug}`
+### `POST /webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}`
 
 Receives an external webhook and queues a work item for the runtime agent.
 
@@ -414,9 +428,9 @@ Receives an external webhook and queues a work item for the runtime agent.
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `X-Integration-Signature` | Yes | `sha256={hex_hmac}` where the HMAC is SHA-256 over `{X-Integration-Timestamp}.{raw request body}` using the integration's webhook secret. |
+| `X-Integration-Signature` | Yes | `sha256={hex_hmac}` where the HMAC is SHA-256 over `{X-Integration-Timestamp}.{raw request body}` using the webhook trigger's secret. |
 | `X-Integration-Timestamp` | Yes | Unix timestamp in seconds. Requests outside the 5-minute tolerance window are rejected. |
-| `X-Integration-Delivery` | No | Sender delivery ID for idempotency. Repeated IDs for the same webhook integration are acknowledged without creating another work item. |
+| `X-Integration-Delivery` | No | Sender delivery ID for idempotency. Repeated IDs for the same webhook trigger are acknowledged without creating another work item. |
 
 **Response**
 
@@ -493,7 +507,15 @@ Returns structured logs recorded for a single execution, oldest first.
   "name": "Sync Orders",
   "description": "Updated description",
   "status": "Disabled",
-  "cronExpression": "*/30 * * * *",
+  "triggers": [
+    {
+      "name": "Schedule",
+      "slug": "schedule",
+      "type": "Scheduled",
+      "enabled": false,
+      "cronExpression": "*/30 * * * *"
+    }
+  ],
   "timeoutSeconds": 300
 }
 ```

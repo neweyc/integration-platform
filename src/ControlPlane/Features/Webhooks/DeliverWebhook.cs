@@ -9,6 +9,7 @@ namespace ControlPlane.Features.Webhooks;
 public record DeliverWebhookCommand(
     string TenantSlug,
     string IntegrationSlug,
+    string TriggerSlug,
     string? SignatureHeader,
     string? TimestampHeader,
     string? DeliveryId,
@@ -18,11 +19,11 @@ public record DeliverWebhookResult(Guid WorkItemId, bool Queued);
 
 public interface IWebhookRepository
 {
-    Task<(Tenant Tenant, Integration Integration)?> FindAsync(
-        string tenantSlug, string integrationSlug, CancellationToken ct = default);
+    Task<(Tenant Tenant, Integration Integration, IntegrationTrigger Trigger)?> FindAsync(
+        string tenantSlug, string integrationSlug, string triggerSlug, CancellationToken ct = default);
 
     Task<bool> DeliveryExistsAsync(
-        Guid tenantId, Guid integrationId, string deliveryId, CancellationToken ct = default);
+        Guid tenantId, Guid integrationId, Guid integrationTriggerId, string deliveryId, CancellationToken ct = default);
 
     // Returns null if a concurrent delivery with the same integration-scoped DeliveryId
     // already inserted (unique-index race backstop), otherwise the persisted work item.
@@ -43,22 +44,23 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
             throw new ValidationException("Webhook payload exceeds the 10 MB limit.");
 
         // Always 404 for unknown or disabled endpoints to avoid leaking existence.
-        var found = await repository.FindAsync(command.TenantSlug, command.IntegrationSlug, ct);
+        var found = await repository.FindAsync(command.TenantSlug, command.IntegrationSlug, command.TriggerSlug, ct);
 
         if (found is null
-            || found.Value.Integration.TriggerType != TriggerType.Webhook
             || found.Value.Integration.Status != IntegrationStatus.Enabled
-            || string.IsNullOrEmpty(found.Value.Integration.EncryptedWebhookSecret))
+            || !found.Value.Trigger.Enabled
+            || found.Value.Trigger.Type != TriggerType.Webhook
+            || string.IsNullOrEmpty(found.Value.Trigger.EncryptedWebhookSecret))
             throw new NotFoundException("Webhook endpoint not found.");
 
-        var (tenant, integration) = found.Value;
+        var (tenant, integration, trigger) = found.Value;
 
         // The signature covers "{timestamp}.{body}", so a valid signature proves the sender
         // knew the secret AND committed to that timestamp (it cannot have been tampered).
         var signedPayload = BuildSignedPayload(command.TimestampHeader, command.BodyBytes);
-        if (!VerifySignature(command.SignatureHeader, signedPayload, integration.EncryptedWebhookSecret))
+        if (!VerifySignature(command.SignatureHeader, signedPayload, trigger.EncryptedWebhookSecret))
         {
-            await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+            await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
                 WebhookDeliveryOutcome.InvalidSignature, workItemId: null, ct);
             throw new UnauthorizedException("Invalid webhook signature.");
         }
@@ -66,16 +68,16 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
         // Replay protection: reject authentic-but-stale deliveries outside the tolerance window.
         if (!IsTimestampFresh(command.TimestampHeader, DateTimeOffset.UtcNow))
         {
-            await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+            await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
                 WebhookDeliveryOutcome.Expired, workItemId: null, ct);
             throw new UnauthorizedException("Webhook timestamp is missing or outside the allowed window.");
         }
 
         // Idempotency fast path: skip if this delivery ID was already processed.
         if (command.DeliveryId is not null
-            && await repository.DeliveryExistsAsync(tenant.Id, integration.Id, command.DeliveryId, ct))
+            && await repository.DeliveryExistsAsync(tenant.Id, integration.Id, trigger.Id, command.DeliveryId, ct))
         {
-            await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+            await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
                 WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
             return new DeliverWebhookResult(Guid.Empty, Queued: false);
         }
@@ -84,6 +86,7 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
         {
             TenantId = tenant.Id,
             IntegrationId = integration.Id,
+            IntegrationTriggerId = trigger.Id,
             Environment = integration.Environment,
             TriggerSource = TriggerSource.Webhook,
             Status = WorkItemStatus.Pending,
@@ -98,12 +101,12 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
 
         if (created is null)
         {
-            await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+            await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
                 WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
             return new DeliverWebhookResult(Guid.Empty, Queued: false);
         }
 
-        await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+        await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
             WebhookDeliveryOutcome.Accepted, created.Id, ct);
 
         return new DeliverWebhookResult(created.Id, Queued: true);
@@ -112,6 +115,7 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
     private Task RecordDeliveryAsync(
         Tenant tenant,
         Integration integration,
+        IntegrationTrigger trigger,
         string? deliveryId,
         WebhookDeliveryOutcome outcome,
         Guid? workItemId,
@@ -121,6 +125,7 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
             {
                 TenantId = tenant.Id,
                 IntegrationId = integration.Id,
+                IntegrationTriggerId = trigger.Id,
                 DeliveryId = deliveryId,
                 Outcome = outcome,
                 WorkItemId = workItemId,

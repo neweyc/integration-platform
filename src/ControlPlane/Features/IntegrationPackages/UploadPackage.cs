@@ -43,7 +43,8 @@ public interface IPackageRepository
 public class UploadPackageHandler(
     IPackageRepository repository,
     IAssemblyScanner scanner,
-    IIntegrationRepository integrationRepository)
+    IIntegrationRepository integrationRepository,
+    IEncryptionService encryption)
     : ICommandHandler<UploadPackageCommand, PackageMetadata>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
@@ -72,6 +73,13 @@ public class UploadPackageHandler(
         var discovered = scanner.ScanZip(command.Data);
         foreach (var integration in discovered)
         {
+            var trigger = new IntegrationTriggerInput(
+                integration.TriggerType.ToString(),
+                integration.TriggerType.ToString().ToLowerInvariant(),
+                integration.TriggerType,
+                Enabled: true,
+                integration.CronExpression);
+
             await integrationRepository.UpsertBySlugAsync(new Integration
             {
                 TenantId = command.TenantId,
@@ -79,15 +87,13 @@ public class UploadPackageHandler(
                 Slug = integration.Slug,
                 Description = integration.Description,
                 Environment = "production", // Default to production for auto-provisioning
-                TriggerType = integration.TriggerType,
-                CronExpression = integration.CronExpression,
                 ClassName = integration.ClassName,
                 TimeoutSeconds = integration.TimeoutSeconds,
                 RetryMaxAttempts = integration.RetryMaxAttempts ?? 0,
                 RetryBackoffSeconds = integration.RetryBackoffSeconds,
                 PackageId = created.Id,
                 Status = IntegrationStatus.Enabled
-            }, ct);
+            }, CreateIntegrationHandler.BuildTriggers(command.TenantId, [trigger], encryption), ct);
         }
 
         return ToMetadata(created);

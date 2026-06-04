@@ -31,7 +31,7 @@ public class ApiContractAndSecurityIntegrationTests
                 Slug = $"contract-job-{Guid.NewGuid():N}",
                 Description = "Contract test integration",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = "Tests.ContractJob",
                 TimeoutSeconds = 120,
                 RetryMaxAttempts = 2,
@@ -45,8 +45,8 @@ public class ApiContractAndSecurityIntegrationTests
         AssertStringProperty(integration, "slug");
         AssertStringProperty(integration, "environment", "production");
         AssertStringProperty(integration, "status", "Enabled");
-        AssertStringProperty(integration, "triggerType", "Manual");
         AssertStringProperty(integration, "className", "Tests.ContractJob");
+        Assert.Empty(integration.GetProperty("triggers").EnumerateArray());
         AssertNumberProperty(integration, "timeoutSeconds", 120);
         AssertNumberProperty(integration, "retryMaxAttempts", 2);
         AssertNumberProperty(integration, "retryBackoffSeconds", 30);
@@ -55,7 +55,7 @@ public class ApiContractAndSecurityIntegrationTests
         var listItem = Assert.Single(listIntegrations.RootElement.GetProperty("integrations").EnumerateArray());
         AssertGuidProperty(listItem, "id", integrationId);
         AssertStringProperty(listItem, "status", "Enabled");
-        AssertStringProperty(listItem, "triggerType", "Manual");
+        Assert.Empty(listItem.GetProperty("triggers").EnumerateArray());
         AssertNumberProperty(listItem, "timeoutSeconds", 120);
         AssertNumberProperty(listItem, "retryMaxAttempts", 2);
         AssertNumberProperty(listItem, "retryBackoffSeconds", 30);
@@ -170,7 +170,7 @@ public class ApiContractAndSecurityIntegrationTests
                 Name = "Tenant A Job",
                 Slug = $"tenant-a-job-{Guid.NewGuid():N}",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = "Tests.TenantAJob"
             },
             HttpStatusCode.Created);
@@ -215,7 +215,7 @@ public class ApiContractAndSecurityIntegrationTests
                 Name = "Production Job",
                 Slug = $"production-job-{Guid.NewGuid():N}",
                 Environment = "production",
-                TriggerType = "Manual",
+                Triggers = Array.Empty<object>(),
                 ClassName = "Tests.ProductionJob"
             },
             HttpStatusCode.Created);

@@ -21,20 +21,33 @@ public class IntegrationRepository(AppDbContext db)
         return tenant?.Slug;
     }
 
-    public async Task<Integration> CreateAsync(Integration integration, CancellationToken ct = default)
+    public async Task<Integration> CreateAsync(
+        Integration integration,
+        IReadOnlyList<IntegrationTrigger> triggers,
+        CancellationToken ct = default)
     {
+        foreach (var trigger in triggers)
+            integration.Triggers.Add(trigger);
+
         db.Integrations.Add(integration);
         await db.SaveChangesAsync(ct);
         return integration;
     }
 
-    public async Task<Integration> UpsertBySlugAsync(Integration integration, CancellationToken ct = default)
+    public async Task<Integration> UpsertBySlugAsync(
+        Integration integration,
+        IReadOnlyList<IntegrationTrigger> triggers,
+        CancellationToken ct = default)
     {
         var existing = await db.Integrations
+            .Include(i => i.Triggers)
             .FirstOrDefaultAsync(i => i.TenantId == integration.TenantId && i.Slug == integration.Slug, ct);
 
         if (existing == null)
         {
+            foreach (var trigger in triggers)
+                integration.Triggers.Add(trigger);
+
             db.Integrations.Add(integration);
             await db.SaveChangesAsync(ct);
             return integration;
@@ -43,21 +56,22 @@ public class IntegrationRepository(AppDbContext db)
         existing.Name = integration.Name;
         existing.Description = integration.Description;
         existing.Environment = integration.Environment;
-        existing.TriggerType = integration.TriggerType;
-        existing.CronExpression = integration.CronExpression;
         existing.ClassName = integration.ClassName;
         existing.TimeoutSeconds = integration.TimeoutSeconds;
         existing.RetryMaxAttempts = integration.RetryMaxAttempts;
         existing.RetryBackoffSeconds = integration.RetryBackoffSeconds;
         existing.PackageId = integration.PackageId;
         existing.UpdatedAt = DateTime.UtcNow;
+        ReplaceTriggers(existing, triggers);
 
         await db.SaveChangesAsync(ct);
         return existing;
     }
 
     public Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default) =>
-        db.Integrations.FirstOrDefaultAsync(
+        db.Integrations
+            .Include(i => i.Triggers)
+            .FirstOrDefaultAsync(
             i => i.TenantId == tenantId && i.Id == integrationId, ct);
 
     public async Task<IReadOnlyList<Integration>> ListAsync(Guid tenantId, string? environment, CancellationToken ct = default)
@@ -68,11 +82,18 @@ public class IntegrationRepository(AppDbContext db)
         if (!string.IsNullOrWhiteSpace(environment))
             query = query.Where(i => i.Environment == environment);
 
-        return await query.OrderBy(i => i.Name).ToListAsync(ct);
+        return await query
+            .Include(i => i.Triggers)
+            .OrderBy(i => i.Name)
+            .ToListAsync(ct);
     }
 
-    public async Task<Integration> UpdateAsync(Integration integration, CancellationToken ct = default)
+    public async Task<Integration> UpdateAsync(
+        Integration integration,
+        IReadOnlyList<IntegrationTrigger> triggers,
+        CancellationToken ct = default)
     {
+        ReplaceTriggers(integration, triggers);
         db.Integrations.Update(integration);
         await db.SaveChangesAsync(ct);
         return integration;
@@ -88,5 +109,33 @@ public class IntegrationRepository(AppDbContext db)
         db.Integrations.Remove(integration);
         await db.SaveChangesAsync(ct);
         return true;
+    }
+
+    private static void ReplaceTriggers(Integration integration, IReadOnlyList<IntegrationTrigger> triggers)
+    {
+        var existingBySlug = integration.Triggers.ToDictionary(t => t.Slug, StringComparer.OrdinalIgnoreCase);
+        var desiredSlugs = triggers.Select(t => t.Slug).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var existing in integration.Triggers.Where(t => !desiredSlugs.Contains(t.Slug)).ToList())
+            integration.Triggers.Remove(existing);
+
+        foreach (var desired in triggers)
+        {
+            if (existingBySlug.TryGetValue(desired.Slug, out var existing))
+            {
+                existing.Name = desired.Name;
+                existing.Type = desired.Type;
+                existing.Enabled = desired.Enabled;
+                existing.CronExpression = desired.CronExpression;
+                if (desired.EncryptedWebhookSecret is not null)
+                    existing.EncryptedWebhookSecret = desired.EncryptedWebhookSecret;
+                else if (desired.Type != TriggerType.Webhook)
+                    existing.EncryptedWebhookSecret = null;
+                existing.UpdatedAt = DateTime.UtcNow;
+                continue;
+            }
+
+            integration.Triggers.Add(desired);
+        }
     }
 }

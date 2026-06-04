@@ -13,15 +13,13 @@ public record ListIntegrationItem(
     string Slug,
     string Environment,
     string Status,
-    string TriggerType,
-    string? CronExpression,
     string ClassName,
+    IReadOnlyList<IntegrationTriggerResult> Triggers,
     int? TimeoutSeconds,
     int RetryMaxAttempts,
     int? RetryBackoffSeconds,
     Guid? PackageId,
-    ExecutionSummary? LastExecution,
-    string? WebhookUrl = null);
+    ExecutionSummary? LastExecution);
 
 public class ListIntegrationsHandler(
     IIntegrationReadRepository repository,
@@ -36,8 +34,7 @@ public class ListIntegrationsHandler(
             integrations.Select(i => i.Id).ToList(),
             ct);
 
-        // Look up once for webhook URL construction
-        var tenantSlug = integrations.Any(i => i.TriggerType == TriggerType.Webhook)
+        var tenantSlug = integrations.Any(i => i.Triggers.Any(t => t.Type == TriggerType.Webhook))
             ? await repository.GetTenantSlugAsync(command.TenantId, ct)
             : null;
 
@@ -45,17 +42,20 @@ public class ListIntegrationsHandler(
             .Select(i =>
             {
                 latestExecutions.TryGetValue(i.Id, out var lastExecution);
-                var webhookUrl = i.TriggerType == TriggerType.Webhook && tenantSlug is not null
-                    ? $"/webhooks/{tenantSlug}/{i.Slug}"
-                    : null;
 
                 return new ListIntegrationItem(
-                    i.Id, i.Name, i.Slug, i.Environment,
-                    i.Status.ToString(), i.TriggerType.ToString(),
-                    i.CronExpression, i.ClassName, i.TimeoutSeconds,
-                    i.RetryMaxAttempts, i.RetryBackoffSeconds, i.PackageId,
-                    lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution),
-                    webhookUrl);
+                    i.Id,
+                    i.Name,
+                    i.Slug,
+                    i.Environment,
+                    i.Status.ToString(),
+                    i.ClassName,
+                    i.Triggers.Select(t => CreateIntegrationHandler.ToTriggerResult(i, t, tenantSlug)).ToList(),
+                    i.TimeoutSeconds,
+                    i.RetryMaxAttempts,
+                    i.RetryBackoffSeconds,
+                    i.PackageId,
+                    lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution));
             })
             .ToList();
 

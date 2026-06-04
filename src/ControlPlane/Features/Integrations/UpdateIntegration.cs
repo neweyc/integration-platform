@@ -1,6 +1,5 @@
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
-using Cronos;
 using Shared.Domain;
 
 namespace ControlPlane.Features.Integrations;
@@ -11,7 +10,7 @@ public record UpdateIntegrationCommand(
     string Name,
     string? Description,
     IntegrationStatus Status,
-    string? CronExpression,
+    IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
@@ -25,10 +24,11 @@ public interface IIntegrationUpdateRepository
 {
     Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
-    Task<Integration> UpdateAsync(Integration integration, CancellationToken ct = default);
+    Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
+    Task<Integration> UpdateAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
 }
 
-public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
+public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository, IEncryptionService encryption)
     : ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>
 {
     public async Task<CreateIntegrationResult> HandleAsync(UpdateIntegrationCommand command, CancellationToken ct = default)
@@ -38,7 +38,7 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
         if (integration is null)
             throw new NotFoundException($"Integration '{command.IntegrationId}' not found.");
 
-        ValidateCommand(command, integration.TriggerType);
+        ValidateCommand(command);
 
         if (command.PackageId.HasValue
             && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
@@ -47,19 +47,20 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
         integration.Name = command.Name;
         integration.Description = command.Description;
         integration.Status = command.Status;
-        integration.CronExpression = command.CronExpression;
         integration.TimeoutSeconds = command.TimeoutSeconds;
         integration.RetryMaxAttempts = command.RetryMaxAttempts;
         integration.RetryBackoffSeconds = command.RetryBackoffSeconds;
         integration.PackageId = command.PackageId;
         integration.UpdatedAt = DateTime.UtcNow;
 
-        var updated = await repository.UpdateAsync(integration, ct);
+        var triggers = CreateIntegrationHandler.BuildTriggers(command.TenantId, command.Triggers, encryption);
+        var updated = await repository.UpdateAsync(integration, triggers, ct);
+        var tenantSlug = await repository.GetTenantSlugAsync(command.TenantId, ct);
 
-        return CreateIntegrationHandler.ToResult(updated);
+        return CreateIntegrationHandler.ToResult(updated, tenantSlug);
     }
 
-    private static void ValidateCommand(UpdateIntegrationCommand command, TriggerType triggerType)
+    private static void ValidateCommand(UpdateIntegrationCommand command)
     {
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Name is required.");
@@ -73,20 +74,6 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository)
         if (command.RetryBackoffSeconds is < 0)
             throw new ValidationException("Retry backoff cannot be negative.");
 
-        // Cron expression is only relevant for scheduled integrations
-        if (triggerType == TriggerType.Scheduled)
-        {
-            if (string.IsNullOrWhiteSpace(command.CronExpression))
-                throw new ValidationException("A cron expression is required for scheduled integrations.");
-
-            try
-            {
-                CronExpression.Parse(command.CronExpression);
-            }
-            catch
-            {
-                throw new ValidationException($"'{command.CronExpression}' is not a valid cron expression.");
-            }
-        }
+        CreateIntegrationHandler.ValidateTriggers(command.Triggers);
     }
 }

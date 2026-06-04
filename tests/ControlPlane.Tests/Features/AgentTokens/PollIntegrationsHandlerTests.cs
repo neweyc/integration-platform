@@ -25,6 +25,18 @@ public class PollIntegrationsHandlerTests
 
         var integration = MakeIntegration(integrationId);
         var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Scheduled, claimExpiresAt);
+        var trigger = new IntegrationTrigger
+        {
+            Id = Guid.NewGuid(),
+            TenantId = _tenantId,
+            IntegrationId = integrationId,
+            Type = TriggerType.Scheduled,
+            Slug = "schedule",
+            Name = "Schedule",
+            CronExpression = "0 * * * *"
+        };
+        workItem.IntegrationTriggerId = trigger.Id;
+        workItem.IntegrationTrigger = trigger;
 
         SetupScheduled([new ClaimedWork(integration, workItem)]);
         SetupManual([]);
@@ -138,8 +150,6 @@ public class PollIntegrationsHandlerTests
         var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
 
         var integration = MakeIntegration(integrationId);
-        integration.TriggerType = TriggerType.Webhook;
-        integration.CronExpression = null;
 
         var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Webhook, claimExpiresAt);
         workItem.Payload = """{"event":"created"}""";
@@ -248,8 +258,6 @@ public class PollIntegrationsHandlerTests
         Name = name,
         Slug = name.ToLower().Replace(' ', '-'),
         Environment = "production",
-        TriggerType = TriggerType.Scheduled,
-        CronExpression = "0 * * * *",
         ClassName = "MyCompany.Integrations.SyncOrdersIntegration"
     };
 
