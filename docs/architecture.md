@@ -138,6 +138,7 @@ user_tokens       — id, tenant_id, user_id, name, token_hash, last_used_at, ex
 invitations       — id, tenant_id, email, token, role, expires_at, accepted_at
 secrets           — id, tenant_id, environment, key, encrypted_value
 integrations      — id, tenant_id, name, slug, description, environment, status, trigger_type, cron_expression, class_name, timeout_seconds, retry_max_attempts, retry_backoff_seconds, package_id, encrypted_webhook_secret
+integration_triggers — planned: id, tenant_id, integration_id, type, name, slug, enabled, config_json, encrypted_secret
 agent_tokens      — id, tenant_id, name, environment, token_hash
 agent_heartbeats  — id, tenant_id, agent_token_id, environment, version, hostname, current_concurrency, max_concurrency, last_seen_at
 execution_records — id, tenant_id, integration_id, work_item_id, environment, status, attempt_number, parent_execution_id, root_execution_id, package_id, package_name, package_version, started_at, completed_at, error_message
@@ -231,6 +232,14 @@ Scheduled, manual, and webhook triggers are the first built-in adapters:
 - **Webhook** validates an inbound signed request, stores the payload, records delivery state, and creates a pending work item.
 
 Future trigger types should follow the same contract. Queue messages, file arrivals, database changes, workflow dependencies, dataset availability, and API events should all normalize their event metadata into a work item instead of introducing trigger-specific execution APIs. This keeps the runtime agent simple and makes observability, retries, claim recovery, and execution history consistent across trigger sources.
+
+Current implementation note: integration configuration still has a single `TriggerType` and `CronExpression` on `integrations`, with webhook secret material also stored on the integration. That is a transitional model. The target model separates executable integration code from trigger configuration:
+
+```
+Integration -> one or more IntegrationTrigger records -> WorkItem -> ExecutionRecord
+```
+
+Under the target model, one integration can be triggered by multiple schedules, one or more webhooks, manual operator action, queue events, file arrivals, API events, or future adapters. Runtime agents should not need a new execution path for any of these sources; trigger adapters produce work items and the agent executes the referenced integration class.
 
 ### Concurrency and scheduling
 

@@ -30,14 +30,15 @@ Principles:
 Priority ladder:
 
 1. Workflow DAG foundation.
-2. Agent pools and routing.
-3. Trigger adapter framework.
-4. Core connectors.
-5. Code-first transform steps.
-6. Environment promotion.
-7. Audit and RBAC.
-8. Execution token scoping.
-9. Retention and quotas.
+2. Multi-trigger integration model.
+3. Agent pools and routing.
+4. Trigger adapter framework.
+5. Core connectors.
+6. Code-first transform steps.
+7. Environment promotion.
+8. Audit and RBAC.
+9. Execution token scoping.
+10. Retention and quotas.
 
 ---
 
@@ -69,6 +70,34 @@ Completed notes:
 - Added API-first workflow creation, run start, and run-history endpoints.
 - Added workflow UI for listing workflows, starting runs, and viewing recent run/node state.
 - Runtime agents remain trigger-agnostic: workflow nodes are claimed and executed through the same work-item/start/complete path as other triggers.
+
+### Multi-Trigger Integration Model
+
+**Status:** Todo
+
+Separate "what code runs" from "what causes it to run." Today an integration has a single `TriggerType`, a single `CronExpression`, and webhook secret fields directly on the integration. That blocks realistic workflows where the same integration should be runnable by schedule, manual action, webhook, queue event, file arrival, API event, or multiple schedules/webhooks.
+
+This should be completed before assembly scanning and auto-provisioning so package discovery does not bake in the current one-integration-one-trigger constraint.
+
+Acceptance criteria:
+
+- `Integration` represents executable code, package pinning, environment, status, class name, timeout, and retry policy.
+- Trigger configuration moves to a child model such as `IntegrationTrigger`.
+- One integration can have zero or more enabled triggers.
+- Manual runs remain available as an operator action and do not require a stored trigger unless explicitly modeled later.
+- Scheduled trigger configuration supports at least cron expression and durable scheduling state.
+- Webhook trigger configuration supports stable URL identity, encrypted signing secret, timestamp replay protection, delivery idempotency, and delivery audit linkage.
+- Work items continue to store `IntegrationId` and `TriggerSource` so runtime agents remain trigger-agnostic.
+- Existing scheduled, webhook, and manual behavior is migrated without losing execution history.
+- API and UI expose trigger lists per integration instead of a single trigger type field.
+- Tests cover one integration with both scheduled and webhook triggers, multiple schedules, duplicate webhook delivery IDs scoped to trigger/integration, disabled triggers, migration compatibility, and agent polling.
+
+Design notes:
+
+- Target shape: `integrations` stores code/run policy; `integration_triggers` stores trigger type, name, enabled state, and typed or JSON configuration.
+- Schedule state should reference a trigger, not only an integration, so multiple schedules can coexist.
+- Webhook delivery records should reference the webhook trigger when available, not only the integration.
+- Assembly scanning should sync integration metadata and trigger records from attributes after this foundation exists.
 
 ### Version-Pinned Package Execution
 
@@ -366,10 +395,13 @@ Acceptance criteria:
 
 Automatically create or update integration records when a package is uploaded.
 
+Prerequisite: Multi-Trigger Integration Model. Assembly scanning should create or update the executable integration and its trigger records separately, rather than writing a single `TriggerType` onto the integration.
+
 Acceptance criteria:
 - Control plane scans uploaded assemblies for types decorated with integration attributes.
 - New integrations are auto-created in the database.
-- Existing integrations are updated if their attributes have changed (e.g., new cron).
+- Trigger attributes create or update trigger records for the discovered integration.
+- Existing integrations and triggers are updated if their attributes have changed, such as a new cron expression.
 - Typos in class names are eliminated by deriving them directly from the type.
 
 ### `ip` CLI

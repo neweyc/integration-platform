@@ -50,6 +50,8 @@ Trigger adapter -> WorkItem -> Agent claim -> ExecutionRecord -> Integration cod
 
 Trigger adapters should not introduce trigger-specific execution APIs. The runtime agent should continue to execute claimed work items without knowing which adapter produced them.
 
+The product direction is to store trigger configuration separately from executable integration metadata. An integration is the code and run policy; trigger records are the schedules, webhooks, queues, file arrivals, API events, or other producers that can create work for that integration. This lets one integration have multiple triggers while preserving the same work-item execution path.
+
 ## Integrations
 
 Integrations answer: "What business outcome should happen?"
@@ -84,4 +86,3 @@ public sealed class SyncOrdersIntegration : IIntegration
 - Keep integrations as business-specific composition code.
 - Every connector operation should support cancellation, logging, and explicit error classification.
 - Connector libraries should be versioned independently when practical.
-

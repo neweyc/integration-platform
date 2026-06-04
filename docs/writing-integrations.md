@@ -87,7 +87,7 @@ When you are ready to go live, use the `deploy` command.
 ip deploy --url http://your-control-plane --token pat_...
 ```
 
-The Control Plane will scan your assembly, discover your classes decorated with `[ScheduledIntegration]` or `[WebhookIntegration]`, and automatically create or update the corresponding records and schedules.
+The Control Plane will scan your assembly, discover your classes decorated with integration and trigger attributes, and automatically create or update the executable integration plus its trigger records. This keeps one integration class able to support multiple triggers, such as scheduled and webhook entry points, without duplicating the integration code.
 
 ---
 
