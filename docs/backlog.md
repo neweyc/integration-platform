@@ -323,7 +323,7 @@ Completed notes:
 
 ### Attribute-Based Discovery
 
-**Status:** In Progress
+**Status:** Done
 
 Allow developers to define integration metadata directly in code.
 
@@ -940,7 +940,7 @@ Completed notes:
 
 ### User Invitations
 
-**Status:** In Progress
+**Status:** Done
 
 Allow tenant admins to invite users.
 
@@ -953,6 +953,7 @@ Acceptance criteria:
 - Admin UI can create an invite and expose an accept link.
 - Public accept-invitation UI lets the invited user set a password.
 - Admin UI lists active users and pending invitations.
+- Admin UI can revoke and resend pending invitations.
 
 Completed notes:
 
@@ -961,10 +962,7 @@ Completed notes:
 - Added role-gated Users UI for tenant admins to create invitations.
 - Added public accept-invitation UI.
 - Added Admin-only `GET /api/auth/users` and `GET /api/invitations` endpoints.
-
-Remaining:
-
-- Revoke/resend pending invitations.
+- Added Admin-only invitation revoke/resend endpoints. Resend rotates the token and extends expiry; revoke expires the invite immediately.
 
 ### Password Reset
 

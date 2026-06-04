@@ -1,7 +1,6 @@
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
-using System.Security.Cryptography;
 
 namespace ControlPlane.Features.Invitations;
 
@@ -29,7 +28,7 @@ public class InviteUserHandler(IInvitationRepository repository, ICurrentUser cu
         if (string.IsNullOrWhiteSpace(command.Email))
             throw new ValidationException("Email is required.");
 
-        var token = GenerateSecureToken();
+        var token = InvitationTokenGenerator.GenerateSecureToken();
         var expiresAt = DateTime.UtcNow.AddDays(7);
 
         var invitation = new Invitation
@@ -46,10 +45,4 @@ public class InviteUserHandler(IInvitationRepository repository, ICurrentUser cu
         return new InviteUserResult(created.Id, created.Email, created.Token, created.ExpiresAt);
     }
 
-    private static string GenerateSecureToken()
-    {
-        var bytes = new byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
 }

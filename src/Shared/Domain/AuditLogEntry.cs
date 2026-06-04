@@ -42,5 +42,7 @@ public enum AuditAction
     PackageUploaded,
     PackageDeleted,
     UserInvited,
-    InvitationAccepted
+    InvitationAccepted,
+    InvitationRevoked,
+    InvitationResent
 }

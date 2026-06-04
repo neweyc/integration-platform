@@ -128,4 +128,33 @@ public class AuditableCommandTests
         Assert.Equal(result.InvitationId.ToString(), d.TargetId);
         Assert.Contains("Developer", d.Summary);
     }
+
+    [Fact]
+    public void RevokeInvitation_OnlyAuditsWhenRevoked()
+    {
+        var invitationId = Guid.NewGuid();
+        var cmd = new RevokeInvitationCommand(Guid.NewGuid(), invitationId);
+
+        Assert.Null(cmd.Describe(false));
+
+        var d = cmd.Describe(true);
+        Assert.Equal(AuditAction.InvitationRevoked, d!.Action);
+        Assert.Equal("Invitation", d.TargetType);
+        Assert.Equal(invitationId.ToString(), d.TargetId);
+    }
+
+    [Fact]
+    public void ResendInvitation_DoesNotLeakToken()
+    {
+        var invitationId = Guid.NewGuid();
+        var cmd = new ResendInvitationCommand(Guid.NewGuid(), invitationId);
+        var result = new ResendInvitationResult(invitationId, "new@example.com", "Developer", "invite_PLAINTEXT", DateTime.UtcNow);
+
+        var d = cmd.Describe(result);
+
+        Assert.Equal(AuditAction.InvitationResent, d!.Action);
+        Assert.Equal(invitationId.ToString(), d.TargetId);
+        Assert.DoesNotContain("invite_PLAINTEXT", d.Summary ?? "");
+        Assert.DoesNotContain("invite_PLAINTEXT", d.TargetId ?? "");
+    }
 }

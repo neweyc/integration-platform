@@ -33,6 +33,7 @@ export function UsersPage() {
   const [inviteResult, setInviteResult] = useState<InviteUserResponse | null>(null)
   const [inviteRole, setInviteRole] = useState<UserRole>('Developer')
   const [formError, setFormError] = useState<string | null>(null)
+  const [invitationActionError, setInvitationActionError] = useState<string | null>(null)
 
   const inviteUser = useMutation({
     mutationFn: () => invitationsApi.invite(form),
@@ -44,6 +45,26 @@ export function UsersPage() {
       setFormError(null)
     },
     onError: (err: Error) => setFormError(err.message),
+  })
+
+  const resendInvitation = useMutation({
+    mutationFn: (invitation: InvitationSummary) => invitationsApi.resend(invitation.id),
+    onSuccess: result => {
+      queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
+      setInviteResult(result)
+      setInviteRole(result.role)
+      setInvitationActionError(null)
+    },
+    onError: (err: Error) => setInvitationActionError(err.message),
+  })
+
+  const revokeInvitation = useMutation({
+    mutationFn: (id: string) => invitationsApi.revoke(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-invitations'] })
+      setInvitationActionError(null)
+    },
+    onError: (err: Error) => setInvitationActionError(err.message),
   })
 
   const users = useQuery({
@@ -196,10 +217,19 @@ export function UsersPage() {
             {invitations.error instanceof Error ? invitations.error.message : 'Failed to load invitations.'}
           </p>
         )}
+        {invitationActionError && (
+          <p className="text-sm text-destructive">{invitationActionError}</p>
+        )}
         {invitations.isLoading ? (
           <TableSkeleton rows={3} />
         ) : (
-          <InvitationsTable invitations={invitations.data?.invitations ?? []} />
+          <InvitationsTable
+            invitations={invitations.data?.invitations ?? []}
+            onResend={invitation => resendInvitation.mutate(invitation)}
+            onRevoke={id => revokeInvitation.mutate(id)}
+            resendPendingId={resendInvitation.variables?.id}
+            revokePendingId={revokeInvitation.variables}
+          />
         )}
       </section>
 
@@ -252,7 +282,19 @@ function UsersTable({ users }: { users: UserSummary[] }) {
   )
 }
 
-function InvitationsTable({ invitations }: { invitations: InvitationSummary[] }) {
+function InvitationsTable({
+  invitations,
+  onResend,
+  onRevoke,
+  resendPendingId,
+  revokePendingId,
+}: {
+  invitations: InvitationSummary[]
+  onResend: (invitation: InvitationSummary) => void
+  onRevoke: (id: string) => void
+  resendPendingId?: string
+  revokePendingId?: string
+}) {
   if (invitations.length === 0) {
     return (
       <div className="rounded-lg border py-10 text-center text-sm text-muted-foreground">
@@ -269,6 +311,7 @@ function InvitationsTable({ invitations }: { invitations: InvitationSummary[] })
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Expires</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -280,6 +323,29 @@ function InvitationsTable({ invitations }: { invitations: InvitationSummary[] })
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
                 {formatDate(invitation.expiresAt)}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={resendPendingId === invitation.id || revokePendingId === invitation.id}
+                    onClick={() => onResend(invitation)}
+                  >
+                    {resendPendingId === invitation.id ? 'Resending...' : 'Resend'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={resendPendingId === invitation.id || revokePendingId === invitation.id}
+                    onClick={() => onRevoke(invitation.id)}
+                  >
+                    {revokePendingId === invitation.id ? 'Revoking...' : 'Revoke'}
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}

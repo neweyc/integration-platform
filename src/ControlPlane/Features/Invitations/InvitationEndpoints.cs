@@ -29,6 +29,26 @@ public static class InvitationEndpoints
             return Results.Ok(result);
         }).RequirePermission(Permission.ManageUsers);
 
+        group.MapDelete("/{id:guid}", async (
+            Guid id,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            await dispatcher.SendAsync(new RevokeInvitationCommand(currentUser.TenantId, id), ct);
+            return Results.NoContent();
+        }).RequirePermission(Permission.ManageUsers);
+
+        group.MapPost("/{id:guid}/resend", async (
+            Guid id,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new ResendInvitationCommand(currentUser.TenantId, id), ct);
+            return result is null ? Results.NotFound() : Results.Ok(result);
+        }).RequirePermission(Permission.ManageUsers);
+
         app.MapPost("/api/invitations/accept", async (
             [FromBody] AcceptInvitationRequest request,
             IDispatcher dispatcher,

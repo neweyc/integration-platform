@@ -71,6 +71,31 @@ public class AuditLogIntegrationTests
     }
 
     [Fact]
+    public async Task InvitationResendAndRevoke_AreRecorded()
+    {
+        await using var ctx = await RbacContext.CreateAsync();
+        if (ctx is null) return;
+
+        ctx.Authenticate(ctx.AdminToken);
+
+        var invited = await ctx.Client.PostAsJsonAsync("/api/invitations",
+            new { Email = $"operator-{Guid.NewGuid():N}@example.com", Role = "Operator" });
+        Assert.Equal(HttpStatusCode.OK, invited.StatusCode);
+        var invitation = (await invited.Content.ReadFromJsonAsync<InviteResponse>())!;
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await ctx.Client.PostAsync($"/api/invitations/{invitation.InvitationId}/resend", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await ctx.Client.DeleteAsync($"/api/invitations/{invitation.InvitationId}")).StatusCode);
+
+        var log = await ctx.Client.GetFromJsonAsync<AuditLogResponse>("/api/audit-log");
+
+        Assert.Contains(log!.Entries, e => e.Action == "InvitationResent" && e.TargetId == invitation.InvitationId.ToString());
+        Assert.Contains(log.Entries, e => e.Action == "InvitationRevoked" && e.TargetId == invitation.InvitationId.ToString());
+    }
+
+
+    [Fact]
     public async Task PersonalAccessToken_ActionsAreRecorded_WithoutPlaintext()
     {
         await using var ctx = await RbacContext.CreateAsync();
@@ -117,6 +142,7 @@ public class AuditLogIntegrationTests
     }
 
     private sealed record IdResponse(Guid Id);
+    private sealed record InviteResponse(Guid InvitationId, string Email, string Token, DateTime ExpiresAt);
     private sealed record AuditLogResponse(IReadOnlyList<AuditEntry> Entries);
     private sealed record AuditEntry(
         Guid Id, Guid? ActorUserId, string ActorEmail, string Action,

@@ -36,10 +36,20 @@ export interface ListInvitationsResponse {
   invitations: InvitationSummary[]
 }
 
+export interface ResendInvitationResponse {
+  invitationId: string
+  email: string
+  role: UserRole
+  token: string
+  expiresAt: string
+}
+
 export const invitationsApi = {
   invite: (data: InviteUserRequest) =>
     api.post<InviteUserResponse>('/invitations', data),
   list: () => api.get<ListInvitationsResponse>('/invitations'),
+  resend: (id: string) => api.post<ResendInvitationResponse>(`/invitations/${id}/resend`, {}),
+  revoke: (id: string) => api.delete<void>(`/invitations/${id}`),
   accept: (data: AcceptInvitationRequest) =>
     api.post<AcceptInvitationResponse>('/invitations/accept', data),
 }

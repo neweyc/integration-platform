@@ -133,6 +133,34 @@ Invites a new user to the current tenant.
 }
 ```
 
+### `POST /api/invitations/{id}/resend`
+
+Rotates the pending invitation token and extends the invitation expiry. The old accept link stops working.
+
+**Auth:** JWT (Admin)
+
+**Response (200 OK):**
+
+```json
+{
+  "invitationId": "guid",
+  "email": "user@acme.com",
+  "role": "Member",
+  "token": "new-secure-token",
+  "expiresAt": "iso-date"
+}
+```
+
+Returns `404 Not Found` when the invitation does not exist in the tenant, has expired, or has already been accepted.
+
+### `DELETE /api/invitations/{id}`
+
+Revokes a pending invitation by expiring it immediately. Revoked invitations are removed from the pending list and cannot be accepted.
+
+**Auth:** JWT (Admin)
+
+**Response:** `204 No Content`
+
 ### `POST /api/invitations/accept` (Public)
 
 Accepts an invitation and creates a new user.

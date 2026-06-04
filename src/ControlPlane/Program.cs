@@ -87,8 +87,12 @@ builder.Services.AddScoped<ICommandHandler<RegisterTenantCommand, RegisterTenant
 // Invitation feature
 builder.Services.AddScoped<IInvitationRepository, InvitationRepository>();
 builder.Services.AddScoped<IInvitationReadRepository, InvitationRepository>();
+builder.Services.AddScoped<IInvitationRevocationRepository, InvitationRepository>();
+builder.Services.AddScoped<IInvitationResendRepository, InvitationRepository>();
 builder.Services.AddScoped<ICommandHandler<InviteUserCommand, InviteUserResult>, InviteUserHandler>();
 builder.Services.AddScoped<ICommandHandler<ListInvitationsCommand, ListInvitationsResult>, ListInvitationsHandler>();
+builder.Services.AddScoped<ICommandHandler<RevokeInvitationCommand, bool>, RevokeInvitationHandler>();
+builder.Services.AddScoped<ICommandHandler<ResendInvitationCommand, ResendInvitationResult?>, ResendInvitationHandler>();
 builder.Services.AddScoped<ICommandHandler<AcceptInvitationCommand, AcceptInvitationResult>, AcceptInvitationHandler>();
 
 // Setup feature
