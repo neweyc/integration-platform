@@ -7,8 +7,14 @@ public static class WebhookHeaders
 {
     public const string Signature = "X-Integration-Signature";
     public const string Delivery = "X-Integration-Delivery";
+    public const string Timestamp = "X-Integration-Timestamp";
     public const string Algorithm = "HMAC-SHA256";
-    public const string SignatureFormat = "sha256=<lowercase hex digest of the raw request body>";
+
+    // Deliveries whose timestamp is further than this from now are rejected as replays/stale.
+    public const int ToleranceSeconds = 300;
+
+    public const string SignatureFormat =
+        "sha256=<lowercase hex HMAC-SHA256 of \"{X-Integration-Timestamp}.{raw request body}\">";
 }
 
 public static class WebhookEndpoints
@@ -42,6 +48,7 @@ public static class WebhookEndpoints
                     tenantSlug,
                     integrationSlug,
                     http.Request.Headers[WebhookHeaders.Signature].FirstOrDefault(),
+                    http.Request.Headers[WebhookHeaders.Timestamp].FirstOrDefault(),
                     http.Request.Headers[WebhookHeaders.Delivery].FirstOrDefault(),
                     buffer.ToArray()),
                 ct);

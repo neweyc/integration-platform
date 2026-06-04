@@ -44,6 +44,8 @@ public class WebhookApiIntegrationTests
         Assert.NotNull(integration.WebhookSigning);
         Assert.Equal("HMAC-SHA256", integration.WebhookSigning!.Algorithm);
         Assert.Equal("X-Integration-Signature", integration.WebhookSigning.SignatureHeader);
+        Assert.Equal("X-Integration-Timestamp", integration.WebhookSigning.TimestampHeader);
+        Assert.Equal(300, integration.WebhookSigning.ToleranceSeconds);
 
         var agentToken = await PostJsonAsync<AgentTokenResponse>(client, "/api/agent-tokens",
             new { Name = "Production agent", Environment = "production" }, HttpStatusCode.Created);
@@ -124,6 +126,41 @@ public class WebhookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Webhook_StaleTimestamp_Returns401AndQueuesNothing()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var (_, integration) = await SetupWebhookIntegrationAsync(client);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        // Authentic signature over a 10-minute-old timestamp — a captured replay.
+        var body = "{}";
+        var bodyBytes = Encoding.UTF8.GetBytes(body);
+        var staleTs = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 600).ToString();
+        var signedPayload = Encoding.UTF8.GetBytes($"{staleTs}.").Concat(bodyBytes).ToArray();
+        var sig = "sha256=" + Convert.ToHexString(
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes(integration.WebhookSecret!), signedPayload)).ToLowerInvariant();
+
+        using var content = new ByteArrayContent(bodyBytes);
+        content.Headers.Add("X-Integration-Signature", sig);
+        content.Headers.Add("X-Integration-Timestamp", staleTs);
+        var response = await client.PostAsync(integration.WebhookUrl, content);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        await using var db = database.CreateContext();
+        Assert.Equal(0, db.WorkItems.Count(w => w.IntegrationId == integration.Id));
+        // The rejection is recorded as an Expired delivery for operator visibility.
+        Assert.Equal(1, db.WebhookDeliveries.Count(d =>
+            d.IntegrationId == integration.Id && d.Outcome == WebhookDeliveryOutcome.Expired));
+    }
+
+    [Fact]
     public async Task Webhook_UnknownIntegration_Returns404()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();
@@ -175,11 +212,16 @@ public class WebhookApiIntegrationTests
         HttpClient client, string url, string body, string secret, string deliveryId)
     {
         var bodyBytes = Encoding.UTF8.GetBytes(body);
-        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), bodyBytes);
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+
+        // Replay-protected scheme: sign over "{timestamp}.{body}".
+        var signedPayload = Encoding.UTF8.GetBytes($"{timestamp}.").Concat(bodyBytes).ToArray();
+        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), signedPayload);
         var signature = "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
 
         using var content = new ByteArrayContent(bodyBytes);
         content.Headers.Add("X-Integration-Signature", signature);
+        content.Headers.Add("X-Integration-Timestamp", timestamp);
         content.Headers.Add("X-Integration-Delivery", deliveryId);
 
         return await client.PostAsync(url, content);
@@ -206,7 +248,8 @@ public class WebhookApiIntegrationTests
     private sealed record IntegrationResponse(
         Guid Id, string? WebhookSecret, string? WebhookUrl, WebhookSigningResponse? WebhookSigning);
     private sealed record WebhookSigningResponse(
-        string Algorithm, string SignatureHeader, string SignatureFormat, string DeliveryIdHeader);
+        string Algorithm, string SignatureHeader, string SignatureFormat, string DeliveryIdHeader,
+        string TimestampHeader, int ToleranceSeconds);
     private sealed record AgentTokenResponse(Guid Id, string Token);
     private sealed record PollResponse(IReadOnlyList<PollIntegrationResponse> Integrations);
     private sealed record PollIntegrationResponse(

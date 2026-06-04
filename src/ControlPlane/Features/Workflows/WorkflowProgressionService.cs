@@ -52,6 +52,11 @@ public class WorkflowProgressionService(IWorkflowRepository repository) : IWorkf
 
         await repository.SaveChangesAsync(ct);
 
+        // If another branch already drove the run to a terminal state (e.g. a parallel node
+        // failed), stop here — a failed workflow must not keep dispatching downstream work.
+        if (nodeRun.WorkflowRun.Status != WorkflowRunStatus.Running)
+            return;
+
         var outgoing = await repository.GetOutgoingEdgesAsync(
             record.TenantId,
             nodeRun.WorkflowRun.WorkflowDefinitionId,

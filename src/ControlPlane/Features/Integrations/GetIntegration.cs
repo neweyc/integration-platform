@@ -34,7 +34,9 @@ public class GetIntegrationHandler(IIntegrationReadRepository repository)
                 Webhooks.WebhookHeaders.Algorithm,
                 Webhooks.WebhookHeaders.Signature,
                 Webhooks.WebhookHeaders.SignatureFormat,
-                Webhooks.WebhookHeaders.Delivery);
+                Webhooks.WebhookHeaders.Delivery,
+                Webhooks.WebhookHeaders.Timestamp,
+                Webhooks.WebhookHeaders.ToleranceSeconds);
         }
 
         // Secret is intentionally never re-returned — only shown once at creation.

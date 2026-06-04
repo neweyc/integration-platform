@@ -198,6 +198,83 @@ public class WorkflowDagIntegrationTests
         Assert.Contains(workflowRun.NodeRuns, n => n.Status == WorkflowNodeRunStatus.Pending);
     }
 
+    [Fact]
+    public async Task WorkflowRun_FailureHaltsParallelBranchDownstreamDispatch()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await SetupAsync(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        // Two independent branches: "a" (will fail) and "b" -> "c" (would otherwise continue).
+        var a = await CreateIntegrationAsync(client, "branch-a");
+        var b = await CreateIntegrationAsync(client, "branch-b");
+        var c = await CreateIntegrationAsync(client, "branch-c");
+
+        var workflow = await PostJsonAsync<WorkflowDefinitionResponse>(
+            client,
+            "/api/workflows",
+            new
+            {
+                Name = "Parallel Branches",
+                Slug = $"parallel-{Guid.NewGuid():N}",
+                Environment = "production",
+                Nodes = new[]
+                {
+                    new { Key = "a", Name = "A", IntegrationId = a.Id },
+                    new { Key = "b", Name = "B", IntegrationId = b.Id },
+                    new { Key = "c", Name = "C", IntegrationId = c.Id }
+                },
+                Edges = new[]
+                {
+                    new { From = "b", To = "c" }
+                }
+            },
+            HttpStatusCode.Created);
+
+        var agentToken = await CreateAgentTokenAsync(client);
+        var run = await PostJsonAsync<WorkflowRunResponse>(
+            client, $"/api/workflows/{workflow.Id}/run", new { }, HttpStatusCode.Accepted);
+
+        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Add("X-Agent-Token", agentToken.Token);
+
+        // Roots a and b are queued together.
+        var poll = await GetJsonAsync<PollResponse>(client, "/api/agent/integrations");
+        Assert.Equal(2, poll.Integrations.Count);
+        var failItem = poll.Integrations.Single(i => i.Id == a.Id);
+        var okItem = poll.Integrations.Single(i => i.Id == b.Id);
+
+        // Branch a fails — the run becomes Failed.
+        await StartAndCompleteAsync(client, failItem.WorkItemId!.Value, succeeded: false);
+
+        // Branch b then succeeds. Its downstream "c" must NOT be dispatched now the run has failed.
+        await StartAndCompleteAsync(client, okItem.WorkItemId!.Value, succeeded: true);
+
+        // Nothing further should be queued for the agent.
+        var nextPoll = await GetJsonAsync<PollResponse>(client, "/api/agent/integrations");
+        Assert.Empty(nextPoll.Integrations);
+
+        await using var db = database.CreateContext();
+
+        // No work item was ever created for c.
+        Assert.Equal(0, db.WorkItems.Count(w => w.IntegrationId == c.Id && w.TriggerSource == TriggerSource.Workflow));
+
+        var workflowRun = await db.WorkflowRuns
+            .Include(r => r.NodeRuns).ThenInclude(n => n.WorkflowNode)
+            .SingleAsync(r => r.Id == run.Id);
+
+        Assert.Equal(WorkflowRunStatus.Failed, workflowRun.Status);
+        // c never ran — it stays Pending, not Queued/Running.
+        var cNodeRun = workflowRun.NodeRuns.Single(n => n.WorkflowNode.Key == "c");
+        Assert.Equal(WorkflowNodeRunStatus.Pending, cNodeRun.Status);
+    }
+
     private static async Task<SetupResponse> SetupAsync(HttpClient client) =>
         await PostJsonAsync<SetupResponse>(
             client,

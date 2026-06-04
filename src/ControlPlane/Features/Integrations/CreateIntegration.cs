@@ -51,8 +51,10 @@ public record CreateIntegrationResult(
 public record WebhookSigning(
     string Algorithm,          // "HMAC-SHA256"
     string SignatureHeader,    // "X-Integration-Signature"
-    string SignatureFormat,    // "sha256=<lowercase hex digest of the raw request body>"
-    string DeliveryIdHeader);  // "X-Integration-Delivery"; optional, enables idempotent retries.
+    string SignatureFormat,    // "sha256=<lowercase hex HMAC of '{timestamp}.{body}'>"
+    string DeliveryIdHeader,   // "X-Integration-Delivery"; optional, enables idempotent retries.
+    string TimestampHeader,    // "X-Integration-Timestamp"; unix seconds, required for replay protection.
+    int ToleranceSeconds);     // deliveries outside this window from now are rejected as replays.
 
 public interface IIntegrationRepository
 {
@@ -119,7 +121,9 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
                 WebhookHeaders.Algorithm,
                 WebhookHeaders.Signature,
                 WebhookHeaders.SignatureFormat,
-                WebhookHeaders.Delivery);
+                WebhookHeaders.Delivery,
+                WebhookHeaders.Timestamp,
+                WebhookHeaders.ToleranceSeconds);
         }
 
         return ToResult(created, plainWebhookSecret, webhookUrl, signing);

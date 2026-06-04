@@ -25,6 +25,7 @@ public class DeliverWebhookHandlerTests
         var integration = MakeWebhookIntegration(tenant.Id);
         var body = Encoding.UTF8.GetBytes("""{"orderId":123}""");
         const string secret = "whs_secret";
+        var ts = Now();
 
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
@@ -49,7 +50,8 @@ public class DeliverWebhookHandlerTests
         var result = await _handler.HandleAsync(new DeliverWebhookCommand(
             "acme",
             "orders",
-            Signature(secret, body),
+            Signature(secret, ts, body),
+            ts,
             "delivery-1",
             body));
 
@@ -82,12 +84,55 @@ public class DeliverWebhookHandlerTests
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns("whs_secret");
 
         await Assert.ThrowsAsync<UnauthorizedException>(() => _handler.HandleAsync(
-            new DeliverWebhookCommand("acme", "orders", "sha256=bad", null, body)));
+            new DeliverWebhookCommand("acme", "orders", "sha256=bad", Now(), null, body)));
 
         await _repository.Received(1).RecordDeliveryAsync(Arg.Is<WebhookDelivery>(d =>
             d.TenantId == tenant.Id
             && d.IntegrationId == integration.Id
             && d.Outcome == WebhookDeliveryOutcome.InvalidSignature));
+    }
+
+    [Fact]
+    public async Task HandleAsync_StaleTimestamp_ThrowsUnauthorizedAndRecordsExpired()
+    {
+        var tenant = new Tenant { Id = Guid.NewGuid(), Slug = "acme" };
+        var integration = MakeWebhookIntegration(tenant.Id);
+        var body = Encoding.UTF8.GetBytes("{}");
+        const string secret = "whs_secret";
+        // Authentic signature, but the timestamp is 10 minutes old — outside the 5-minute window.
+        var staleTs = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 600).ToString();
+
+        _repository.FindAsync("acme", "orders").Returns((tenant, integration));
+        _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => _handler.HandleAsync(
+            new DeliverWebhookCommand("acme", "orders", Signature(secret, staleTs, body), staleTs, "d1", body)));
+
+        await _repository.Received(1).RecordDeliveryAsync(Arg.Is<WebhookDelivery>(d =>
+            d.TenantId == tenant.Id
+            && d.IntegrationId == integration.Id
+            && d.Outcome == WebhookDeliveryOutcome.Expired));
+        // A replay must never be queued.
+        await _repository.DidNotReceive().CreateWorkItemAsync(Arg.Any<WorkItem>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_MissingTimestamp_IsRejectedAsExpired()
+    {
+        var tenant = new Tenant { Id = Guid.NewGuid(), Slug = "acme" };
+        var integration = MakeWebhookIntegration(tenant.Id);
+        var body = Encoding.UTF8.GetBytes("{}");
+        const string secret = "whs_secret";
+
+        _repository.FindAsync("acme", "orders").Returns((tenant, integration));
+        _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
+
+        // Sign with an empty timestamp so the signature itself matches, isolating the freshness check.
+        await Assert.ThrowsAsync<UnauthorizedException>(() => _handler.HandleAsync(
+            new DeliverWebhookCommand("acme", "orders", Signature(secret, "", body), null, "d1", body)));
+
+        await _repository.Received(1).RecordDeliveryAsync(Arg.Is<WebhookDelivery>(d =>
+            d.Outcome == WebhookDeliveryOutcome.Expired));
     }
 
     [Fact]
@@ -100,7 +145,7 @@ public class DeliverWebhookHandlerTests
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
 
         await Assert.ThrowsAsync<NotFoundException>(() => _handler.HandleAsync(
-            new DeliverWebhookCommand("acme", "orders", "sha256=anything", null, [])));
+            new DeliverWebhookCommand("acme", "orders", "sha256=anything", Now(), null, [])));
     }
 
     [Fact]
@@ -110,6 +155,7 @@ public class DeliverWebhookHandlerTests
         var integration = MakeWebhookIntegration(tenant.Id);
         var body = Encoding.UTF8.GetBytes("{}");
         const string secret = "whs_secret";
+        var ts = Now();
 
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
@@ -118,7 +164,8 @@ public class DeliverWebhookHandlerTests
         var result = await _handler.HandleAsync(new DeliverWebhookCommand(
             "acme",
             "orders",
-            Signature(secret, body),
+            Signature(secret, ts, body),
+            ts,
             "delivery-1",
             body));
 
@@ -139,6 +186,7 @@ public class DeliverWebhookHandlerTests
         var integration = MakeWebhookIntegration(tenant.Id);
         var body = Encoding.UTF8.GetBytes("{}");
         const string secret = "whs_secret";
+        var ts = Now();
 
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
@@ -147,7 +195,7 @@ public class DeliverWebhookHandlerTests
         _repository.CreateWorkItemAsync(Arg.Any<WorkItem>()).Returns((WorkItem?)null);
 
         var result = await _handler.HandleAsync(new DeliverWebhookCommand(
-            "acme", "orders", Signature(secret, body), "delivery-1", body));
+            "acme", "orders", Signature(secret, ts, body), ts, "delivery-1", body));
 
         Assert.False(result.Queued);
         Assert.Equal(Guid.Empty, result.WorkItemId);
@@ -164,7 +212,7 @@ public class DeliverWebhookHandlerTests
         _repository.FindAsync("acme", "ghost").Returns(((Tenant, Integration)?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _handler.HandleAsync(
-            new DeliverWebhookCommand("acme", "ghost", "sha256=x", null, [])));
+            new DeliverWebhookCommand("acme", "ghost", "sha256=x", Now(), null, [])));
     }
 
     [Fact]
@@ -173,7 +221,7 @@ public class DeliverWebhookHandlerTests
         var body = new byte[DeliverWebhookHandler.MaxPayloadBytes + 1];
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(
-            new DeliverWebhookCommand("acme", "orders", "sha256=x", null, body)));
+            new DeliverWebhookCommand("acme", "orders", "sha256=x", Now(), null, body)));
     }
 
     private static Integration MakeWebhookIntegration(Guid tenantId) => new()
@@ -189,9 +237,13 @@ public class DeliverWebhookHandlerTests
         EncryptedWebhookSecret = "encrypted"
     };
 
-    private static string Signature(string secret, byte[] body)
+    private static string Now() => DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+
+    // Signs over "{timestamp}.{body}" to match the handler's replay-protected scheme.
+    private static string Signature(string secret, string timestamp, byte[] body)
     {
-        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body);
+        var payload = Encoding.UTF8.GetBytes($"{timestamp}.").Concat(body).ToArray();
+        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), payload);
         return "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
     }
 }

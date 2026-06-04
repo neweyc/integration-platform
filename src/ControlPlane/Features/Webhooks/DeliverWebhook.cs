@@ -10,6 +10,7 @@ public record DeliverWebhookCommand(
     string TenantSlug,
     string IntegrationSlug,
     string? SignatureHeader,
+    string? TimestampHeader,
     string? DeliveryId,
     byte[] BodyBytes) : ICommand<DeliverWebhookResult>;
 
@@ -52,11 +53,22 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
 
         var (tenant, integration) = found.Value;
 
-        if (!VerifySignature(command.SignatureHeader, command.BodyBytes, integration.EncryptedWebhookSecret))
+        // The signature covers "{timestamp}.{body}", so a valid signature proves the sender
+        // knew the secret AND committed to that timestamp (it cannot have been tampered).
+        var signedPayload = BuildSignedPayload(command.TimestampHeader, command.BodyBytes);
+        if (!VerifySignature(command.SignatureHeader, signedPayload, integration.EncryptedWebhookSecret))
         {
             await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
                 WebhookDeliveryOutcome.InvalidSignature, workItemId: null, ct);
             throw new UnauthorizedException("Invalid webhook signature.");
+        }
+
+        // Replay protection: reject authentic-but-stale deliveries outside the tolerance window.
+        if (!IsTimestampFresh(command.TimestampHeader, DateTimeOffset.UtcNow))
+        {
+            await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
+                WebhookDeliveryOutcome.Expired, workItemId: null, ct);
+            throw new UnauthorizedException("Webhook timestamp is missing or outside the allowed window.");
         }
 
         // Idempotency fast path: skip if this delivery ID was already processed.
@@ -116,7 +128,27 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
             },
             ct);
 
-    private bool VerifySignature(string? signatureHeader, byte[] bodyBytes, string encryptedSecret)
+    // Signed payload = "{timestamp}.{body}". A missing timestamp yields ".{body}", which a
+    // correctly-signed request will never match, so the signature check rejects it.
+    private static byte[] BuildSignedPayload(string? timestampHeader, byte[] bodyBytes)
+    {
+        var prefix = Encoding.UTF8.GetBytes($"{timestampHeader}.");
+        var payload = new byte[prefix.Length + bodyBytes.Length];
+        Buffer.BlockCopy(prefix, 0, payload, 0, prefix.Length);
+        Buffer.BlockCopy(bodyBytes, 0, payload, prefix.Length, bodyBytes.Length);
+        return payload;
+    }
+
+    private static bool IsTimestampFresh(string? timestampHeader, DateTimeOffset now)
+    {
+        if (!long.TryParse(timestampHeader, out var timestamp))
+            return false;
+
+        var deltaSeconds = Math.Abs(now.ToUnixTimeSeconds() - timestamp);
+        return deltaSeconds <= WebhookHeaders.ToleranceSeconds;
+    }
+
+    private bool VerifySignature(string? signatureHeader, byte[] signedPayload, string encryptedSecret)
     {
         if (string.IsNullOrEmpty(signatureHeader))
             return false;
@@ -139,7 +171,7 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
         }
 
         var secretBytes = Encoding.UTF8.GetBytes(secret);
-        var expectedHash = HMACSHA256.HashData(secretBytes, bodyBytes);
+        var expectedHash = HMACSHA256.HashData(secretBytes, signedPayload);
         var expectedHex = Convert.ToHexString(expectedHash).ToLowerInvariant();
         var receivedNormalized = receivedHex.ToLowerInvariant();
 
