@@ -22,10 +22,10 @@ public interface IWebhookRepository
         string tenantSlug, string integrationSlug, CancellationToken ct = default);
 
     Task<bool> DeliveryExistsAsync(
-        Guid tenantId, string deliveryId, CancellationToken ct = default);
+        Guid tenantId, Guid integrationId, string deliveryId, CancellationToken ct = default);
 
-    // Returns null if a concurrent delivery with the same DeliveryId already inserted
-    // (unique-index race backstop), otherwise the persisted work item.
+    // Returns null if a concurrent delivery with the same integration-scoped DeliveryId
+    // already inserted (unique-index race backstop), otherwise the persisted work item.
     Task<WorkItem?> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default);
 
     Task RecordDeliveryAsync(WebhookDelivery delivery, CancellationToken ct = default);
@@ -73,7 +73,7 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
 
         // Idempotency fast path: skip if this delivery ID was already processed.
         if (command.DeliveryId is not null
-            && await repository.DeliveryExistsAsync(tenant.Id, command.DeliveryId, ct))
+            && await repository.DeliveryExistsAsync(tenant.Id, integration.Id, command.DeliveryId, ct))
         {
             await RecordDeliveryAsync(tenant, integration, command.DeliveryId,
                 WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
@@ -92,8 +92,8 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
             DeliveryId = command.DeliveryId
         };
 
-        // Race backstop: the unique (TenantId, DeliveryId) index rejects a concurrent
-        // duplicate that slipped past the fast-path check above; treat that as deduped.
+        // Race backstop: the unique (TenantId, IntegrationId, DeliveryId) index rejects a
+        // concurrent duplicate that slipped past the fast-path check above; treat it as deduped.
         var created = await repository.CreateWorkItemAsync(workItem, ct);
 
         if (created is null)

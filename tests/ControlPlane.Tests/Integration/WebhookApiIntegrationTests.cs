@@ -103,6 +103,41 @@ public class WebhookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Webhook_SameDeliveryIdAcrossDifferentIntegrations_QueuesBoth()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var (_, first) = await SetupWebhookIntegrationAsync(client);
+        var second = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Second Hook",
+            Slug = $"second-hook-{Guid.NewGuid():N}",
+            Environment = "production",
+            TriggerType = "Webhook",
+            ClassName = "Acme.SecondHook"
+        }, HttpStatusCode.Created);
+        client.DefaultRequestHeaders.Authorization = null;
+
+        var deliveryId = Guid.NewGuid().ToString();
+        var firstResponse = await PostWebhookAsync(client, first.WebhookUrl!, """{"source":"first"}""",
+            first.WebhookSecret!, deliveryId);
+        var secondResponse = await PostWebhookAsync(client, second.WebhookUrl!, """{"source":"second"}""",
+            second.WebhookSecret!, deliveryId);
+
+        Assert.Equal(HttpStatusCode.Accepted, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, secondResponse.StatusCode);
+
+        await using var db = database.CreateContext();
+        Assert.Equal(1, db.WorkItems.Count(w => w.IntegrationId == first.Id && w.DeliveryId == deliveryId));
+        Assert.Equal(1, db.WorkItems.Count(w => w.IntegrationId == second.Id && w.DeliveryId == deliveryId));
+    }
+
+    [Fact]
     public async Task Webhook_BadSignature_Returns401AndQueuesNothing()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();

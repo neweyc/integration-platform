@@ -822,7 +822,7 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("IntegrationId");
 
-                    b.HasIndex("TenantId", "DeliveryId")
+                    b.HasIndex("TenantId", "IntegrationId", "DeliveryId")
                         .IsUnique()
                         .HasFilter("\"DeliveryId\" IS NOT NULL");
 

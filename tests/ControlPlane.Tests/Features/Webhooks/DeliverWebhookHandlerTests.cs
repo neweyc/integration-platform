@@ -159,7 +159,7 @@ public class DeliverWebhookHandlerTests
 
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
-        _repository.DeliveryExistsAsync(tenant.Id, "delivery-1").Returns(true);
+        _repository.DeliveryExistsAsync(tenant.Id, integration.Id, "delivery-1").Returns(true);
 
         var result = await _handler.HandleAsync(new DeliverWebhookCommand(
             "acme",
@@ -191,7 +191,7 @@ public class DeliverWebhookHandlerTests
         _repository.FindAsync("acme", "orders").Returns((tenant, integration));
         _encryption.Decrypt(integration.EncryptedWebhookSecret!).Returns(secret);
         // Fast-path check passes, but the unique index rejects the insert race.
-        _repository.DeliveryExistsAsync(tenant.Id, "delivery-1").Returns(false);
+        _repository.DeliveryExistsAsync(tenant.Id, integration.Id, "delivery-1").Returns(false);
         _repository.CreateWorkItemAsync(Arg.Any<WorkItem>()).Returns((WorkItem?)null);
 
         var result = await _handler.HandleAsync(new DeliverWebhookCommand(

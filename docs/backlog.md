@@ -234,22 +234,23 @@ Acceptance criteria:
 Notes:
 
 - The control plane should receive and validate webhooks, but the runtime agent should still execute the integration.
-- Replay support can follow after the first webhook implementation.
 
 Completed notes:
 
 - Webhook integrations get a generated shared secret and stable `/webhooks/{tenantSlug}/{integrationSlug}` URL.
-- Webhook delivery verifies `X-Integration-Signature` as an HMAC-SHA256 signature over the request body.
-- Optional `X-Integration-Delivery` provides idempotency and prevents duplicate work item creation.
+- Webhook delivery verifies `X-Integration-Signature` as an HMAC-SHA256 signature over `{X-Integration-Timestamp}.{raw request body}`.
+- `X-Integration-Timestamp` enforces a 5-minute replay window.
+- Optional `X-Integration-Delivery` provides idempotency and prevents duplicate work item creation per webhook integration.
 - Valid webhook requests create pending webhook work items with payload and delivery ID.
 - Agent polling claims webhook work items through the same work-item queue path as scheduled and manual runs.
 - Runtime agent passes webhook payload into `IIntegrationContext.Payload`.
 - Execution records use `TriggerSource.Webhook` because execution start reads the trigger from the claimed work item.
-- Tests cover valid webhook delivery, invalid signature, disabled integration, duplicate delivery IDs, environment-scoped claiming, and payload handoff.
+- Tests cover valid webhook delivery, invalid signature, stale timestamps, disabled integration, duplicate delivery IDs, integration-scoped delivery IDs, environment-scoped claiming, and payload handoff.
 
 Remaining limitations:
 
-- Replay support is not implemented yet.
+- Public webhook rate limiting is not implemented yet.
+- Delivery forensics are intentionally thin; stored delivery records do not yet include request IP, user agent, signature fingerprint, or payload hash.
 
 ---
 

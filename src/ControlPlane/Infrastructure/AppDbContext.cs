@@ -230,8 +230,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(w => new { w.TenantId, w.Environment, w.Status, w.AvailableAt });
             b.HasIndex(w => new { w.TenantId, w.WorkflowRunId, w.WorkflowNodeId });
 
-            // Idempotent webhook delivery — unique per tenant where a delivery ID is present
-            b.HasIndex(w => new { w.TenantId, w.DeliveryId })
+            // Idempotent webhook delivery — unique per webhook integration where a delivery ID is present.
+            b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.DeliveryId })
              .IsUnique()
              .HasFilter("\"DeliveryId\" IS NOT NULL");
 

@@ -20,9 +20,9 @@ public class WebhookRepository(AppDbContext db) : IWebhookRepository
         return result is null ? null : (result.Tenant, result.Integration);
     }
 
-    public Task<bool> DeliveryExistsAsync(Guid tenantId, string deliveryId, CancellationToken ct = default) =>
+    public Task<bool> DeliveryExistsAsync(Guid tenantId, Guid integrationId, string deliveryId, CancellationToken ct = default) =>
         db.WorkItems.AnyAsync(
-            w => w.TenantId == tenantId && w.DeliveryId == deliveryId, ct);
+            w => w.TenantId == tenantId && w.IntegrationId == integrationId && w.DeliveryId == deliveryId, ct);
 
     public async Task<WorkItem?> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default)
     {
@@ -34,7 +34,7 @@ public class WebhookRepository(AppDbContext db) : IWebhookRepository
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
-            // Unique (TenantId, DeliveryId) violation; a concurrent duplicate delivery won the race.
+            // Unique (TenantId, IntegrationId, DeliveryId) violation; a concurrent duplicate delivery won the race.
             db.Entry(workItem).State = EntityState.Detached;
             return null;
         }

@@ -414,14 +414,15 @@ Receives an external webhook and queues a work item for the runtime agent.
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `X-Integration-Signature` | Yes | `sha256={hex_hmac}` where the HMAC is SHA-256 over the raw request body using the integration's webhook secret. |
-| `X-Integration-Delivery` | No | Sender delivery ID for idempotency. Repeated IDs are acknowledged without creating another work item. |
+| `X-Integration-Signature` | Yes | `sha256={hex_hmac}` where the HMAC is SHA-256 over `{X-Integration-Timestamp}.{raw request body}` using the integration's webhook secret. |
+| `X-Integration-Timestamp` | Yes | Unix timestamp in seconds. Requests outside the 5-minute tolerance window are rejected. |
+| `X-Integration-Delivery` | No | Sender delivery ID for idempotency. Repeated IDs for the same webhook integration are acknowledged without creating another work item. |
 
 **Response**
 
 - `202 Accepted` when a new webhook work item is queued.
 - `200 OK` when a duplicate delivery ID was already queued.
-- `401 Unauthorized` for invalid signatures.
+- `401 Unauthorized` for invalid signatures or stale/missing timestamps.
 - `404 Not Found` for unknown, non-webhook, or disabled integrations.
 
 ---
