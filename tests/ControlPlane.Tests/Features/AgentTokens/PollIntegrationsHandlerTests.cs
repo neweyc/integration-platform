@@ -14,6 +14,8 @@ public class PollIntegrationsHandlerTests
     public PollIntegrationsHandlerTests()
     {
         _handler = new PollIntegrationsHandler(_repository);
+        SetupQueue([]);
+        SetupFile([]);
     }
 
     [Fact]
@@ -221,6 +223,78 @@ public class PollIntegrationsHandlerTests
         Assert.Equal(workItemId, item.WorkItemId);
     }
 
+    [Fact]
+    public async Task HandleAsync_ReturnsClaimedQueueRunsWithPayload()
+    {
+        var integrationId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
+
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.Queue, claimExpiresAt);
+        workItem.Payload = """{"messageId":"m-1"}""";
+        workItem.IntegrationTrigger = new IntegrationTrigger
+        {
+            Id = Guid.NewGuid(),
+            Type = TriggerType.Queue,
+            Slug = "orders",
+            Name = "Orders Queue"
+        };
+
+        SetupScheduled([]);
+        SetupManual([]);
+        SetupWebhook([]);
+        SetupRetry([]);
+        SetupWorkflow([]);
+        SetupQueue([new ClaimedWork(integration, workItem)]);
+
+        var result = await _handler.HandleAsync(
+            new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
+
+        var item = Assert.Single(result.Integrations);
+        Assert.Equal(integrationId, item.Id);
+        Assert.Equal(TriggerType.Queue, item.TriggerType);
+        Assert.Equal(TriggerSource.Queue, item.TriggerSource);
+        Assert.Equal(workItemId, item.WorkItemId);
+        Assert.Equal("""{"messageId":"m-1"}""", item.Payload);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsClaimedFileRunsWithPayload()
+    {
+        var integrationId = Guid.NewGuid();
+        var workItemId = Guid.NewGuid();
+        var claimExpiresAt = DateTime.UtcNow.AddMinutes(5);
+
+        var integration = MakeIntegration(integrationId);
+        var workItem = MakeWorkItem(workItemId, integrationId, TriggerSource.File, claimExpiresAt);
+        workItem.Payload = """{"path":"/drop/orders.csv"}""";
+        workItem.IntegrationTrigger = new IntegrationTrigger
+        {
+            Id = Guid.NewGuid(),
+            Type = TriggerType.File,
+            Slug = "orders-file",
+            Name = "Orders File"
+        };
+
+        SetupScheduled([]);
+        SetupManual([]);
+        SetupWebhook([]);
+        SetupRetry([]);
+        SetupWorkflow([]);
+        SetupFile([new ClaimedWork(integration, workItem)]);
+
+        var result = await _handler.HandleAsync(
+            new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
+
+        var item = Assert.Single(result.Integrations);
+        Assert.Equal(integrationId, item.Id);
+        Assert.Equal(TriggerType.File, item.TriggerType);
+        Assert.Equal(TriggerSource.File, item.TriggerSource);
+        Assert.Equal(workItemId, item.WorkItemId);
+        Assert.Equal("""{"path":"/drop/orders.csv"}""", item.Payload);
+    }
+
     private void SetupScheduled(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimDueScheduledAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
@@ -247,6 +321,18 @@ public class PollIntegrationsHandlerTests
 
     private void SetupWorkflow(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingWorkflowRunsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private void SetupQueue(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimPendingQueueRunsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+        .Returns(result);
+
+    private void SetupFile(IReadOnlyList<ClaimedWork> result) =>
+        _repository.ClaimPendingFileRunsAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);

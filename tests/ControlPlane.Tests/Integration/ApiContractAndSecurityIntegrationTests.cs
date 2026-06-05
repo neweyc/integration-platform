@@ -61,6 +61,20 @@ public class ApiContractAndSecurityIntegrationTests
         AssertNumberProperty(listItem, "retryBackoffSeconds", 30);
         Assert.True(listItem.TryGetProperty("lastExecution", out _));
 
+        using var triggerAdapters = await GetJsonDocumentAsync(client, "/api/trigger-adapters");
+        var adapters = triggerAdapters.RootElement.GetProperty("adapters").EnumerateArray().ToList();
+        Assert.Contains(adapters, a =>
+            AssertStringProperty(a, "key") == "scheduled"
+            && AssertStringProperty(a, "source") == "Scheduled"
+            && AssertStringProperty(a, "triggerType") == "Scheduled"
+            && AssertBoolProperty(a, "requiresStoredTrigger"));
+        Assert.Contains(adapters, a =>
+            AssertStringProperty(a, "key") == "queue"
+            && AssertStringProperty(a, "source") == "Queue"
+            && AssertStringProperty(a, "triggerType") == "Queue"
+            && AssertBoolProperty(a, "supportsPayload")
+            && AssertBoolProperty(a, "supportsDeduplication"));
+
         using var createdToken = await PostJsonDocumentAsync(
             client,
             "/api/agent-tokens",
@@ -424,6 +438,13 @@ public class ApiContractAndSecurityIntegrationTests
     {
         Assert.True(element.TryGetProperty(propertyName, out var property), $"Missing '{propertyName}'.");
         Assert.Equal(expected, property.GetInt32());
+    }
+
+    private static bool AssertBoolProperty(JsonElement element, string propertyName)
+    {
+        Assert.True(element.TryGetProperty(propertyName, out var property), $"Missing '{propertyName}'.");
+        Assert.True(property.ValueKind is JsonValueKind.True or JsonValueKind.False);
+        return property.GetBoolean();
     }
 
     private sealed record SetupResponse(Guid TenantId, string Token);

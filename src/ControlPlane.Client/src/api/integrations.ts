@@ -1,6 +1,7 @@
 import { api } from './client'
 
-export type TriggerType = 'Scheduled' | 'Webhook' | 'Manual'
+export type TriggerType = 'Scheduled' | 'Webhook' | 'Manual' | 'Queue' | 'File'
+export type TriggerSource = 'Scheduled' | 'Manual' | 'Webhook' | 'Retry' | 'Workflow' | 'Queue' | 'File'
 export type IntegrationStatus = 'Enabled' | 'Disabled'
 
 export interface IntegrationTrigger {
@@ -86,6 +87,21 @@ export interface ManualRunResult {
   requestedAt: string
 }
 
+export interface TriggerAdapterDescriptor {
+  key: string
+  displayName: string
+  source: TriggerSource
+  triggerType?: TriggerType | null
+  requiresStoredTrigger: boolean
+  supportsPayload: boolean
+  supportsDeduplication: boolean
+  description: string
+}
+
+export interface ListTriggerAdaptersResponse {
+  adapters: TriggerAdapterDescriptor[]
+}
+
 export const integrationsApi = {
   list: (environment?: string) => {
     const query = environment ? `?environment=${environment}` : ''
@@ -100,4 +116,5 @@ export const integrationsApi = {
   update: (id: string, data: UpdateIntegrationRequest) => api.put<Integration>(`/integrations/${id}`, data),
   delete: (id: string) => api.delete<void>(`/integrations/${id}`),
   runManual: (id: string) => api.post<ManualRunResult>(`/integrations/${id}/run`, {}),
+  triggerAdapters: () => api.get<ListTriggerAdaptersResponse>('/trigger-adapters'),
 }

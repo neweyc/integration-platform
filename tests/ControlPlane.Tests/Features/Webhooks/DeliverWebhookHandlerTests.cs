@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using NSubstitute;
@@ -11,11 +12,12 @@ public class DeliverWebhookHandlerTests
 {
     private readonly IWebhookRepository _repository = Substitute.For<IWebhookRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly ITriggerWorkItemProducer _workItemProducer = Substitute.For<ITriggerWorkItemProducer>();
     private readonly DeliverWebhookHandler _handler;
 
     public DeliverWebhookHandlerTests()
     {
-        _handler = new DeliverWebhookHandler(_repository, _encryption);
+        _handler = new DeliverWebhookHandler(_repository, _encryption, _workItemProducer);
     }
 
     [Fact]
@@ -28,38 +30,38 @@ public class DeliverWebhookHandlerTests
 
         _repository.FindAsync("acme", "orders", "default").Returns((tenant, integration, trigger));
         _encryption.Decrypt(trigger.EncryptedWebhookSecret!).Returns(secret);
-        _repository.CreateWorkItemAsync(Arg.Any<WorkItem>())
+        _workItemProducer.EnqueueAsync(Arg.Any<TriggerWorkItemRequest>())
             .Returns(call =>
             {
-                var item = call.Arg<WorkItem>();
-                return new WorkItem
+                var request = call.Arg<TriggerWorkItemRequest>();
+                var workItem = new WorkItem
                 {
                     Id = Guid.NewGuid(),
-                    TenantId = item.TenantId,
-                    IntegrationId = item.IntegrationId,
-                    IntegrationTriggerId = item.IntegrationTriggerId,
-                    Environment = item.Environment,
-                    TriggerSource = item.TriggerSource,
-                    Status = item.Status,
-                    AvailableAt = item.AvailableAt,
-                    Payload = item.Payload,
-                    DeliveryId = item.DeliveryId
+                    TenantId = request.TenantId,
+                    IntegrationId = request.IntegrationId,
+                    IntegrationTriggerId = request.IntegrationTriggerId,
+                    Environment = request.Environment,
+                    TriggerSource = request.TriggerSource,
+                    Status = WorkItemStatus.Pending,
+                    AvailableAt = request.AvailableAt,
+                    Payload = request.Payload,
+                    DeliveryId = request.DeliveryId
                 };
+                return new TriggerWorkItemResult(TriggerWorkItemOutcome.ConvertedToWork, workItem);
             });
 
         var result = await _handler.HandleAsync(Command(Signature(secret, ts, body), ts, "delivery-1", body));
 
         Assert.True(result.Queued);
         Assert.NotEqual(Guid.Empty, result.WorkItemId);
-        await _repository.Received(1).CreateWorkItemAsync(Arg.Is<WorkItem>(w =>
-            w.TenantId == tenant.Id
-            && w.IntegrationId == integration.Id
-            && w.IntegrationTriggerId == trigger.Id
-            && w.Environment == integration.Environment
-            && w.TriggerSource == TriggerSource.Webhook
-            && w.Status == WorkItemStatus.Pending
-            && w.Payload == """{"orderId":123}"""
-            && w.DeliveryId == "delivery-1"));
+        await _workItemProducer.Received(1).EnqueueAsync(Arg.Is<TriggerWorkItemRequest>(r =>
+            r.TenantId == tenant.Id
+            && r.IntegrationId == integration.Id
+            && r.IntegrationTriggerId == trigger.Id
+            && r.Environment == integration.Environment
+            && r.TriggerSource == TriggerSource.Webhook
+            && r.Payload == """{"orderId":123}"""
+            && r.DeliveryId == "delivery-1"));
         await _repository.Received(1).RecordDeliveryAsync(Arg.Is<WebhookDelivery>(d =>
             d.TenantId == tenant.Id
             && d.IntegrationId == integration.Id
@@ -107,7 +109,7 @@ public class DeliverWebhookHandlerTests
             && d.IntegrationId == integration.Id
             && d.IntegrationTriggerId == trigger.Id
             && d.Outcome == WebhookDeliveryOutcome.Expired));
-        await _repository.DidNotReceive().CreateWorkItemAsync(Arg.Any<WorkItem>());
+        await _workItemProducer.DidNotReceive().EnqueueAsync(Arg.Any<TriggerWorkItemRequest>());
     }
 
     [Fact]
@@ -155,7 +157,7 @@ public class DeliverWebhookHandlerTests
 
         Assert.False(result.Queued);
         Assert.Equal(Guid.Empty, result.WorkItemId);
-        await _repository.DidNotReceive().CreateWorkItemAsync(Arg.Any<WorkItem>());
+        await _workItemProducer.DidNotReceive().EnqueueAsync(Arg.Any<TriggerWorkItemRequest>());
         await _repository.Received(1).RecordDeliveryAsync(Arg.Is<WebhookDelivery>(d =>
             d.TenantId == tenant.Id
             && d.IntegrationId == integration.Id
@@ -175,7 +177,8 @@ public class DeliverWebhookHandlerTests
         _repository.FindAsync("acme", "orders", "default").Returns((tenant, integration, trigger));
         _encryption.Decrypt(trigger.EncryptedWebhookSecret!).Returns(secret);
         _repository.DeliveryExistsAsync(tenant.Id, integration.Id, trigger.Id, "delivery-1").Returns(false);
-        _repository.CreateWorkItemAsync(Arg.Any<WorkItem>()).Returns((WorkItem?)null);
+        _workItemProducer.EnqueueAsync(Arg.Any<TriggerWorkItemRequest>())
+            .Returns(new TriggerWorkItemResult(TriggerWorkItemOutcome.Deduplicated, null));
 
         var result = await _handler.HandleAsync(Command(Signature(secret, ts, body), ts, "delivery-1", body));
 

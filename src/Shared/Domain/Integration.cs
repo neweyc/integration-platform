@@ -39,5 +39,7 @@ public enum TriggerType
 {
     Scheduled,
     Webhook,
-    Manual
+    Manual,
+    Queue,
+    File
 }

@@ -403,7 +403,7 @@ Acceptance criteria:
 
 ### Assembly Scanning & Auto-Provisioning
 
-**Status:** Todo
+**Status:** In Progress
 
 Automatically create or update integration records when a package is uploaded.
 
@@ -459,6 +459,20 @@ Candidate adapters:
 Design rule:
 
 - Triggers produce `WorkItem`; agents execute `WorkItem`; integration code receives normalized context through `IIntegrationContext`.
+
+Completed notes:
+
+- Added `ITriggerAdapter`, `ITriggerAdapterCatalog`, and built-in descriptors for scheduled, manual, webhook, queue, and file adapters.
+- Added `GET /api/trigger-adapters` so UI/tooling can discover adapter capabilities instead of hardcoding them.
+- Added `ITriggerWorkItemProducer` as the shared path from normalized trigger events to pending `WorkItem` records.
+- Manual run and webhook delivery now enqueue work through the shared producer.
+- Added Queue/File trigger source and trigger type enum values without changing the runtime agent execution contract.
+- Queue/File work items are claimable through the standard agent poll path once a listener produces them.
+- Added tests for adapter catalog discovery and a queue-style adapter using the shared producer path.
+
+Remaining limitations:
+
+- Generic persisted trigger-event observability is not implemented yet. Webhooks persist delivery outcomes today; queue/file/database adapters need equivalent received/accepted/deduplicated/rejected event records before this item should be marked done.
 
 ### Core Connectors
 

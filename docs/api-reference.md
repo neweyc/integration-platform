@@ -418,6 +418,42 @@ Legacy direct user registration within the authenticated user's tenant. This end
 
 ---
 
+### `GET /api/trigger-adapters`
+
+Lists trigger adapter descriptors available to the control plane. This is a discovery endpoint for UI/tooling; queue and file adapters are descriptors until concrete listeners are implemented.
+
+**Auth:** JWT with `ViewIntegrations`
+
+**Response**
+```json
+{
+  "adapters": [
+    {
+      "key": "scheduled",
+      "displayName": "Scheduled",
+      "source": "Scheduled",
+      "triggerType": "Scheduled",
+      "requiresStoredTrigger": true,
+      "supportsPayload": false,
+      "supportsDeduplication": false,
+      "description": "Evaluates cron state for enabled scheduled triggers and creates due work items."
+    },
+    {
+      "key": "queue",
+      "displayName": "Queue",
+      "source": "Queue",
+      "triggerType": "Queue",
+      "requiresStoredTrigger": true,
+      "supportsPayload": true,
+      "supportsDeduplication": true,
+      "description": "Future adapter for queue and event-bus messages such as SQS, Azure Service Bus, RabbitMQ, and Kafka."
+    }
+  ]
+}
+```
+
+---
+
 ### `POST /webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}`
 
 Receives an external webhook and queues a work item for the runtime agent.
@@ -979,10 +1015,10 @@ Calling this endpoint:
 | Field | Description |
 |-------|-------------|
 | `leaseExpiresAt` | When the work-item claim expires. If the agent crashes, another can reclaim after this time. |
-| `triggerSource` | `Scheduled`, `Manual`, `Webhook`, or `Retry` — indicates how this run was triggered |
+| `triggerSource` | `Scheduled`, `Manual`, `Webhook`, `Retry`, `Workflow`, `Queue`, or `File` — indicates how this run was triggered |
 | `manualRunRequestId` | For manual runs, the ID of the originating manual run request. |
 | `workItemId` | The claimed work item. Must be passed to `POST /api/agent/executions`. |
-| `payload` | For webhook runs, the raw request body passed to `IIntegrationContext.Payload`. |
+| `payload` | Normalized trigger payload passed to `IIntegrationContext.Payload` for payload-capable triggers such as webhook, queue, and file. |
 
 ---
 

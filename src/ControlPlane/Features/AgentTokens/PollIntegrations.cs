@@ -68,6 +68,22 @@ public interface IPollRepository
         TimeSpan claimDuration,
         DateTime now,
         CancellationToken ct = default);
+
+    Task<IReadOnlyList<ClaimedWork>> ClaimPendingQueueRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<ClaimedWork>> ClaimPendingFileRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default);
 }
 
 public record ClaimedWork(Integration Integration, WorkItem WorkItem);
@@ -94,6 +110,12 @@ public class PollIntegrationsHandler(IPollRepository repository)
             command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var workflowRuns = await repository.ClaimPendingWorkflowRunsAsync(
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+
+        var queueRuns = await repository.ClaimPendingQueueRunsAsync(
+            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+
+        var fileRuns = await repository.ClaimPendingFileRunsAsync(
             command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var items = new List<AgentIntegrationItem>();
@@ -186,6 +208,42 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.WorkItem.Id,
                 w.Integration.PackageId,
                 w.WorkItem.Payload));
+        }
+
+        foreach (var q in queueRuns)
+        {
+            items.Add(new AgentIntegrationItem(
+                q.Integration.Id,
+                q.Integration.Name,
+                q.Integration.Slug,
+                TriggerTypeFor(q.WorkItem),
+                null,
+                q.Integration.ClassName,
+                q.WorkItem.ClaimExpiresAt,
+                TriggerSource.Queue,
+                null,
+                q.Integration.TimeoutSeconds,
+                q.WorkItem.Id,
+                q.Integration.PackageId,
+                q.WorkItem.Payload));
+        }
+
+        foreach (var f in fileRuns)
+        {
+            items.Add(new AgentIntegrationItem(
+                f.Integration.Id,
+                f.Integration.Name,
+                f.Integration.Slug,
+                TriggerTypeFor(f.WorkItem),
+                null,
+                f.Integration.ClassName,
+                f.WorkItem.ClaimExpiresAt,
+                TriggerSource.File,
+                null,
+                f.Integration.TimeoutSeconds,
+                f.WorkItem.Id,
+                f.Integration.PackageId,
+                f.WorkItem.Payload));
         }
 
         return new PollIntegrationsResult(items);

@@ -52,6 +52,14 @@ Trigger adapters should not introduce trigger-specific execution APIs. The runti
 
 The product direction is to store trigger configuration separately from executable integration metadata. An integration is the code and run policy; trigger records are the schedules, webhooks, queues, file arrivals, API events, or other producers that can create work for that integration. This lets one integration have multiple triggers while preserving the same work-item execution path.
 
+The control plane adapter framework has three pieces:
+
+- `ITriggerAdapter` declares adapter metadata such as source, stored-trigger requirement, payload support, and deduplication support.
+- `ITriggerAdapterCatalog` exposes scheduled, manual, webhook, queue, and file adapter descriptors.
+- `ITriggerWorkItemProducer` accepts a normalized `TriggerWorkItemRequest` and writes the pending `WorkItem`.
+
+Queue/file implementations should add listener-specific validation and credentials, then use the shared producer rather than creating a new agent execution API.
+
 ## Integrations
 
 Integrations answer: "What business outcome should happen?"

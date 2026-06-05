@@ -46,7 +46,7 @@ An integration is a named, versioned definition of a job. It does not contain co
 | Slug | URL-safe identifier, unique within a tenant |
 | Description | Optional notes |
 | Environment | `production`, `staging`, etc. |
-| Trigger type | Built-in values today: `Scheduled`, `Webhook`, or `Manual`. Future trigger adapters should also enqueue work items. |
+| Trigger type | Built-in values today: `Scheduled`, `Webhook`, or `Manual`; framework descriptors also reserve `Queue` and `File` for listener adapters. |
 | Cron expression | Required when trigger is `Scheduled` |
 | Status | `Enabled` or `Disabled` |
 

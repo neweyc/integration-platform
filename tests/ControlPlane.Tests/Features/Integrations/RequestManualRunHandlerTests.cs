@@ -1,4 +1,5 @@
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -8,13 +9,14 @@ namespace ControlPlane.Tests.Features.Integrations;
 public class RequestManualRunHandlerTests
 {
     private readonly IManualRunRepository _repository = Substitute.For<IManualRunRepository>();
+    private readonly ITriggerWorkItemProducer _workItemProducer = Substitute.For<ITriggerWorkItemProducer>();
     private readonly RequestManualRunHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly Guid _integrationId = Guid.NewGuid();
 
     public RequestManualRunHandlerTests()
     {
-        _handler = new RequestManualRunHandler(_repository);
+        _handler = new RequestManualRunHandler(_repository, _workItemProducer);
     }
 
     [Fact]
@@ -45,14 +47,13 @@ public class RequestManualRunHandlerTests
         Assert.Equal("Sync Orders", result.IntegrationName);
         Assert.Equal("production", result.Environment);
 
-        await _repository.Received(1).CreateWorkItemAsync(
-            Arg.Is<WorkItem>(w =>
-                w.TenantId == _tenantId
-                && w.IntegrationId == _integrationId
-                && w.Environment == "production"
-                && w.TriggerSource == TriggerSource.Manual
-                && w.Status == WorkItemStatus.Pending
-                && w.ManualRunRequestId == result.RequestId),
+        await _workItemProducer.Received(1).EnqueueAsync(
+            Arg.Is<TriggerWorkItemRequest>(r =>
+                r.TenantId == _tenantId
+                && r.IntegrationId == _integrationId
+                && r.Environment == "production"
+                && r.TriggerSource == TriggerSource.Manual
+                && r.ManualRunRequestId == result.RequestId),
             Arg.Any<CancellationToken>());
     }
 

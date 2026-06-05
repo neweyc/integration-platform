@@ -1,6 +1,5 @@
 using ControlPlane.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using Shared.Domain;
 
 namespace ControlPlane.Features.Webhooks;
@@ -35,22 +34,6 @@ public class WebhookRepository(AppDbContext db) : IWebhookRepository
                  && w.IntegrationId == integrationId
                  && w.IntegrationTriggerId == integrationTriggerId
                  && w.DeliveryId == deliveryId, ct);
-
-    public async Task<WorkItem?> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default)
-    {
-        db.WorkItems.Add(workItem);
-        try
-        {
-            await db.SaveChangesAsync(ct);
-            return workItem;
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
-        {
-            // Unique (TenantId, IntegrationId, DeliveryId) violation; a concurrent duplicate delivery won the race.
-            db.Entry(workItem).State = EntityState.Detached;
-            return null;
-        }
-    }
 
     public async Task RecordDeliveryAsync(WebhookDelivery delivery, CancellationToken ct = default)
     {

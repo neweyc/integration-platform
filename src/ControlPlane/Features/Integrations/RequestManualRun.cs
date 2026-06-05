@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Features.Triggers;
 using Microsoft.EntityFrameworkCore;
 using Shared.Domain;
 
@@ -25,10 +26,9 @@ public interface IManualRunRepository
     Task<bool> HasPendingRunAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
     Task<bool> HasRunningExecutionAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default);
     Task<ManualRunRequest> CreateAsync(ManualRunRequest request, CancellationToken ct = default);
-    Task<WorkItem> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default);
 }
 
-public class RequestManualRunHandler(IManualRunRepository repository)
+public class RequestManualRunHandler(IManualRunRepository repository, ITriggerWorkItemProducer workItemProducer)
     : ICommandHandler<RequestManualRunCommand, ManualRunResult>
 {
     public async Task<ManualRunResult> HandleAsync(RequestManualRunCommand command, CancellationToken ct = default)
@@ -61,17 +61,15 @@ public class RequestManualRunHandler(IManualRunRepository repository)
 
         var created = await repository.CreateAsync(request, ct);
 
-        // Create a pending work item so agents can pick up this manual run
-        await repository.CreateWorkItemAsync(new WorkItem
-        {
-            TenantId = command.TenantId,
-            IntegrationId = command.IntegrationId,
-            Environment = integration.Environment,
-            TriggerSource = TriggerSource.Manual,
-            Status = WorkItemStatus.Pending,
-            AvailableAt = now,
-            ManualRunRequestId = created.Id
-        }, ct);
+        await workItemProducer.EnqueueAsync(
+            new TriggerWorkItemRequest(
+                command.TenantId,
+                command.IntegrationId,
+                integration.Environment,
+                TriggerSource.Manual,
+                now,
+                ManualRunRequestId: created.Id),
+            ct);
 
         return new ManualRunResult(
             created.Id,
@@ -118,10 +116,4 @@ public class ManualRunRepository(AppDbContext db) : IManualRunRepository
         return request;
     }
 
-    public async Task<WorkItem> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default)
-    {
-        db.WorkItems.Add(workItem);
-        await db.SaveChangesAsync(ct);
-        return workItem;
-    }
 }

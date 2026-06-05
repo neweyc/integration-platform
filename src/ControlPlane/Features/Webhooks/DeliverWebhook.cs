@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shared.Domain;
@@ -25,14 +26,13 @@ public interface IWebhookRepository
     Task<bool> DeliveryExistsAsync(
         Guid tenantId, Guid integrationId, Guid integrationTriggerId, string deliveryId, CancellationToken ct = default);
 
-    // Returns null if a concurrent delivery with the same integration-scoped DeliveryId
-    // already inserted (unique-index race backstop), otherwise the persisted work item.
-    Task<WorkItem?> CreateWorkItemAsync(WorkItem workItem, CancellationToken ct = default);
-
     Task RecordDeliveryAsync(WebhookDelivery delivery, CancellationToken ct = default);
 }
 
-public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionService encryption)
+public class DeliverWebhookHandler(
+    IWebhookRepository repository,
+    IEncryptionService encryption,
+    ITriggerWorkItemProducer workItemProducer)
     : ICommandHandler<DeliverWebhookCommand, DeliverWebhookResult>
 {
     public const long MaxPayloadBytes = 10 * 1024 * 1024; // 10 MB
@@ -82,24 +82,21 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
             return new DeliverWebhookResult(Guid.Empty, Queued: false);
         }
 
-        var workItem = new WorkItem
-        {
-            TenantId = tenant.Id,
-            IntegrationId = integration.Id,
-            IntegrationTriggerId = trigger.Id,
-            Environment = integration.Environment,
-            TriggerSource = TriggerSource.Webhook,
-            Status = WorkItemStatus.Pending,
-            AvailableAt = DateTime.UtcNow,
-            Payload = Encoding.UTF8.GetString(command.BodyBytes),
-            DeliveryId = command.DeliveryId
-        };
+        var result = await workItemProducer.EnqueueAsync(
+            new TriggerWorkItemRequest(
+                tenant.Id,
+                integration.Id,
+                integration.Environment,
+                TriggerSource.Webhook,
+                DateTime.UtcNow,
+                IntegrationTriggerId: trigger.Id,
+                Payload: Encoding.UTF8.GetString(command.BodyBytes),
+                DeliveryId: command.DeliveryId),
+            ct);
 
-        // Race backstop: the unique (TenantId, IntegrationId, DeliveryId) index rejects a
-        // concurrent duplicate that slipped past the fast-path check above; treat it as deduped.
-        var created = await repository.CreateWorkItemAsync(workItem, ct);
-
-        if (created is null)
+        // Race backstop: the unique delivery index rejects a concurrent duplicate that slipped
+        // past the fast-path check above; the shared producer reports it as deduped.
+        if (result.Outcome == TriggerWorkItemOutcome.Deduplicated || result.WorkItem is null)
         {
             await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
                 WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
@@ -107,9 +104,9 @@ public class DeliverWebhookHandler(IWebhookRepository repository, IEncryptionSer
         }
 
         await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-            WebhookDeliveryOutcome.Accepted, created.Id, ct);
+            WebhookDeliveryOutcome.Accepted, result.WorkItem.Id, ct);
 
-        return new DeliverWebhookResult(created.Id, Queued: true);
+        return new DeliverWebhookResult(result.WorkItem.Id, Queued: true);
     }
 
     private Task RecordDeliveryAsync(

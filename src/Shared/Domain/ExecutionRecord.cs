@@ -42,5 +42,7 @@ public enum TriggerSource
     Manual,
     Webhook,
     Retry,
-    Workflow
+    Workflow,
+    Queue,
+    File
 }

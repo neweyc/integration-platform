@@ -10,6 +10,7 @@ using ControlPlane.Features.Invitations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Features.UserTokens;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Features.Workflows;
@@ -119,6 +120,13 @@ builder.Services.AddScoped<ICommandHandler<ListAuditLogCommand, ListAuditLogResu
 builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecutionLogsResult>, ListExecutionLogsHandler>();
 builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
 builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
+builder.Services.AddScoped<ITriggerWorkItemProducer, TriggerWorkItemProducer>();
+builder.Services.AddScoped<ITriggerAdapter, ScheduledTriggerAdapter>();
+builder.Services.AddScoped<ITriggerAdapter, ManualTriggerAdapter>();
+builder.Services.AddScoped<ITriggerAdapter, WebhookTriggerAdapter>();
+builder.Services.AddScoped<ITriggerAdapter, QueueTriggerAdapter>();
+builder.Services.AddScoped<ITriggerAdapter, FileTriggerAdapter>();
+builder.Services.AddScoped<ITriggerAdapterCatalog, TriggerAdapterCatalog>();
 
 // Workflows feature
 builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
@@ -235,6 +243,7 @@ app.MapUserTokenEndpoints();
 app.MapInvitationEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
+app.MapTriggerAdapterEndpoints();
 app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
 app.MapWebhookEndpoints();

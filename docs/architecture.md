@@ -231,7 +231,13 @@ Scheduled, manual, and webhook triggers are the first built-in adapters:
 - **Manual** turns a user "run now" request into a pending work item.
 - **Webhook** validates an inbound signed request, stores the payload, records delivery state, and creates a pending work item.
 
-Future trigger types should follow the same contract. Queue messages, file arrivals, database changes, workflow dependencies, dataset availability, and API events should all normalize their event metadata into a work item instead of introducing trigger-specific execution APIs. This keeps the runtime agent simple and makes observability, retries, claim recovery, and execution history consistent across trigger sources.
+The control plane exposes this rule as a trigger adapter framework:
+
+- `ITriggerAdapter` describes a trigger source and whether it needs stored trigger configuration, payload support, and deduplication.
+- `ITriggerAdapterCatalog` lists built-in and planned adapters for product/API discovery.
+- `ITriggerWorkItemProducer` is the shared conversion path from normalized trigger events into `WorkItem` rows.
+
+Queue and file adapters are registered as framework descriptors now, and queue/file work items are claimable through the standard agent poll path. Their concrete listeners should follow the same contract: receive or detect an event, validate it, normalize payload/metadata into a `TriggerWorkItemRequest`, and enqueue through `ITriggerWorkItemProducer`. Database changes, workflow dependencies, dataset availability, and API events should follow the same pattern instead of introducing trigger-specific execution APIs. This keeps the runtime agent simple and makes observability, retries, claim recovery, and execution history consistent across trigger sources.
 
 The implementation separates executable integration code from trigger configuration:
 

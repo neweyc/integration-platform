@@ -272,6 +272,38 @@ public class PollRepository(AppDbContext db) : IPollRepository
             now,
             ct);
 
+    public Task<IReadOnlyList<ClaimedWork>> ClaimPendingQueueRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default) =>
+        ClaimPendingWorkItemsAsync(
+            tenantId,
+            environment,
+            TriggerSource.Queue,
+            claimOwner,
+            claimDuration,
+            now,
+            ct);
+
+    public Task<IReadOnlyList<ClaimedWork>> ClaimPendingFileRunsAsync(
+        Guid tenantId,
+        string environment,
+        Guid claimOwner,
+        TimeSpan claimDuration,
+        DateTime now,
+        CancellationToken ct = default) =>
+        ClaimPendingWorkItemsAsync(
+            tenantId,
+            environment,
+            TriggerSource.File,
+            claimOwner,
+            claimDuration,
+            now,
+            ct);
+
     private async Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkItemsAsync(
         Guid tenantId,
         string environment,
