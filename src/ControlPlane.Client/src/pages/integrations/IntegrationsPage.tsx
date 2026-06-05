@@ -6,6 +6,8 @@ import {
   type IntegrationTrigger,
   type ExecutionSummary,
   type ExecutionLogItem,
+  type TriggerEvent,
+  type TriggerEventOutcome,
   type TriggerType,
   type CreateIntegrationRequest,
   type UpdateIntegrationRequest,
@@ -74,6 +76,9 @@ export function IntegrationsPage() {
   const [editingTriggers, setEditingTriggers] = useState<IntegrationTrigger[]>([])
   const [historyIntegration, setHistoryIntegration] = useState<Integration | null>(null)
   const [selectedExecution, setSelectedExecution] = useState<ExecutionSummary | null>(null)
+  const [eventAdapterFilter, setEventAdapterFilter] = useState('')
+  const [eventOutcomeFilter, setEventOutcomeFilter] = useState<TriggerEventOutcome | ''>('')
+  const [eventTriggerFilter, setEventTriggerFilter] = useState('')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
@@ -119,6 +124,7 @@ export function IntegrationsPage() {
       setRunError(null)
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
       queryClient.invalidateQueries({ queryKey: ['integration-executions'] })
+      queryClient.invalidateQueries({ queryKey: ['trigger-events'] })
     },
     onError: (err: Error) => setRunError(err.message),
   })
@@ -141,6 +147,28 @@ export function IntegrationsPage() {
     queryKey: ['execution-logs', historyIntegration?.id, selectedExecution?.id],
     queryFn: () => integrationsApi.logs(historyIntegration!.id, selectedExecution!.id),
     enabled: canViewExecutions && historyIntegration !== null && selectedExecution !== null,
+  })
+
+  const {
+    data: triggerEvents,
+    isLoading: areTriggerEventsLoading,
+    error: triggerEventsError,
+  } = useQuery({
+    queryKey: [
+      'trigger-events',
+      historyIntegration?.id,
+      eventAdapterFilter,
+      eventOutcomeFilter,
+      eventTriggerFilter,
+    ],
+    queryFn: () => integrationsApi.triggerEvents({
+      integrationId: historyIntegration!.id,
+      adapterKey: eventAdapterFilter || undefined,
+      outcome: eventOutcomeFilter || undefined,
+      triggerId: eventTriggerFilter || undefined,
+      limit: 50,
+    }),
+    enabled: canViewExecutions && historyIntegration !== null,
   })
 
   function handleOpenCreate() {
@@ -475,6 +503,9 @@ export function IntegrationsPage() {
           if (!open) {
             setHistoryIntegration(null)
             setSelectedExecution(null)
+            setEventAdapterFilter('')
+            setEventOutcomeFilter('')
+            setEventTriggerFilter('')
           }
         }}
       >
@@ -482,11 +513,94 @@ export function IntegrationsPage() {
           <SheetHeader>
             <SheetTitle>{historyIntegration?.name ?? 'Execution history'}</SheetTitle>
             <SheetDescription>
-              Recent runtime agent executions for this integration.
+              Runtime executions and trigger events for this integration.
             </SheetDescription>
           </SheetHeader>
 
-          <div className="px-4 pb-4">
+          <div className="space-y-6 px-4 pb-4">
+            <section className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-medium">Trigger events</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Recent adapter activity and work-item conversion.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="eventAdapter" className="text-xs">Adapter</Label>
+                    <Select
+                      id="eventAdapter"
+                      value={eventAdapterFilter}
+                      onChange={e => setEventAdapterFilter(e.target.value)}
+                    >
+                      <option value="">All</option>
+                      <option value="manual">Manual</option>
+                      <option value="webhook">Webhook</option>
+                      <option value="queue">Queue</option>
+                      <option value="file">File</option>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="eventOutcome" className="text-xs">Outcome</Label>
+                    <Select
+                      id="eventOutcome"
+                      value={eventOutcomeFilter}
+                      onChange={e => setEventOutcomeFilter(e.target.value as TriggerEventOutcome | '')}
+                    >
+                      <option value="">All</option>
+                      <option value="Received">Received</option>
+                      <option value="Accepted">Accepted</option>
+                      <option value="ConvertedToWork">Converted</option>
+                      <option value="Deduplicated">Deduped</option>
+                      <option value="Rejected">Rejected</option>
+                      <option value="Failed">Failed</option>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="eventTrigger" className="text-xs">Trigger</Label>
+                    <Select
+                      id="eventTrigger"
+                      value={eventTriggerFilter}
+                      onChange={e => setEventTriggerFilter(e.target.value)}
+                    >
+                      <option value="">All</option>
+                      {historyIntegration?.triggers.map(trigger => (
+                        <option key={trigger.id ?? trigger.slug} value={trigger.id ?? ''}>
+                          {trigger.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {triggerEventsError && (
+                <p className="text-sm text-destructive">
+                  {triggerEventsError instanceof Error
+                    ? triggerEventsError.message
+                    : 'Failed to load trigger events.'}
+                </p>
+              )}
+
+              {areTriggerEventsLoading ? (
+                <TriggerEventsSkeleton />
+              ) : (
+                <TriggerEventsList
+                  events={triggerEvents?.events ?? []}
+                  triggers={historyIntegration?.triggers ?? []}
+                />
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <h3 className="text-sm font-medium">Executions</h3>
+                <p className="text-xs text-muted-foreground">
+                  Recent runtime agent runs.
+                </p>
+              </div>
+
             {historyError && (
               <p className="text-sm text-destructive">
                 {historyError instanceof Error
@@ -504,6 +618,7 @@ export function IntegrationsPage() {
                 onSelectExecution={setSelectedExecution}
               />
             )}
+            </section>
 
             {selectedExecution && (
               <div className="mt-6 space-y-3">
@@ -663,6 +778,107 @@ function StatusBadge({ status }: { status: Integration['status'] }) {
   )
 }
 
+function TriggerEventsList({
+  events,
+  triggers,
+}: {
+  events: TriggerEvent[]
+  triggers: IntegrationTrigger[]
+}) {
+  if (events.length === 0) {
+    return (
+      <div className="text-center py-10 text-muted-foreground border rounded-lg">
+        <p className="text-sm">No trigger events recorded.</p>
+      </div>
+    )
+  }
+
+  const triggerNames = new Map(
+    triggers
+      .filter(trigger => trigger.id)
+      .map(trigger => [trigger.id!, trigger.name])
+  )
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Received</TableHead>
+            <TableHead>Adapter</TableHead>
+            <TableHead>Outcome</TableHead>
+            <TableHead>Event key</TableHead>
+            <TableHead>Trigger</TableHead>
+            <TableHead>Work item</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {events.map(event => (
+            <TableRow key={event.id}>
+              <TableCell>
+                <div>
+                  <p className="text-sm">{formatDateTime(event.receivedAt)}</p>
+                  {event.errorMessage && (
+                    <p className="max-w-48 truncate text-xs text-destructive" title={event.errorMessage}>
+                      {event.errorMessage}
+                    </p>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <Badge variant="outline">{event.adapterKey}</Badge>
+                  <p className="text-xs text-muted-foreground">{event.source}</p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <TriggerEventOutcomeBadge outcome={event.outcome} />
+              </TableCell>
+              <TableCell>
+                {event.eventKey ? (
+                  <code className="block max-w-36 truncate rounded bg-muted px-1.5 py-0.5 text-xs" title={event.eventKey}>
+                    {event.eventKey}
+                  </code>
+                ) : (
+                  <span className="text-sm text-muted-foreground">None</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {event.integrationTriggerId ? (
+                  <span className="text-sm">
+                    {triggerNames.get(event.integrationTriggerId) ?? shortId(event.integrationTriggerId)}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">None</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {event.workItemId ? (
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{shortId(event.workItemId)}</code>
+                ) : (
+                  <span className="text-sm text-muted-foreground">None</span>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function TriggerEventOutcomeBadge({ outcome }: { outcome: TriggerEventOutcome }) {
+  const variant = outcome === 'Rejected' || outcome === 'Failed'
+    ? 'destructive'
+    : outcome === 'Deduplicated'
+      ? 'secondary'
+      : outcome === 'Received'
+        ? 'outline'
+        : 'default'
+
+  return <Badge variant={variant}>{outcome === 'ConvertedToWork' ? 'Converted' : outcome}</Badge>
+}
+
 function ExecutionStatusBadge({ status }: { status: ExecutionSummary['status'] }) {
   const variant = status === 'Failed' ? 'destructive' : status === 'Running' ? 'secondary' : 'default'
 
@@ -810,6 +1026,37 @@ function ExecutionLogsSkeleton() {
   )
 }
 
+function TriggerEventsSkeleton() {
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Received</TableHead>
+            <TableHead>Adapter</TableHead>
+            <TableHead>Outcome</TableHead>
+            <TableHead>Event key</TableHead>
+            <TableHead>Trigger</TableHead>
+            <TableHead>Work item</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <TableRow key={i}>
+              <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 function ExecutionHistorySkeleton() {
   return (
     <div className="border rounded-lg">
@@ -862,6 +1109,10 @@ function formatLogTime(value: string) {
     minute: '2-digit',
     second: '2-digit',
   }).format(new Date(value))
+}
+
+function shortId(value: string) {
+  return value.slice(0, 8)
 }
 
 function formatJson(value: string) {
