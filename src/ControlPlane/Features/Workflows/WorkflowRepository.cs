@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Features.Triggers;
 using Microsoft.EntityFrameworkCore;
 using Shared.Domain;
 
@@ -12,13 +13,14 @@ public interface IWorkflowRepository
     Task<WorkflowDefinition> CreateAsync(WorkflowDefinition workflow, CancellationToken ct = default);
     Task<WorkflowDefinition?> GetDefinitionAsync(Guid tenantId, Guid workflowId, CancellationToken ct = default);
     Task<IReadOnlyList<WorkflowRun>> ListRunsAsync(Guid tenantId, Guid workflowId, int limit, CancellationToken ct = default);
-    Task<WorkflowRun> CreateRunAsync(WorkflowRun run, IReadOnlyList<WorkItem> rootWorkItems, CancellationToken ct = default);
+    Task<WorkflowRun> CreateRunAsync(WorkflowRun run, IReadOnlyList<WorkItem> rootWorkItems, IReadOnlyList<TriggerEvent> rootTriggerEvents, CancellationToken ct = default);
     Task<WorkflowNodeRun?> GetNodeRunForWorkItemAsync(Guid tenantId, Guid workItemId, CancellationToken ct = default);
     Task<IReadOnlyList<WorkflowEdge>> GetOutgoingEdgesAsync(Guid tenantId, Guid workflowDefinitionId, Guid fromNodeId, CancellationToken ct = default);
     Task<bool> DependenciesSucceededAsync(Guid tenantId, Guid workflowRunId, Guid nodeId, CancellationToken ct = default);
     Task<IReadOnlyList<WorkflowNodeRun>> GetNodeRunsAsync(Guid tenantId, Guid workflowRunId, CancellationToken ct = default);
     Task<WorkflowNodeRun?> GetNodeRunAsync(Guid tenantId, Guid workflowRunId, Guid nodeId, CancellationToken ct = default);
     void AddWorkItem(WorkItem workItem);
+    void AddTriggerEvent(TriggerEvent triggerEvent);
     Task SaveChangesAsync(CancellationToken ct = default);
 }
 
@@ -71,7 +73,11 @@ public class WorkflowRepository(AppDbContext db) : IWorkflowRepository
             .Take(limit)
             .ToListAsync(ct);
 
-    public async Task<WorkflowRun> CreateRunAsync(WorkflowRun run, IReadOnlyList<WorkItem> rootWorkItems, CancellationToken ct = default)
+    public async Task<WorkflowRun> CreateRunAsync(
+        WorkflowRun run,
+        IReadOnlyList<WorkItem> rootWorkItems,
+        IReadOnlyList<TriggerEvent> rootTriggerEvents,
+        CancellationToken ct = default)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -80,6 +86,9 @@ public class WorkflowRepository(AppDbContext db) : IWorkflowRepository
 
         foreach (var workItem in rootWorkItems)
             db.WorkItems.Add(workItem);
+
+        foreach (var triggerEvent in rootTriggerEvents)
+            db.TriggerEvents.Add(triggerEvent);
 
         await db.SaveChangesAsync(ct);
 
@@ -149,6 +158,9 @@ public class WorkflowRepository(AppDbContext db) : IWorkflowRepository
 
     public void AddWorkItem(WorkItem workItem) =>
         db.WorkItems.Add(workItem);
+
+    public void AddTriggerEvent(TriggerEvent triggerEvent) =>
+        db.TriggerEvents.Add(triggerEvent);
 
     public Task SaveChangesAsync(CancellationToken ct = default) =>
         db.SaveChangesAsync(ct);

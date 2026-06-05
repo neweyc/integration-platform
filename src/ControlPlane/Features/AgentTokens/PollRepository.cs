@@ -1,4 +1,6 @@
 using System.Data;
+using System.Text.Json;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shared.Domain;
@@ -143,6 +145,20 @@ public class PollRepository(AppDbContext db) : IPollRepository
                         ClaimExpiresAt = claimExpiresAt
                     };
                     db.WorkItems.Add(workItem);
+                    db.TriggerEvents.Add(TriggerEventRecorder.Create(
+                        new TriggerEventRecord(
+                            tenantId,
+                            integration.Id,
+                            "scheduled",
+                            TriggerSource.Scheduled,
+                            TriggerEventOutcome.ConvertedToWork,
+                            now,
+                            IntegrationTriggerId: trigger.Id,
+                            WorkItemId: workItem.Id,
+                            MetadataJson: JsonSerializer.Serialize(new Dictionary<string, object?>
+                            {
+                                ["cronExpression"] = trigger.CronExpression
+                            }))));
 
                     claimed.Add(new ClaimedWork(integration, workItem));
                 }

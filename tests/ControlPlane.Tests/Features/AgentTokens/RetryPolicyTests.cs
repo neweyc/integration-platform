@@ -1,4 +1,5 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Features.Workflows;
 using NSubstitute;
 using Shared.Domain;
@@ -11,11 +12,12 @@ public class RetryPolicyTests
     private readonly IWorkItemRepository _workItemRepository = Substitute.For<IWorkItemRepository>();
     private readonly IIntegrationValidationRepository _integrationRepository = Substitute.For<IIntegrationValidationRepository>();
     private readonly IWorkflowProgressionService _workflowProgression = Substitute.For<IWorkflowProgressionService>();
+    private readonly ITriggerEventRecorder _triggerEvents = Substitute.For<ITriggerEventRecorder>();
     private readonly CompleteExecutionHandler _handler;
 
     public RetryPolicyTests()
     {
-        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository, _workflowProgression);
+        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository, _workflowProgression, _triggerEvents);
     }
 
     [Fact]
@@ -73,6 +75,17 @@ public class RetryPolicyTests
             && w.ParentExecutionId == executionId
             && w.RootExecutionId == executionId
             && w.Payload == "payload"));
+
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.TenantId == tenantId
+            && e.IntegrationId == integrationId
+            && e.AdapterKey == "retry"
+            && e.Source == TriggerSource.Retry
+            && e.Outcome == TriggerEventOutcome.ConvertedToWork
+            && e.EventKey == executionId.ToString()
+            && e.WorkItemId.HasValue
+            && e.MetadataJson != null
+            && e.MetadataJson.Contains("\"attemptNumber\":2")));
     }
 
     [Fact]

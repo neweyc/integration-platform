@@ -472,6 +472,7 @@ Completed notes:
 - Added `GET /api/trigger-events` for operator visibility across trigger adapters.
 - Webhook delivery now records both webhook-specific delivery rows and generic trigger events.
 - Shared work-item production records `ConvertedToWork` and `Deduplicated` trigger events for future adapters.
+- Scheduled polling, workflow root/downstream dispatch, and retry scheduling now also record `ConvertedToWork` trigger events, so the trigger timeline covers all built-in work producers instead of only push-style triggers.
 - Added tests for adapter catalog discovery and a queue-style adapter using the shared producer path.
 
 ### Core Connectors

@@ -238,6 +238,8 @@ The control plane exposes this rule as a trigger adapter framework:
 - `ITriggerWorkItemProducer` is the shared conversion path from normalized trigger events into `WorkItem` rows.
 - `TriggerEvent` is the generic append-only observability record for received, accepted, deduplicated, rejected, failed, and converted trigger events.
 
+All built-in work producers must write trigger events. Manual and webhook triggers use `ITriggerWorkItemProducer`; scheduled polling, workflow root/downstream dispatch, and retry scheduling write equivalent `ConvertedToWork` events in the same transaction or immediately after retry work creation. This keeps the operator timeline representative of production activity rather than limited to externally pushed events.
+
 Queue and file adapters are registered as framework descriptors now, and queue/file work items are claimable through the standard agent poll path. Their concrete listeners should follow the same contract: receive or detect an event, validate it, record trigger-event outcomes, normalize payload/metadata into a `TriggerWorkItemRequest`, and enqueue through `ITriggerWorkItemProducer`. Database changes, workflow dependencies, dataset availability, and API events should follow the same pattern instead of introducing trigger-specific execution APIs. This keeps the runtime agent simple and makes observability, retries, claim recovery, and execution history consistent across trigger sources.
 
 The implementation separates executable integration code from trigger configuration:

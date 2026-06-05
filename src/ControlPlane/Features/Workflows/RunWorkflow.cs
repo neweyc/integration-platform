@@ -1,3 +1,5 @@
+using System.Text.Json;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Infrastructure;
 using Shared.Domain;
 
@@ -41,6 +43,7 @@ public class RunWorkflowHandler(IWorkflowRepository repository)
             });
         }
 
+        var now = DateTime.UtcNow;
         var rootWorkItems = rootNodes.Select(node => new WorkItem
         {
             TenantId = command.TenantId,
@@ -48,12 +51,28 @@ public class RunWorkflowHandler(IWorkflowRepository repository)
             Environment = workflow.Environment,
             TriggerSource = TriggerSource.Workflow,
             Status = WorkItemStatus.Pending,
-            AvailableAt = DateTime.UtcNow,
+            AvailableAt = now,
             WorkflowRunId = run.Id,
             WorkflowNodeId = node.Id
         }).ToList();
 
-        var created = await repository.CreateRunAsync(run, rootWorkItems, ct);
+        var rootTriggerEvents = rootWorkItems.Select(workItem => TriggerEventRecorder.Create(
+            new TriggerEventRecord(
+                command.TenantId,
+                workItem.IntegrationId,
+                "workflow",
+                TriggerSource.Workflow,
+                TriggerEventOutcome.ConvertedToWork,
+                now,
+                EventKey: run.Id.ToString(),
+                WorkItemId: workItem.Id,
+                MetadataJson: JsonSerializer.Serialize(new Dictionary<string, object?>
+                {
+                    ["workflowRunId"] = run.Id,
+                    ["workflowNodeId"] = workItem.WorkflowNodeId
+                })))).ToList();
+
+        var created = await repository.CreateRunAsync(run, rootWorkItems, rootTriggerEvents, ct);
         return WorkflowMapping.ToResult(created);
     }
 }

@@ -456,7 +456,7 @@ Lists trigger adapter descriptors available to the control plane. This is a disc
 
 ### `GET /api/trigger-events`
 
-Lists persisted trigger adapter events for operator observability. Events record when an adapter receives, accepts, rejects, deduplicates, or converts a trigger event into work.
+Lists persisted trigger adapter events for operator observability. Events record when an adapter receives, accepts, rejects, deduplicates, or converts a trigger event into work. Built-in scheduled polling, workflow dispatch, and retry scheduling also record `ConvertedToWork` events.
 
 **Auth:** JWT with `ViewExecutions`
 

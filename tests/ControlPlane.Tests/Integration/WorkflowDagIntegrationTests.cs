@@ -70,6 +70,20 @@ public class WorkflowDagIntegrationTests
         Assert.Equal(WorkflowRunStatus.Succeeded, workflowRun.Status);
         Assert.All(workflowRun.NodeRuns, n => Assert.Equal(WorkflowNodeRunStatus.Succeeded, n.Status));
         Assert.Equal(3, db.ExecutionRecords.Count(e => e.TriggerSource == TriggerSource.Workflow));
+
+        var workflowEvents = db.TriggerEvents
+            .Where(e => e.EventKey == run.Id.ToString())
+            .OrderBy(e => e.ReceivedAt)
+            .ToList();
+        Assert.Equal(3, workflowEvents.Count);
+        Assert.All(workflowEvents, e =>
+        {
+            Assert.Equal("workflow", e.AdapterKey);
+            Assert.Equal(TriggerSource.Workflow, e.Source);
+            Assert.Equal(TriggerEventOutcome.ConvertedToWork, e.Outcome);
+            Assert.NotNull(e.WorkItemId);
+            Assert.Contains("workflowNodeId", e.MetadataJson ?? "");
+        });
     }
 
     [Fact]

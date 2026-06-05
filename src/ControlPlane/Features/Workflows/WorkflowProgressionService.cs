@@ -1,3 +1,5 @@
+using System.Text.Json;
+using ControlPlane.Features.Triggers;
 using Shared.Domain;
 
 namespace ControlPlane.Features.Workflows;
@@ -72,6 +74,7 @@ public class WorkflowProgressionService(IWorkflowRepository repository) : IWorkf
             if (downstreamRun is null || downstreamRun.Status != WorkflowNodeRunStatus.Pending)
                 continue;
 
+            var now = DateTime.UtcNow;
             var downstreamWorkItem = new WorkItem
             {
                 TenantId = record.TenantId,
@@ -79,7 +82,7 @@ public class WorkflowProgressionService(IWorkflowRepository repository) : IWorkf
                 Environment = record.Environment,
                 TriggerSource = TriggerSource.Workflow,
                 Status = WorkItemStatus.Pending,
-                AvailableAt = DateTime.UtcNow,
+                AvailableAt = now,
                 WorkflowRunId = nodeRun.WorkflowRunId,
                 WorkflowNodeId = edge.ToNodeId
             };
@@ -87,6 +90,22 @@ public class WorkflowProgressionService(IWorkflowRepository repository) : IWorkf
             downstreamRun.WorkItemId = downstreamWorkItem.Id;
             downstreamRun.Status = WorkflowNodeRunStatus.Queued;
             repository.AddWorkItem(downstreamWorkItem);
+            repository.AddTriggerEvent(TriggerEventRecorder.Create(
+                new TriggerEventRecord(
+                    record.TenantId,
+                    downstreamWorkItem.IntegrationId,
+                    "workflow",
+                    TriggerSource.Workflow,
+                    TriggerEventOutcome.ConvertedToWork,
+                    now,
+                    EventKey: nodeRun.WorkflowRunId.ToString(),
+                    WorkItemId: downstreamWorkItem.Id,
+                    MetadataJson: JsonSerializer.Serialize(new Dictionary<string, object?>
+                    {
+                        ["workflowRunId"] = nodeRun.WorkflowRunId,
+                        ["workflowNodeId"] = edge.ToNodeId,
+                        ["upstreamExecutionId"] = record.Id
+                    }))));
         }
 
         var nodeRuns = await repository.GetNodeRunsAsync(record.TenantId, nodeRun.WorkflowRunId, ct);

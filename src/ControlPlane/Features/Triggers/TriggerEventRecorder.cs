@@ -25,7 +25,15 @@ public class TriggerEventRecorder(AppDbContext db) : ITriggerEventRecorder
 {
     public async Task<TriggerEvent> RecordAsync(TriggerEventRecord record, CancellationToken ct = default)
     {
-        var triggerEvent = new TriggerEvent
+        var triggerEvent = Create(record);
+
+        db.TriggerEvents.Add(triggerEvent);
+        await db.SaveChangesAsync(ct);
+        return triggerEvent;
+    }
+
+    public static TriggerEvent Create(TriggerEventRecord record) =>
+        new()
         {
             TenantId = record.TenantId,
             IntegrationId = record.IntegrationId,
@@ -39,11 +47,6 @@ public class TriggerEventRecorder(AppDbContext db) : ITriggerEventRecorder
             ErrorMessage = record.ErrorMessage,
             ReceivedAt = record.ReceivedAt
         };
-
-        db.TriggerEvents.Add(triggerEvent);
-        await db.SaveChangesAsync(ct);
-        return triggerEvent;
-    }
 
     internal static string NormalizeAdapterKey(string? adapterKey, TriggerSource source) =>
         string.IsNullOrWhiteSpace(adapterKey)

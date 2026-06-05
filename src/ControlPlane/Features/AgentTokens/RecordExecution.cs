@@ -1,4 +1,6 @@
+using System.Text.Json;
 using ControlPlane.Infrastructure;
+using ControlPlane.Features.Triggers;
 using ControlPlane.Features.Workflows;
 using Shared.Domain;
 
@@ -147,7 +149,8 @@ public class CompleteExecutionHandler(
     IExecutionRepository repository,
     IWorkItemRepository workItemRepository,
     IIntegrationValidationRepository integrationRepository,
-    IWorkflowProgressionService workflowProgression)
+    IWorkflowProgressionService workflowProgression,
+    ITriggerEventRecorder triggerEvents)
     : ICommandHandler<CompleteExecutionCommand, bool>
 {
     public async Task<bool> HandleAsync(CompleteExecutionCommand command, CancellationToken ct = default)
@@ -219,6 +222,23 @@ public class CompleteExecutionHandler(
             };
 
             await workItemRepository.CreateAsync(retry, ct);
+            await triggerEvents.RecordAsync(
+                new TriggerEventRecord(
+                    record.TenantId,
+                    record.IntegrationId,
+                    "retry",
+                    TriggerSource.Retry,
+                    TriggerEventOutcome.ConvertedToWork,
+                    DateTime.UtcNow,
+                    EventKey: record.Id.ToString(),
+                    WorkItemId: retry.Id,
+                    MetadataJson: JsonSerializer.Serialize(new Dictionary<string, object?>
+                    {
+                        ["attemptNumber"] = retry.AttemptNumber,
+                        ["parentExecutionId"] = record.Id,
+                        ["rootExecutionId"] = retry.RootExecutionId
+                    })),
+                ct);
             retryQueued = true;
         }
 

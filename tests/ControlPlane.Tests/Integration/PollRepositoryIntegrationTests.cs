@@ -121,6 +121,13 @@ public class PollRepositoryIntegrationTests
             var workItem = db.WorkItems.Single(w => w.IntegrationId == integration.Id);
             Assert.Equal(WorkItemStatus.Claimed, workItem.Status);
             Assert.Equal(agentId, workItem.ClaimOwner);
+
+            var triggerEvent = db.TriggerEvents.Single(e => e.WorkItemId == workItem.Id);
+            Assert.Equal("scheduled", triggerEvent.AdapterKey);
+            Assert.Equal(TriggerSource.Scheduled, triggerEvent.Source);
+            Assert.Equal(TriggerEventOutcome.ConvertedToWork, triggerEvent.Outcome);
+            Assert.Equal(workItem.IntegrationTriggerId, triggerEvent.IntegrationTriggerId);
+            Assert.Contains("cronExpression", triggerEvent.MetadataJson ?? "");
         }
     }
 

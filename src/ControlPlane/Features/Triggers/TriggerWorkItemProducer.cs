@@ -90,18 +90,17 @@ public class TriggerWorkItemProducer(AppDbContext db) : ITriggerWorkItemProducer
         TriggerEventOutcome outcome,
         Guid? workItemId,
         string? errorMessage = null) =>
-        new()
-        {
-            TenantId = request.TenantId,
-            IntegrationId = request.IntegrationId,
-            IntegrationTriggerId = request.IntegrationTriggerId,
-            AdapterKey = TriggerEventRecorder.NormalizeAdapterKey(request.AdapterKey, request.TriggerSource),
-            Source = request.TriggerSource,
-            EventKey = request.DeliveryId,
-            Outcome = outcome,
-            WorkItemId = workItemId,
-            MetadataJson = request.MetadataJson,
-            ErrorMessage = errorMessage,
-            ReceivedAt = request.ReceivedAt ?? request.AvailableAt
-        };
+        TriggerEventRecorder.Create(
+            new TriggerEventRecord(
+                request.TenantId,
+                request.IntegrationId,
+                request.AdapterKey ?? request.TriggerSource.ToString(),
+                request.TriggerSource,
+                outcome,
+                request.ReceivedAt ?? request.AvailableAt,
+                IntegrationTriggerId: request.IntegrationTriggerId,
+                EventKey: request.DeliveryId,
+                WorkItemId: workItemId,
+                MetadataJson: request.MetadataJson,
+                ErrorMessage: errorMessage));
 }
