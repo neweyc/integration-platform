@@ -742,6 +742,7 @@ Uploads a new package version.
 - File must contain at least one `.dll`
 - File must be 100 MB or smaller
 - `(name, version)` must be unique within the tenant
+- Discovered SDK integration attributes must produce valid integration and trigger metadata
 
 **Example**
 ```bash
@@ -752,7 +753,7 @@ curl -X POST http://localhost:5000/api/integration-packages \
   -F "file=@./publish/integrations.zip"
 ```
 
-**Response:** `201 Created` with package metadata
+**Response:** `201 Created` with package metadata. Upload also scans decorated `IIntegration` classes and auto-provisions matching integration and trigger records pinned to the uploaded package version.
 
 ---
 

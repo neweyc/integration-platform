@@ -56,6 +56,10 @@ public class UploadPackageHandler(
         if (await repository.VersionExistsAsync(command.TenantId, command.Name, command.Version, ct))
             throw new ConflictException($"Package '{command.Name}' version '{command.Version}' already exists.");
 
+        var discovered = scanner.ScanZip(command.Data);
+        foreach (var integration in discovered)
+            ValidateDiscoveredIntegration(command.TenantId, integration);
+
         var package = new AssemblyPackage
         {
             TenantId = command.TenantId,
@@ -70,15 +74,9 @@ public class UploadPackageHandler(
         var created = await repository.CreateAsync(package, ct);
 
         // Auto-provision integrations from code attributes
-        var discovered = scanner.ScanZip(command.Data);
         foreach (var integration in discovered)
         {
-            var trigger = new IntegrationTriggerInput(
-                integration.TriggerType.ToString(),
-                integration.TriggerType.ToString().ToLowerInvariant(),
-                integration.TriggerType,
-                Enabled: true,
-                integration.CronExpression);
+            var triggers = ToTriggerInputs(integration);
 
             await integrationRepository.UpsertBySlugAsync(new Integration
             {
@@ -93,11 +91,35 @@ public class UploadPackageHandler(
                 RetryBackoffSeconds = integration.RetryBackoffSeconds,
                 PackageId = created.Id,
                 Status = IntegrationStatus.Enabled
-            }, CreateIntegrationHandler.BuildTriggers(command.TenantId, [trigger], encryption), ct);
+            }, CreateIntegrationHandler.BuildTriggers(command.TenantId, triggers, encryption), ct);
         }
 
         return ToMetadata(created);
     }
+
+    private static void ValidateDiscoveredIntegration(Guid tenantId, DiscoveredIntegration integration)
+    {
+        CreateIntegrationHandler.ValidateCommand(new CreateIntegrationCommand(
+            tenantId,
+            integration.Name,
+            integration.Slug,
+            integration.Description,
+            "production",
+            integration.ClassName,
+            ToTriggerInputs(integration),
+            integration.TimeoutSeconds,
+            integration.RetryMaxAttempts ?? 0,
+            integration.RetryBackoffSeconds));
+    }
+
+    private static List<IntegrationTriggerInput> ToTriggerInputs(DiscoveredIntegration integration) =>
+        integration.Triggers.Select(trigger =>
+            new IntegrationTriggerInput(
+                trigger.Name,
+                trigger.Slug,
+                trigger.Type,
+                Enabled: true,
+                trigger.CronExpression)).ToList();
 
     internal static PackageMetadata ToMetadata(AssemblyPackage package) =>
         new(

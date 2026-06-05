@@ -170,6 +170,8 @@ The control plane can store compiled integration packages as tenant-scoped zip f
 
 Packages are uploaded through `POST /api/integration-packages` as `multipart/form-data`. The zip must contain at least one `.dll`. The same package name and version cannot be uploaded twice for a tenant.
 
+On upload, the control plane scans package assemblies for concrete `IIntegration` classes decorated with SDK attributes. Discovered integrations are created or updated by slug, pinned to the uploaded package version, and assigned the fully qualified class name from the assembly. Trigger attributes create or update child trigger records separately, so one integration class can be provisioned with scheduled and webhook triggers without duplicating executable integration metadata. Invalid discovered metadata, such as an invalid cron expression, rejects the upload before the package row is stored.
+
 Runtime agents can list and download tenant packages through agent-token endpoints. Downloaded packages are SHA-256 verified, extracted into the agent's `PackagesPath`, and loaded by the runtime agent.
 
 Integrations can be pinned to uploaded package versions, and execution records retain the package id/name/version used for each run. Current operational limitations: packages are not environment-scoped, package deletion does not remove local agent cache entries, rollback is performed by repointing an integration rather than through a dedicated rollback workflow, and loaded assemblies are not isolated or unloaded yet.

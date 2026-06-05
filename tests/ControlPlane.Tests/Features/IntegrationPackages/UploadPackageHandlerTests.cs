@@ -54,12 +54,13 @@ public class UploadPackageHandlerTests
                 "Nightly Sync",
                 "nightly-sync",
                 "Acme.NightlySync",
-                TriggerType.Scheduled,
-                "0 0 * * *",
                 "Syncs nightly data",
                 TimeoutSeconds: 300,
                 RetryMaxAttempts: 2,
-                RetryBackoffSeconds: 60)
+                RetryBackoffSeconds: 60,
+                [
+                    new DiscoveredIntegrationTrigger("Scheduled", "scheduled", TriggerType.Scheduled, "0 0 * * *")
+                ])
         ]);
 
         var result = await _handler.HandleAsync(new UploadPackageCommand(
@@ -83,8 +84,86 @@ public class UploadPackageHandlerTests
             && i.Status == IntegrationStatus.Enabled),
             Arg.Is<IReadOnlyList<IntegrationTrigger>>(triggers =>
                 triggers.Count == 1
+                && triggers[0].Name == "Scheduled"
+                && triggers[0].Slug == "scheduled"
                 && triggers[0].Type == TriggerType.Scheduled
                 && triggers[0].CronExpression == "0 0 * * *"));
+    }
+
+    [Fact]
+    public async Task HandleAsync_DiscoveredIntegrationWithMultipleTriggers_UpsertsTriggerRecords()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Order Sync",
+                "order-sync",
+                "Acme.OrderSync",
+                "Syncs orders",
+                TimeoutSeconds: 120,
+                RetryMaxAttempts: 1,
+                RetryBackoffSeconds: 30,
+                [
+                    new DiscoveredIntegrationTrigger("Scheduled", "scheduled", TriggerType.Scheduled, "*/5 * * * *"),
+                    new DiscoveredIntegrationTrigger("Webhook", "webhook", TriggerType.Webhook, CronExpression: null)
+                ])
+        ]);
+
+        await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId,
+            "MyCompany.Integrations",
+            "1.0.0",
+            "integrations.zip",
+            data));
+
+        await _integrationRepository.Received(1).UpsertBySlugAsync(
+            Arg.Any<Integration>(),
+            Arg.Is<IReadOnlyList<IntegrationTrigger>>(triggers =>
+                triggers.Count == 2
+                && triggers.Any(t => t.Name == "Scheduled"
+                                 && t.Slug == "scheduled"
+                                 && t.Type == TriggerType.Scheduled
+                                 && t.CronExpression == "*/5 * * * *")
+                && triggers.Any(t => t.Name == "Webhook"
+                                 && t.Slug == "webhook"
+                                 && t.Type == TriggerType.Webhook
+                                 && t.CronExpression == null
+                                 && t.EncryptedWebhookSecret != null)));
+    }
+
+    [Fact]
+    public async Task HandleAsync_DiscoveredIntegrationWithInvalidCron_DoesNotCreatePackage()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Nightly Sync",
+                "nightly-sync",
+                "Acme.NightlySync",
+                Description: null,
+                TimeoutSeconds: null,
+                RetryMaxAttempts: null,
+                RetryBackoffSeconds: null,
+                [
+                    new DiscoveredIntegrationTrigger("Scheduled", "scheduled", TriggerType.Scheduled, "not-a-cron")
+                ])
+        ]);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            _handler.HandleAsync(new UploadPackageCommand(
+                _tenantId,
+                "MyCompany.Integrations",
+                "1.0.0",
+                "integrations.zip",
+                data)));
+
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<AssemblyPackage>(), Arg.Any<CancellationToken>());
+        await _integrationRepository.DidNotReceive().UpsertBySlugAsync(
+            Arg.Any<Integration>(),
+            Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

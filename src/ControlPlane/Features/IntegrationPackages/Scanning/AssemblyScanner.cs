@@ -10,12 +10,17 @@ public record DiscoveredIntegration(
     string Name,
     string Slug,
     string ClassName,
-    TriggerType TriggerType,
-    string? CronExpression,
     string? Description,
     int? TimeoutSeconds,
     int? RetryMaxAttempts,
-    int? RetryBackoffSeconds);
+    int? RetryBackoffSeconds,
+    IReadOnlyList<DiscoveredIntegrationTrigger> Triggers);
+
+public record DiscoveredIntegrationTrigger(
+    string Name,
+    string Slug,
+    TriggerType Type,
+    string? CronExpression);
 
 public interface IAssemblyScanner
 {
@@ -24,6 +29,11 @@ public interface IAssemblyScanner
 
 public class AssemblyScanner : IAssemblyScanner
 {
+    private const string IntegrationInterfaceName = "IntegrationPlatform.Sdk.IIntegration";
+    private const string IntegrationAttributeName = "IntegrationPlatform.Sdk.IntegrationAttribute";
+    private const string ScheduledAttributeName = "IntegrationPlatform.Sdk.ScheduledIntegrationAttribute";
+    private const string WebhookAttributeName = "IntegrationPlatform.Sdk.WebhookIntegrationAttribute";
+
     public List<DiscoveredIntegration> ScanZip(byte[] zipData)
     {
         var discovered = new List<DiscoveredIntegration>();
@@ -38,8 +48,15 @@ public class AssemblyScanner : IAssemblyScanner
                 archive.ExtractToDirectory(tempDir);
             }
 
-            var dlls = Directory.GetFiles(tempDir, "*.dll");
+            var dlls = Directory.GetFiles(tempDir, "*.dll", SearchOption.AllDirectories);
+            var dllByName = dlls
+                .GroupBy(Path.GetFileNameWithoutExtension, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key ?? string.Empty, group => group.First(), StringComparer.OrdinalIgnoreCase);
             var alc = new AssemblyLoadContext("ScanContext", isCollectible: true);
+            alc.Resolving += (_, assemblyName) =>
+                assemblyName.Name is not null && dllByName.TryGetValue(assemblyName.Name, out var dependencyPath)
+                    ? alc.LoadFromAssemblyPath(dependencyPath)
+                    : null;
 
             try
             {
@@ -70,49 +87,83 @@ public class AssemblyScanner : IAssemblyScanner
         return discovered;
     }
 
-    private static List<DiscoveredIntegration> ScanAssembly(Assembly assembly)
+    public static List<DiscoveredIntegration> ScanAssembly(Assembly assembly)
     {
         var discovered = new List<DiscoveredIntegration>();
-        var types = assembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && typeof(IIntegration).IsAssignableFrom(t));
+        var types = GetLoadableTypes(assembly)
+            .Where(t => t.IsClass
+                     && !t.IsAbstract
+                     && t.GetInterfaces().Any(i => i.FullName == IntegrationInterfaceName));
 
         foreach (var type in types)
         {
-            var scheduledAttr = type.GetCustomAttribute<ScheduledIntegrationAttribute>();
-            if (scheduledAttr != null)
-            {
-                discovered.Add(new DiscoveredIntegration(
-                    scheduledAttr.Name,
-                    scheduledAttr.Slug,
-                    type.FullName ?? type.Name,
-                    TriggerType.Scheduled,
-                    scheduledAttr.CronExpression,
-                    scheduledAttr.Description,
-                    scheduledAttr.TimeoutSeconds,
-                    scheduledAttr.RetryMaxAttempts,
-                    scheduledAttr.RetryBackoffSeconds
-                ));
+            var attributes = type.GetCustomAttributes(inherit: false).ToList();
+            var integrationAttr = attributes.FirstOrDefault(a => a.GetType().FullName == IntegrationAttributeName);
+            var triggerMetadataAttr = attributes.FirstOrDefault(a =>
+                a.GetType().FullName is ScheduledAttributeName or WebhookAttributeName);
+            var metadataAttr = integrationAttr ?? triggerMetadataAttr;
+
+            if (metadataAttr is null)
                 continue;
+
+            var triggers = new List<DiscoveredIntegrationTrigger>();
+            foreach (var attribute in attributes)
+            {
+                switch (attribute.GetType().FullName)
+                {
+                    case ScheduledAttributeName:
+                        triggers.Add(new DiscoveredIntegrationTrigger(
+                            "Scheduled",
+                            "scheduled",
+                            TriggerType.Scheduled,
+                            GetString(attribute, "CronExpression")));
+                        break;
+                    case WebhookAttributeName:
+                        triggers.Add(new DiscoveredIntegrationTrigger(
+                            "Webhook",
+                            "webhook",
+                            TriggerType.Webhook,
+                            CronExpression: null));
+                        break;
+                }
             }
 
-            var webhookAttr = type.GetCustomAttribute<WebhookIntegrationAttribute>();
-            if (webhookAttr != null)
-            {
-                discovered.Add(new DiscoveredIntegration(
-                    webhookAttr.Name,
-                    webhookAttr.Slug,
-                    type.FullName ?? type.Name,
-                    TriggerType.Webhook,
-                    null,
-                    webhookAttr.Description,
-                    webhookAttr.TimeoutSeconds,
-                    webhookAttr.RetryMaxAttempts,
-                    webhookAttr.RetryBackoffSeconds
-                ));
-                continue;
-            }
+            discovered.Add(new DiscoveredIntegration(
+                GetRequiredString(metadataAttr, "Name"),
+                GetRequiredString(metadataAttr, "Slug"),
+                type.FullName ?? type.Name,
+                GetString(metadataAttr, "Description"),
+                GetNullableInt(metadataAttr, "TimeoutSeconds"),
+                GetNullableInt(metadataAttr, "RetryMaxAttempts"),
+                GetNullableInt(metadataAttr, "RetryBackoffSeconds"),
+                triggers));
         }
 
         return discovered;
     }
+
+    private static IReadOnlyList<Type> GetLoadableTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Where(t => t is not null).Cast<Type>().ToList();
+        }
+    }
+
+    private static string GetRequiredString(object attribute, string propertyName) =>
+        GetString(attribute, propertyName) ?? string.Empty;
+
+    private static string? GetString(object attribute, string propertyName) =>
+        attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) as string;
+
+    private static int? GetNullableInt(object attribute, string propertyName) =>
+        attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) switch
+        {
+            int value when value > 0 => value,
+            _ => null
+        };
 }

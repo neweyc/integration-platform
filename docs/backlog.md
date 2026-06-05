@@ -403,7 +403,7 @@ Acceptance criteria:
 
 ### Assembly Scanning & Auto-Provisioning
 
-**Status:** In Progress
+**Status:** Done
 
 Automatically create or update integration records when a package is uploaded.
 
@@ -415,6 +415,16 @@ Acceptance criteria:
 - Trigger attributes create or update trigger records for the discovered integration.
 - Existing integrations and triggers are updated if their attributes have changed, such as a new cron expression.
 - Typos in class names are eliminated by deriving them directly from the type.
+
+Completed notes:
+
+- Package upload scans assemblies for concrete `IIntegration` implementations decorated with SDK integration attributes.
+- Scanning derives the fully qualified class name from the discovered type and pins auto-provisioned integrations to the uploaded package version.
+- `[Integration]` provisions executable integration metadata without triggers.
+- `[ScheduledIntegration]` and `[WebhookIntegration]` provision trigger records separately from the integration record, so a single discovered class can create multiple triggers.
+- Existing integrations are upserted by slug; existing trigger records are updated by slug and webhook secrets are preserved unless a new webhook trigger is created.
+- Discovered metadata is validated before the package row is created, preventing invalid attribute data such as bad cron expressions from creating unusable package versions.
+- Scanner tests cover base integration metadata and multi-trigger discovery; upload tests cover package pinning, multi-trigger upsert, and invalid discovered cron handling.
 
 ### `ip` CLI
 

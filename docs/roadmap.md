@@ -12,10 +12,10 @@ Product goal: replace legacy integration middleware with a modern, **Integration
 - **Invitations:** Secure team member onboarding.
 
 ## Phase 3 — The "Magic" Experience (In Progress)
-- **Zero-Touch Provisioning:** Attribute-based discovery (`[ScheduledIntegration]`).
+- **Zero-Touch Provisioning:** Attribute-based discovery and package-upload auto-provisioning.
 - **Multi-Trigger Integrations:** Separate integration code from trigger configuration so one integration can have schedules, webhooks, manual runs, and future event triggers.
 - **`ip` CLI:** Single tool for `init`, `test`, and `deploy`.
-- **Assembly Scanning:** Auto-provisioning integrations from code on upload.
+- **Assembly Scanning:** Auto-provisioning integrations and trigger records from code on upload. (Done)
 - **Local Dev Tunnel:** Tunnel cloud webhooks to local agents for instant debugging.
 
 ## Phase 4 — Enterprise Governance (Upcoming - Valuation Multipliers)

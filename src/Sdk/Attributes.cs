@@ -6,9 +6,9 @@ public class IntegrationAttribute(string name, string slug) : Attribute
     public string Name { get; } = name;
     public string Slug { get; } = slug;
     public string? Description { get; set; }
-    public int? TimeoutSeconds { get; set; }
-    public int? RetryMaxAttempts { get; set; }
-    public int? RetryBackoffSeconds { get; set; }
+    public int TimeoutSeconds { get; set; }
+    public int RetryMaxAttempts { get; set; }
+    public int RetryBackoffSeconds { get; set; }
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]

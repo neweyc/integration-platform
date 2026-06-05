@@ -24,7 +24,13 @@ using IntegrationPlatform.Sdk;
 using IntegrationPlatform.Connectors.Http;
 using IntegrationPlatform.Connectors.Sql;
 
-[ScheduledIntegration("Sync Shopify Orders", "shopify-sync", "0 * * * *")]
+[ScheduledIntegration(
+    "Sync Shopify Orders",
+    "shopify-sync",
+    "0 * * * *",
+    TimeoutSeconds = 300,
+    RetryMaxAttempts = 2,
+    RetryBackoffSeconds = 60)]
 public class SyncOrdersIntegration : IIntegration
 {
     public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
@@ -88,6 +94,8 @@ ip deploy --url http://your-control-plane --token pat_...
 ```
 
 The Control Plane will scan your assembly, discover your classes decorated with integration and trigger attributes, and automatically create or update the executable integration plus its trigger records. This keeps one integration class able to support multiple triggers, such as scheduled and webhook entry points, without duplicating the integration code.
+
+Use `[Integration]` for executable metadata without stored triggers. Use `[ScheduledIntegration]` and `[WebhookIntegration]` when the package should also provision trigger records. Timeout and retry properties are optional integer named arguments; leave them unset to use the platform defaults.
 
 ---
 
