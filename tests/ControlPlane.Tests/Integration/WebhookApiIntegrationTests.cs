@@ -196,6 +196,137 @@ public class WebhookApiIntegrationTests
     }
 
     [Fact]
+    public async Task Integration_WithTwoWebhookTriggers_RoutesEachToItsOwnTriggerIndependently()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", NewTenant());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        // One integration, two distinct webhook triggers.
+        var integration = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Multi Hook",
+            Slug = $"multi-hook-{Guid.NewGuid():N}",
+            Environment = "production",
+            Triggers = new[]
+            {
+                new { Name = "Hook A", Slug = "hook-a", Type = "Webhook" },
+                new { Name = "Hook B", Slug = "hook-b", Type = "Webhook" }
+            },
+            ClassName = "Acme.MultiHook"
+        }, HttpStatusCode.Created);
+
+        var hookA = integration.Triggers.Single(t => t.Slug == "hook-a");
+        var hookB = integration.Triggers.Single(t => t.Slug == "hook-b");
+
+        // Each trigger has its own URL and its own one-time secret.
+        Assert.NotEqual(hookA.WebhookUrl, hookB.WebhookUrl);
+        Assert.NotEqual(hookA.WebhookSecret, hookB.WebhookSecret);
+        Assert.EndsWith("/hook-a", hookA.WebhookUrl);
+        Assert.EndsWith("/hook-b", hookB.WebhookUrl);
+
+        client.DefaultRequestHeaders.Authorization = null;
+
+        var respA = await PostWebhookAsync(client, hookA.WebhookUrl!, """{"t":"a"}""", hookA.WebhookSecret!, Guid.NewGuid().ToString());
+        var respB = await PostWebhookAsync(client, hookB.WebhookUrl!, """{"t":"b"}""", hookB.WebhookSecret!, Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.Accepted, respA.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, respB.StatusCode);
+
+        await using var db = database.CreateContext();
+        // Two work items, each scoped to the correct trigger.
+        Assert.Equal(1, db.WorkItems.Count(w => w.IntegrationTriggerId == hookA.Id && w.Payload == """{"t":"a"}"""));
+        Assert.Equal(1, db.WorkItems.Count(w => w.IntegrationTriggerId == hookB.Id && w.Payload == """{"t":"b"}"""));
+        Assert.Equal(2, db.WorkItems.Count(w => w.IntegrationId == integration.Id));
+    }
+
+    [Fact]
+    public async Task Integration_WithScheduledAndWebhookTriggers_ExposesBoth_AndWebhookDelivers()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", NewTenant());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        var integration = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Hybrid",
+            Slug = $"hybrid-{Guid.NewGuid():N}",
+            Environment = "production",
+            Triggers = new object[]
+            {
+                new { Name = "Nightly", Slug = "nightly", Type = "Scheduled", CronExpression = "0 2 * * *" },
+                new { Name = "Incoming", Slug = "incoming", Type = "Webhook" }
+            },
+            ClassName = "Acme.Hybrid"
+        }, HttpStatusCode.Created);
+
+        var scheduled = integration.Triggers.Single(t => t.Type == "Scheduled");
+        var webhook = integration.Triggers.Single(t => t.Type == "Webhook");
+
+        // Scheduled trigger carries cron and no webhook material; webhook trigger carries URL + secret.
+        Assert.Equal("0 2 * * *", scheduled.CronExpression);
+        Assert.Null(scheduled.WebhookUrl);
+        Assert.NotNull(webhook.WebhookUrl);
+        Assert.NotNull(webhook.WebhookSecret);
+
+        client.DefaultRequestHeaders.Authorization = null;
+        var resp = await PostWebhookAsync(client, webhook.WebhookUrl!, """{"e":1}""", webhook.WebhookSecret!, Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.Accepted, resp.StatusCode);
+
+        await using var db = database.CreateContext();
+        var workItem = db.WorkItems.Single(w => w.IntegrationId == integration.Id);
+        Assert.Equal(TriggerSource.Webhook, workItem.TriggerSource);
+        Assert.Equal(webhook.Id, workItem.IntegrationTriggerId);
+    }
+
+    [Fact]
+    public async Task Webhook_DisabledTrigger_Returns404AndQueuesNothing()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(client, "/api/setup", NewTenant());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        var integration = await PostJsonAsync<IntegrationResponse>(client, "/api/integrations", new
+        {
+            Name = "Off Hook",
+            Slug = $"off-hook-{Guid.NewGuid():N}",
+            Environment = "production",
+            Triggers = new[] { new { Name = "Disabled", Slug = "disabled", Type = "Webhook", Enabled = false } },
+            ClassName = "Acme.OffHook"
+        }, HttpStatusCode.Created);
+
+        var trigger = integration.Triggers.Single();
+        Assert.False(trigger.Enabled);
+        // A disabled webhook trigger still surfaces a URL/secret to the admin, but does not accept deliveries.
+
+        client.DefaultRequestHeaders.Authorization = null;
+        var resp = await PostWebhookAsync(client, trigger.WebhookUrl!, "{}", trigger.WebhookSecret!, Guid.NewGuid().ToString());
+
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+
+        await using var db = database.CreateContext();
+        Assert.Equal(0, db.WorkItems.Count(w => w.IntegrationId == integration.Id));
+    }
+
+    [Fact]
     public async Task Webhook_UnknownIntegration_Returns404()
     {
         await using var database = await IntegrationTestDatabase.CreateAsync();
@@ -220,6 +351,14 @@ public class WebhookApiIntegrationTests
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    private static object NewTenant() => new
+    {
+        TenantName = "Acme",
+        TenantSlug = $"acme-{Guid.NewGuid():N}",
+        AdminEmail = "admin@example.com",
+        AdminPassword = "Password123!"
+    };
 
     private static async Task<(SetupResponse Setup, IntegrationResponse Integration)> SetupWebhookIntegrationAsync(HttpClient client)
     {
@@ -290,7 +429,7 @@ public class WebhookApiIntegrationTests
     }
     private sealed record TriggerResponse(
         Guid Id, string Name, string Slug, string Type, bool Enabled, string? WebhookSecret,
-        string? WebhookUrl, WebhookSigningResponse? WebhookSigning);
+        string? WebhookUrl, WebhookSigningResponse? WebhookSigning, string? CronExpression = null);
     private sealed record WebhookSigningResponse(
         string Algorithm, string SignatureHeader, string SignatureFormat, string DeliveryIdHeader,
         string TimestampHeader, int ToleranceSeconds);

@@ -401,18 +401,57 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("integrations", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("IntegrationTriggerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LastDispatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("NextRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntegrationId");
+
+                    b.HasIndex("IntegrationTriggerId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "NextRunAt");
+
+                    b.ToTable("integration_schedule_states", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.IntegrationTrigger", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("CronExpression")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
@@ -454,43 +493,6 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Type", "Enabled");
 
                     b.ToTable("integration_triggers", (string)null);
-                });
-
-            modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("IntegrationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("IntegrationTriggerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("LastDispatchedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("NextRunAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IntegrationTriggerId")
-                        .IsUnique();
-
-                    b.HasIndex("TenantId", "NextRunAt");
-
-                    b.ToTable("integration_schedule_states", (string)null);
                 });
 
             modelBuilder.Entity("Shared.Domain.Invitation", b =>
@@ -796,9 +798,9 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("IntegrationId");
 
-                    b.HasIndex("TenantId", "IntegrationId", "ReceivedAt");
-
                     b.HasIndex("IntegrationTriggerId");
+
+                    b.HasIndex("TenantId", "IntegrationId", "ReceivedAt");
 
                     b.HasIndex("TenantId", "IntegrationTriggerId", "ReceivedAt");
 
@@ -881,11 +883,11 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.HasIndex("IntegrationTriggerId");
 
+                    b.HasIndex("TenantId", "IntegrationId", "Status");
+
                     b.HasIndex("TenantId", "IntegrationTriggerId", "DeliveryId")
                         .IsUnique()
                         .HasFilter("\"IntegrationTriggerId\" IS NOT NULL AND \"DeliveryId\" IS NOT NULL");
-
-                    b.HasIndex("TenantId", "IntegrationId", "Status");
 
                     b.HasIndex("TenantId", "IntegrationTriggerId", "Status");
 
@@ -1216,25 +1218,6 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("Shared.Domain.IntegrationTrigger", b =>
-                {
-                    b.HasOne("Shared.Domain.Integration", "Integration")
-                        .WithMany("Triggers")
-                        .HasForeignKey("IntegrationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Shared.Domain.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Integration");
-
-                    b.Navigation("Tenant");
-                });
-
             modelBuilder.Entity("Shared.Domain.IntegrationScheduleState", b =>
                 {
                     b.HasOne("Shared.Domain.Integration", "Integration")
@@ -1258,6 +1241,25 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Navigation("Integration");
 
                     b.Navigation("IntegrationTrigger");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.IntegrationTrigger", b =>
+                {
+                    b.HasOne("Shared.Domain.Integration", "Integration")
+                        .WithMany("Triggers")
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Integration");
 
                     b.Navigation("Tenant");
                 });
@@ -1488,16 +1490,16 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.Navigation("WorkflowDefinition");
                 });
 
+            modelBuilder.Entity("Shared.Domain.Integration", b =>
+                {
+                    b.Navigation("Triggers");
+                });
+
             modelBuilder.Entity("Shared.Domain.WorkflowDefinition", b =>
                 {
                     b.Navigation("Edges");
 
                     b.Navigation("Nodes");
-                });
-
-            modelBuilder.Entity("Shared.Domain.Integration", b =>
-                {
-                    b.Navigation("Triggers");
                 });
 
             modelBuilder.Entity("Shared.Domain.WorkflowRun", b =>

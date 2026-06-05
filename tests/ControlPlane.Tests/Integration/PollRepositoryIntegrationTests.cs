@@ -392,6 +392,86 @@ public class PollRepositoryIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task ClaimDueScheduledAsync_MultipleScheduledTriggers_ClaimsEachEnabledTriggerIndependently()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var agentId = Guid.NewGuid();
+        var now = DateTime.UtcNow.Date.AddHours(12);
+        var createdAt = now.AddMinutes(-1);
+
+        // One integration, two enabled schedules plus one disabled schedule.
+        var integration = new Integration
+        {
+            TenantId = tenant.Id,
+            Name = "multi",
+            Slug = "multi",
+            Environment = "production",
+            Status = IntegrationStatus.Enabled,
+            ClassName = "Tests.multi.Integration",
+            CreatedAt = createdAt,
+            Triggers =
+            [
+                ScheduledTrigger(tenant.Id, "sched-a", enabled: true, createdAt),
+                ScheduledTrigger(tenant.Id, "sched-b", enabled: true, createdAt),
+                ScheduledTrigger(tenant.Id, "sched-disabled", enabled: false, createdAt)
+            ]
+        };
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            db.Integrations.Add(integration);
+            await db.SaveChangesAsync();
+        }
+
+        var enabledTriggerIds = integration.Triggers
+            .Where(t => t.Enabled)
+            .Select(t => t.Id)
+            .ToHashSet();
+        var disabledTriggerId = integration.Triggers.Single(t => !t.Enabled).Id;
+
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimDueScheduledAsync(
+                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+
+            // Both enabled schedules are claimed as independent work items; the disabled one is not.
+            Assert.Equal(2, claimed.Count);
+            var claimedTriggerIds = claimed.Select(c => c.WorkItem.IntegrationTriggerId!.Value).ToHashSet();
+            Assert.Equal(enabledTriggerIds, claimedTriggerIds);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var workItems = db.WorkItems.Where(w => w.IntegrationId == integration.Id).ToList();
+            Assert.Equal(2, workItems.Count);
+            Assert.DoesNotContain(workItems, w => w.IntegrationTriggerId == disabledTriggerId);
+
+            // Each enabled trigger has its own durable schedule state; the disabled one has none.
+            var states = db.IntegrationScheduleStates.Where(s => s.IntegrationId == integration.Id).ToList();
+            Assert.Equal(2, states.Count);
+            Assert.Equal(enabledTriggerIds, states.Select(s => s.IntegrationTriggerId).ToHashSet());
+            Assert.DoesNotContain(states, s => s.IntegrationTriggerId == disabledTriggerId);
+        }
+    }
+
+    private static IntegrationTrigger ScheduledTrigger(Guid tenantId, string slug, bool enabled, DateTime createdAt) => new()
+    {
+        TenantId = tenantId,
+        Name = slug,
+        Slug = slug,
+        Type = TriggerType.Scheduled,
+        Enabled = enabled,
+        CronExpression = "* * * * *",
+        CreatedAt = createdAt
+    };
+
     private static Integration CreateIntegration(Guid tenantId, string slug, DateTime? createdAt = null) => new()
     {
         TenantId = tenantId,

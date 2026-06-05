@@ -105,6 +105,8 @@ Completed notes:
 - Removed trigger type, cron expression, and webhook secret from the integration model.
 - Scheduled polling reads enabled scheduled triggers and stores schedule state by trigger.
 - Webhook delivery resolves `/webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}` and stores work/delivery linkage by trigger.
+- Capability tests added: one integration with both scheduled and webhook triggers; multiple scheduled triggers claimed independently with per-trigger schedule state; disabled scheduled trigger not claimed; per-trigger webhook routing within one integration; disabled webhook trigger returns 404; duplicate delivery IDs scoped per integration.
+- EF model snapshot regenerated to match the new schedule-state-per-trigger index (`has-pending-model-changes` clean).
 - Integration API create/update/list/get uses trigger arrays.
 - UI sends and displays trigger records while keeping a simple single-trigger editor for now.
 - Migration moves existing scheduled/webhook configuration into trigger rows.
