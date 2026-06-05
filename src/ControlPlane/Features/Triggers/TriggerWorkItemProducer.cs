@@ -12,8 +12,11 @@ public record TriggerWorkItemRequest(
     TriggerSource TriggerSource,
     DateTime AvailableAt,
     Guid? IntegrationTriggerId = null,
+    string? AdapterKey = null,
+    DateTime? ReceivedAt = null,
     string? Payload = null,
     string? DeliveryId = null,
+    string? MetadataJson = null,
     Guid? ManualRunRequestId = null,
     Guid? WorkflowNodeId = null,
     int AttemptNumber = 1,
@@ -26,7 +29,7 @@ public enum TriggerWorkItemOutcome
     Deduplicated
 }
 
-public record TriggerWorkItemResult(TriggerWorkItemOutcome Outcome, WorkItem? WorkItem);
+public record TriggerWorkItemResult(TriggerWorkItemOutcome Outcome, WorkItem? WorkItem, TriggerEvent? TriggerEvent = null);
 
 public interface ITriggerWorkItemProducer
 {
@@ -56,16 +59,49 @@ public class TriggerWorkItemProducer(AppDbContext db) : ITriggerWorkItemProducer
         };
 
         db.WorkItems.Add(workItem);
+        var triggerEvent = CreateEvent(request, TriggerEventOutcome.ConvertedToWork, workItem.Id);
+        db.TriggerEvents.Add(triggerEvent);
 
         try
         {
             await db.SaveChangesAsync(ct);
-            return new TriggerWorkItemResult(TriggerWorkItemOutcome.ConvertedToWork, workItem);
+            return new TriggerWorkItemResult(TriggerWorkItemOutcome.ConvertedToWork, workItem, triggerEvent);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
         {
             db.Entry(workItem).State = EntityState.Detached;
-            return new TriggerWorkItemResult(TriggerWorkItemOutcome.Deduplicated, null);
+            db.Entry(triggerEvent).State = EntityState.Detached;
+
+            var deduped = CreateEvent(
+                request,
+                TriggerEventOutcome.Deduplicated,
+                workItemId: null,
+                errorMessage: "Duplicate trigger event was deduplicated before work item creation.");
+
+            db.TriggerEvents.Add(deduped);
+            await db.SaveChangesAsync(ct);
+
+            return new TriggerWorkItemResult(TriggerWorkItemOutcome.Deduplicated, null, deduped);
         }
     }
+
+    private static TriggerEvent CreateEvent(
+        TriggerWorkItemRequest request,
+        TriggerEventOutcome outcome,
+        Guid? workItemId,
+        string? errorMessage = null) =>
+        new()
+        {
+            TenantId = request.TenantId,
+            IntegrationId = request.IntegrationId,
+            IntegrationTriggerId = request.IntegrationTriggerId,
+            AdapterKey = TriggerEventRecorder.NormalizeAdapterKey(request.AdapterKey, request.TriggerSource),
+            Source = request.TriggerSource,
+            EventKey = request.DeliveryId,
+            Outcome = outcome,
+            WorkItemId = workItemId,
+            MetadataJson = request.MetadataJson,
+            ErrorMessage = errorMessage,
+            ReceivedAt = request.ReceivedAt ?? request.AvailableAt
+        };
 }

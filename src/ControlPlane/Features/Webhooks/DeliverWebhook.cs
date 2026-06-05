@@ -32,7 +32,8 @@ public interface IWebhookRepository
 public class DeliverWebhookHandler(
     IWebhookRepository repository,
     IEncryptionService encryption,
-    ITriggerWorkItemProducer workItemProducer)
+    ITriggerWorkItemProducer workItemProducer,
+    ITriggerEventRecorder triggerEvents)
     : ICommandHandler<DeliverWebhookCommand, DeliverWebhookResult>
 {
     public const long MaxPayloadBytes = 10 * 1024 * 1024; // 10 MB
@@ -54,6 +55,17 @@ public class DeliverWebhookHandler(
             throw new NotFoundException("Webhook endpoint not found.");
 
         var (tenant, integration, trigger) = found.Value;
+        var receivedAt = DateTime.UtcNow;
+
+        await RecordTriggerEventAsync(
+            tenant,
+            integration,
+            trigger,
+            command.DeliveryId,
+            TriggerEventOutcome.Received,
+            workItemId: null,
+            receivedAt,
+            ct: ct);
 
         // The signature covers "{timestamp}.{body}", so a valid signature proves the sender
         // knew the secret AND committed to that timestamp (it cannot have been tampered).
@@ -61,7 +73,8 @@ public class DeliverWebhookHandler(
         if (!VerifySignature(command.SignatureHeader, signedPayload, trigger.EncryptedWebhookSecret))
         {
             await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-                WebhookDeliveryOutcome.InvalidSignature, workItemId: null, ct);
+                WebhookDeliveryOutcome.InvalidSignature, TriggerEventOutcome.Rejected, workItemId: null,
+                receivedAt, errorMessage: "Invalid webhook signature.", ct);
             throw new UnauthorizedException("Invalid webhook signature.");
         }
 
@@ -69,7 +82,8 @@ public class DeliverWebhookHandler(
         if (!IsTimestampFresh(command.TimestampHeader, DateTimeOffset.UtcNow))
         {
             await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-                WebhookDeliveryOutcome.Expired, workItemId: null, ct);
+                WebhookDeliveryOutcome.Expired, TriggerEventOutcome.Rejected, workItemId: null,
+                receivedAt, errorMessage: "Webhook timestamp is missing or outside the allowed window.", ct);
             throw new UnauthorizedException("Webhook timestamp is missing or outside the allowed window.");
         }
 
@@ -78,7 +92,8 @@ public class DeliverWebhookHandler(
             && await repository.DeliveryExistsAsync(tenant.Id, integration.Id, trigger.Id, command.DeliveryId, ct))
         {
             await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-                WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
+                WebhookDeliveryOutcome.Deduplicated, TriggerEventOutcome.Deduplicated, workItemId: null,
+                receivedAt, errorMessage: null, ct);
             return new DeliverWebhookResult(Guid.Empty, Queued: false);
         }
 
@@ -90,6 +105,8 @@ public class DeliverWebhookHandler(
                 TriggerSource.Webhook,
                 DateTime.UtcNow,
                 IntegrationTriggerId: trigger.Id,
+                AdapterKey: "webhook",
+                ReceivedAt: receivedAt,
                 Payload: Encoding.UTF8.GetString(command.BodyBytes),
                 DeliveryId: command.DeliveryId),
             ct);
@@ -99,12 +116,14 @@ public class DeliverWebhookHandler(
         if (result.Outcome == TriggerWorkItemOutcome.Deduplicated || result.WorkItem is null)
         {
             await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-                WebhookDeliveryOutcome.Deduplicated, workItemId: null, ct);
+                WebhookDeliveryOutcome.Deduplicated, TriggerEventOutcome.Deduplicated, workItemId: null,
+                receivedAt, errorMessage: null, ct);
             return new DeliverWebhookResult(Guid.Empty, Queued: false);
         }
 
         await RecordDeliveryAsync(tenant, integration, trigger, command.DeliveryId,
-            WebhookDeliveryOutcome.Accepted, result.WorkItem.Id, ct);
+            WebhookDeliveryOutcome.Accepted, TriggerEventOutcome.Accepted, result.WorkItem.Id,
+            receivedAt, errorMessage: null, ct);
 
         return new DeliverWebhookResult(result.WorkItem.Id, Queued: true);
     }
@@ -115,9 +134,12 @@ public class DeliverWebhookHandler(
         IntegrationTrigger trigger,
         string? deliveryId,
         WebhookDeliveryOutcome outcome,
+        TriggerEventOutcome triggerEventOutcome,
         Guid? workItemId,
+        DateTime receivedAt,
+        string? errorMessage,
         CancellationToken ct) =>
-        repository.RecordDeliveryAsync(
+        RecordDeliveryAndTriggerEventAsync(
             new WebhookDelivery
             {
                 TenantId = tenant.Id,
@@ -126,8 +148,56 @@ public class DeliverWebhookHandler(
                 DeliveryId = deliveryId,
                 Outcome = outcome,
                 WorkItemId = workItemId,
-                ReceivedAt = DateTime.UtcNow
+                ReceivedAt = receivedAt
             },
+            tenant,
+            integration,
+            trigger,
+            deliveryId,
+            triggerEventOutcome,
+            workItemId,
+            receivedAt,
+            errorMessage,
+            ct);
+
+    private async Task RecordDeliveryAndTriggerEventAsync(
+        WebhookDelivery delivery,
+        Tenant tenant,
+        Integration integration,
+        IntegrationTrigger trigger,
+        string? deliveryId,
+        TriggerEventOutcome outcome,
+        Guid? workItemId,
+        DateTime receivedAt,
+        string? errorMessage,
+        CancellationToken ct)
+    {
+        await repository.RecordDeliveryAsync(delivery, ct);
+        await RecordTriggerEventAsync(tenant, integration, trigger, deliveryId, outcome, workItemId, receivedAt, errorMessage, ct);
+    }
+
+    private Task RecordTriggerEventAsync(
+        Tenant tenant,
+        Integration integration,
+        IntegrationTrigger trigger,
+        string? eventKey,
+        TriggerEventOutcome outcome,
+        Guid? workItemId,
+        DateTime receivedAt,
+        string? errorMessage = null,
+        CancellationToken ct = default) =>
+        triggerEvents.RecordAsync(
+            new TriggerEventRecord(
+                tenant.Id,
+                integration.Id,
+                "webhook",
+                TriggerSource.Webhook,
+                outcome,
+                receivedAt,
+                IntegrationTriggerId: trigger.Id,
+                EventKey: eventKey,
+                WorkItemId: workItemId,
+                ErrorMessage: errorMessage),
             ct);
 
     // Signed payload = "{timestamp}.{body}". A missing timestamp yields ".{body}", which a

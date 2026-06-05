@@ -121,6 +121,7 @@ builder.Services.AddScoped<ICommandHandler<ListExecutionLogsCommand, ListExecuti
 builder.Services.AddScoped<IManualRunRepository, ManualRunRepository>();
 builder.Services.AddScoped<ICommandHandler<RequestManualRunCommand, ManualRunResult>, RequestManualRunHandler>();
 builder.Services.AddScoped<ITriggerWorkItemProducer, TriggerWorkItemProducer>();
+builder.Services.AddScoped<ITriggerEventRecorder, TriggerEventRecorder>();
 builder.Services.AddScoped<ITriggerAdapter, ScheduledTriggerAdapter>();
 builder.Services.AddScoped<ITriggerAdapter, ManualTriggerAdapter>();
 builder.Services.AddScoped<ITriggerAdapter, WebhookTriggerAdapter>();
@@ -244,6 +245,7 @@ app.MapInvitationEndpoints();
 app.MapSecretEndpoints();
 app.MapIntegrationEndpoints();
 app.MapTriggerAdapterEndpoints();
+app.MapTriggerEventEndpoints();
 app.MapPackageEndpoints();
 app.MapAgentTokenEndpoints();
 app.MapWebhookEndpoints();

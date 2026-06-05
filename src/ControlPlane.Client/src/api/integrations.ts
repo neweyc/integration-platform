@@ -102,6 +102,32 @@ export interface ListTriggerAdaptersResponse {
   adapters: TriggerAdapterDescriptor[]
 }
 
+export type TriggerEventOutcome =
+  | 'Received'
+  | 'Accepted'
+  | 'Deduplicated'
+  | 'Rejected'
+  | 'ConvertedToWork'
+  | 'Failed'
+
+export interface TriggerEvent {
+  id: string
+  integrationId: string
+  integrationTriggerId?: string | null
+  adapterKey: string
+  source: TriggerSource
+  eventKey?: string | null
+  outcome: TriggerEventOutcome
+  workItemId?: string | null
+  metadataJson?: string | null
+  errorMessage?: string | null
+  receivedAt: string
+}
+
+export interface ListTriggerEventsResponse {
+  events: TriggerEvent[]
+}
+
 export const integrationsApi = {
   list: (environment?: string) => {
     const query = environment ? `?environment=${environment}` : ''
@@ -117,4 +143,21 @@ export const integrationsApi = {
   delete: (id: string) => api.delete<void>(`/integrations/${id}`),
   runManual: (id: string) => api.post<ManualRunResult>(`/integrations/${id}/run`, {}),
   triggerAdapters: () => api.get<ListTriggerAdaptersResponse>('/trigger-adapters'),
+  triggerEvents: (params?: {
+    integrationId?: string
+    triggerId?: string
+    adapterKey?: string
+    outcome?: TriggerEventOutcome
+    limit?: number
+  }) => {
+    const query = new URLSearchParams()
+    if (params?.integrationId) query.set('integrationId', params.integrationId)
+    if (params?.triggerId) query.set('triggerId', params.triggerId)
+    if (params?.adapterKey) query.set('adapterKey', params.adapterKey)
+    if (params?.outcome) query.set('outcome', params.outcome)
+    if (params?.limit) query.set('limit', String(params.limit))
+    const queryString = query.toString()
+    const suffix = queryString ? `?${queryString}` : ''
+    return api.get<ListTriggerEventsResponse>(`/trigger-events${suffix}`)
+  },
 }

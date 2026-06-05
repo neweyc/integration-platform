@@ -103,6 +103,15 @@ public class ApiContractAndSecurityIntegrationTests
         AssertStringProperty(manualRun.RootElement, "environment", "production");
         Assert.True(manualRun.RootElement.TryGetProperty("requestedAt", out _));
 
+        using var triggerEvents = await GetJsonDocumentAsync(client, $"/api/trigger-events?integrationId={integrationId}");
+        var triggerEvent = Assert.Single(triggerEvents.RootElement.GetProperty("events").EnumerateArray());
+        AssertGuidProperty(triggerEvent, "integrationId", integrationId);
+        AssertStringProperty(triggerEvent, "adapterKey", "manual");
+        AssertStringProperty(triggerEvent, "source", "Manual");
+        AssertStringProperty(triggerEvent, "outcome", "ConvertedToWork");
+        AssertGuidProperty(triggerEvent, "workItemId");
+        Assert.True(triggerEvent.TryGetProperty("receivedAt", out _));
+
         client.DefaultRequestHeaders.Authorization = null;
         client.DefaultRequestHeaders.Add("X-Agent-Token", plaintextAgentToken);
 

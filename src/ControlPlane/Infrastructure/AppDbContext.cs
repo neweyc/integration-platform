@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<IntegrationScheduleState> IntegrationScheduleStates => Set<IntegrationScheduleState>();
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
+    public DbSet<TriggerEvent> TriggerEvents => Set<TriggerEvent>();
     public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
     public DbSet<WorkflowNode> WorkflowNodes => Set<WorkflowNode>();
     public DbSet<WorkflowEdge> WorkflowEdges => Set<WorkflowEdge>();
@@ -277,6 +278,39 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(w => w.Tenant)
              .WithMany()
              .HasForeignKey(w => w.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TriggerEvent>(b =>
+        {
+            b.ToTable("trigger_events");
+            b.HasKey(e => e.Id);
+            b.Property(e => e.AdapterKey).IsRequired().HasMaxLength(100);
+            b.Property(e => e.Source).HasConversion<string>().HasMaxLength(20);
+            b.Property(e => e.EventKey).HasMaxLength(200);
+            b.Property(e => e.Outcome).HasConversion<string>().HasMaxLength(30);
+            b.Property(e => e.MetadataJson);
+            b.Property(e => e.ErrorMessage).HasMaxLength(4000);
+
+            b.HasIndex(e => new { e.TenantId, e.IntegrationId, e.ReceivedAt });
+            b.HasIndex(e => new { e.TenantId, e.IntegrationTriggerId, e.ReceivedAt });
+            b.HasIndex(e => new { e.TenantId, e.AdapterKey, e.Outcome, e.ReceivedAt });
+            b.HasIndex(e => new { e.TenantId, e.Source, e.EventKey });
+
+            b.HasOne(e => e.IntegrationTrigger)
+             .WithMany()
+             .HasForeignKey(e => e.IntegrationTriggerId)
+             .OnDelete(DeleteBehavior.SetNull)
+             .IsRequired(false);
+
+            b.HasOne(e => e.Integration)
+             .WithMany()
+             .HasForeignKey(e => e.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(e => e.Tenant)
+             .WithMany()
+             .HasForeignKey(e => e.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

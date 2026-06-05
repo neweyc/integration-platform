@@ -454,6 +454,45 @@ Lists trigger adapter descriptors available to the control plane. This is a disc
 
 ---
 
+### `GET /api/trigger-events`
+
+Lists persisted trigger adapter events for operator observability. Events record when an adapter receives, accepts, rejects, deduplicates, or converts a trigger event into work.
+
+**Auth:** JWT with `ViewExecutions`
+
+**Query params**
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `integrationId` | No | Filter to one integration |
+| `triggerId` | No | Filter to one stored trigger |
+| `adapterKey` | No | Filter by adapter, such as `webhook`, `manual`, `queue`, or `file` |
+| `outcome` | No | `Received`, `Accepted`, `Deduplicated`, `Rejected`, `ConvertedToWork`, or `Failed` |
+| `limit` | No | Number of rows to return, 1-200. Defaults to 50. |
+
+**Response**
+```json
+{
+  "events": [
+    {
+      "id": "uuid",
+      "integrationId": "uuid",
+      "integrationTriggerId": "uuid",
+      "adapterKey": "webhook",
+      "source": "Webhook",
+      "eventKey": "delivery-123",
+      "outcome": "ConvertedToWork",
+      "workItemId": "uuid",
+      "metadataJson": null,
+      "errorMessage": null,
+      "receivedAt": "2026-06-04T12:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ### `POST /webhooks/{tenantSlug}/{integrationSlug}/{triggerSlug}`
 
 Receives an external webhook and queues a work item for the runtime agent.

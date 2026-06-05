@@ -418,7 +418,7 @@ Acceptance criteria:
 
 ### `ip` CLI
 
-**Status:** Todo
+**Status:** Done
 
 The primary entry point for developers.
 
@@ -468,11 +468,11 @@ Completed notes:
 - Manual run and webhook delivery now enqueue work through the shared producer.
 - Added Queue/File trigger source and trigger type enum values without changing the runtime agent execution contract.
 - Queue/File work items are claimable through the standard agent poll path once a listener produces them.
+- Added generic `trigger_events` observability for received, accepted, deduplicated, rejected, failed, and converted trigger events.
+- Added `GET /api/trigger-events` for operator visibility across trigger adapters.
+- Webhook delivery now records both webhook-specific delivery rows and generic trigger events.
+- Shared work-item production records `ConvertedToWork` and `Deduplicated` trigger events for future adapters.
 - Added tests for adapter catalog discovery and a queue-style adapter using the shared producer path.
-
-Remaining limitations:
-
-- Generic persisted trigger-event observability is not implemented yet. Webhooks persist delivery outcomes today; queue/file/database adapters need equivalent received/accepted/deduplicated/rejected event records before this item should be marked done.
 
 ### Core Connectors
 

@@ -807,6 +807,76 @@ namespace ControlPlane.Infrastructure.Migrations
                     b.ToTable("webhook_deliveries", (string)null);
                 });
 
+            modelBuilder.Entity("Shared.Domain.TriggerEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdapterKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("EventKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("IntegrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IntegrationTriggerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WorkItemId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntegrationId");
+
+                    b.HasIndex("IntegrationTriggerId");
+
+                    b.HasIndex("TenantId", "AdapterKey", "Outcome", "ReceivedAt");
+
+                    b.HasIndex("TenantId", "IntegrationId", "ReceivedAt");
+
+                    b.HasIndex("TenantId", "IntegrationTriggerId", "ReceivedAt");
+
+                    b.HasIndex("TenantId", "Source", "EventKey");
+
+                    b.ToTable("trigger_events", (string)null);
+                });
+
             modelBuilder.Entity("Shared.Domain.WorkItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1348,6 +1418,32 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasForeignKey("IntegrationTriggerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Shared.Domain.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Integration");
+
+                    b.Navigation("IntegrationTrigger");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("Shared.Domain.TriggerEvent", b =>
+                {
+                    b.HasOne("Shared.Domain.Integration", "Integration")
+                        .WithMany()
+                        .HasForeignKey("IntegrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Shared.Domain.IntegrationTrigger", "IntegrationTrigger")
+                        .WithMany()
+                        .HasForeignKey("IntegrationTriggerId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Shared.Domain.Tenant", "Tenant")
                         .WithMany()

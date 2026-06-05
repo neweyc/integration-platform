@@ -70,6 +70,18 @@ public class TriggerWorkItemProducerIntegrationTests
             Assert.Equal("""{"messageId":"m-1"}""", workItem.Payload);
             Assert.Equal("m-1", workItem.DeliveryId);
             Assert.Equal(now, workItem.AvailableAt);
+
+            var triggerEvent = db.TriggerEvents.Single();
+            Assert.Equal(tenant.Id, triggerEvent.TenantId);
+            Assert.Equal(integration.Id, triggerEvent.IntegrationId);
+            Assert.Equal(trigger.Id, triggerEvent.IntegrationTriggerId);
+            Assert.Equal("queue", triggerEvent.AdapterKey);
+            Assert.Equal(TriggerSource.Queue, triggerEvent.Source);
+            Assert.Equal("m-1", triggerEvent.EventKey);
+            Assert.Equal(TriggerEventOutcome.ConvertedToWork, triggerEvent.Outcome);
+            Assert.Equal(workItem.Id, triggerEvent.WorkItemId);
+            Assert.Equal("""{"provider":"test-queue"}""", triggerEvent.MetadataJson);
+            Assert.Equal(now, triggerEvent.ReceivedAt);
         }
 
         var agentId = Guid.NewGuid();
@@ -118,7 +130,10 @@ public class TriggerWorkItemProducerIntegrationTests
                     TriggerSource.Queue,
                     receivedAt,
                     IntegrationTriggerId: triggerId,
+                    AdapterKey: "queue",
+                    ReceivedAt: receivedAt,
                     Payload: payload,
-                    DeliveryId: deliveryId));
+                    DeliveryId: deliveryId,
+                    MetadataJson: """{"provider":"test-queue"}"""));
     }
 }

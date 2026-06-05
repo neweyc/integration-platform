@@ -13,11 +13,30 @@ public class DeliverWebhookHandlerTests
     private readonly IWebhookRepository _repository = Substitute.For<IWebhookRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly ITriggerWorkItemProducer _workItemProducer = Substitute.For<ITriggerWorkItemProducer>();
+    private readonly ITriggerEventRecorder _triggerEvents = Substitute.For<ITriggerEventRecorder>();
     private readonly DeliverWebhookHandler _handler;
 
     public DeliverWebhookHandlerTests()
     {
-        _handler = new DeliverWebhookHandler(_repository, _encryption, _workItemProducer);
+        _triggerEvents.RecordAsync(Arg.Any<TriggerEventRecord>())
+            .Returns(call =>
+            {
+                var record = call.Arg<TriggerEventRecord>();
+                return new TriggerEvent
+                {
+                    TenantId = record.TenantId,
+                    IntegrationId = record.IntegrationId,
+                    IntegrationTriggerId = record.IntegrationTriggerId,
+                    AdapterKey = record.AdapterKey,
+                    Source = record.Source,
+                    EventKey = record.EventKey,
+                    Outcome = record.Outcome,
+                    WorkItemId = record.WorkItemId,
+                    ErrorMessage = record.ErrorMessage,
+                    ReceivedAt = record.ReceivedAt
+                };
+            });
+        _handler = new DeliverWebhookHandler(_repository, _encryption, _workItemProducer, _triggerEvents);
     }
 
     [Fact]
@@ -69,6 +88,16 @@ public class DeliverWebhookHandlerTests
             && d.DeliveryId == "delivery-1"
             && d.Outcome == WebhookDeliveryOutcome.Accepted
             && d.WorkItemId == result.WorkItemId));
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.Outcome == TriggerEventOutcome.Received
+            && e.AdapterKey == "webhook"
+            && e.EventKey == "delivery-1"
+            && e.WorkItemId == null));
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.Outcome == TriggerEventOutcome.Accepted
+            && e.AdapterKey == "webhook"
+            && e.EventKey == "delivery-1"
+            && e.WorkItemId == result.WorkItemId));
     }
 
     [Fact]
@@ -88,6 +117,9 @@ public class DeliverWebhookHandlerTests
             && d.IntegrationId == integration.Id
             && d.IntegrationTriggerId == trigger.Id
             && d.Outcome == WebhookDeliveryOutcome.InvalidSignature));
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.Outcome == TriggerEventOutcome.Rejected
+            && e.ErrorMessage == "Invalid webhook signature."));
     }
 
     [Fact]
@@ -109,6 +141,10 @@ public class DeliverWebhookHandlerTests
             && d.IntegrationId == integration.Id
             && d.IntegrationTriggerId == trigger.Id
             && d.Outcome == WebhookDeliveryOutcome.Expired));
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.Outcome == TriggerEventOutcome.Rejected
+            && e.EventKey == "d1"
+            && e.ErrorMessage == "Webhook timestamp is missing or outside the allowed window."));
         await _workItemProducer.DidNotReceive().EnqueueAsync(Arg.Any<TriggerWorkItemRequest>());
     }
 
@@ -164,6 +200,9 @@ public class DeliverWebhookHandlerTests
             && d.IntegrationTriggerId == trigger.Id
             && d.DeliveryId == "delivery-1"
             && d.Outcome == WebhookDeliveryOutcome.Deduplicated));
+        await _triggerEvents.Received(1).RecordAsync(Arg.Is<TriggerEventRecord>(e =>
+            e.Outcome == TriggerEventOutcome.Deduplicated
+            && e.EventKey == "delivery-1"));
     }
 
     [Fact]
