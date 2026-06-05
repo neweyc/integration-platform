@@ -29,14 +29,14 @@ Principles:
 
 Priority ladder:
 
-1. Workflow DAG foundation.
-2. Multi-trigger integration model.
-3. Agent pools and routing.
-4. Trigger adapter framework.
-5. Core connectors.
-6. Code-first transform steps.
-7. Environment promotion.
-8. Audit and RBAC.
+1. Developer authoring loop.
+2. Trigger declarations and runtime overrides.
+3. AI-assisted integration authoring.
+4. Agent pools and routing.
+5. Trigger adapter framework.
+6. Core connectors.
+7. Code-first transform steps.
+8. Environment promotion.
 9. Execution token scoping.
 10. Retention and quotas.
 
@@ -437,6 +437,87 @@ Acceptance criteria:
 - `ip dev` runs a local agent with hot-reload.
 - `ip deploy` packages and uploads to the control plane.
 - CLI is cross-platform (Windows, macOS, Linux).
+
+### Developer Authoring Loop
+
+**Status:** Todo
+
+Make the normal developer path seamless before layering AI or MCP on top of it. A developer should be able to create, test, scan, package, deploy, and inspect an integration without guessing what the control plane will do.
+
+Acceptance criteria:
+
+- `ip scan` performs local assembly scanning and shows discovered integrations, trigger declarations, package metadata, class names, and validation errors before upload.
+- `ip package` builds the package archive, verifies DLL/dependency contents, calculates SHA-256, and runs the same scan preview.
+- `ip deploy` reports the package version, integrations created or updated, trigger records created or preserved, webhook URLs, missing secrets, and next scheduled runs.
+- `ip test` validates attributes, cron expressions, class discoverability, connector configuration, cancellation-token usage where feasible, and sample payload handling.
+- Local webhook replay lets developers run a signed sample payload without waiting on an external sender.
+- A generated or scanned secret manifest identifies required secret names without storing values in code.
+- Tests cover scan preview, package validation, deploy result reporting, missing secret detection, and webhook replay.
+
+### Trigger Declarations And Runtime Overrides
+
+**Status:** Todo
+
+Separate trigger intent in code from operational authority in the control plane. Developers should declare which triggers an integration supports and provide local/default values, while the control plane owns production enablement and environment-specific runtime settings.
+
+Acceptance criteria:
+
+- SDK trigger attributes represent declarations/defaults, not absolute production authority.
+- The model can distinguish code-declared defaults from active runtime values, such as declared cron versus production cron override.
+- Package upload creates missing trigger records but preserves operator-owned settings including enabled state, production cron override, webhook secret, queue/file bindings, rate limits, and environment-specific configuration.
+- UI shows drift when code defaults change while operational overrides remain active.
+- Operators can apply a new code default, keep the current override, disable a trigger, or promote settings between environments.
+- `ip scan` and `ip deploy` clearly show which trigger fields are declared by code, which are controlled by the control plane, and which will be preserved.
+- Tests cover code default changes, preserved production overrides, preserved webhook secrets, disabled trigger preservation, and drift reporting.
+
+### AI-Assisted Integration Authoring
+
+**Status:** Todo
+
+Let developers describe an integration in natural language and receive compiling, testable, platform-conformant code. AI should accelerate authoring without bypassing validation, secrets discipline, or human deployment approval.
+
+Acceptance criteria:
+
+- `ip ai new "<intent>"` generates an integration class, SDK attributes, connector usage, tests, sample payloads, and a required-secret manifest.
+- `ip ai add-trigger`, `ip ai add-connector`, and `ip ai test` modify existing projects through normal files rather than opaque platform state.
+- Generated code uses `IIntegrationContext`, structured logging, cancellation tokens, connector APIs, secret references by name, and retry/idempotency-aware patterns.
+- Generated output never inlines secret values and warns when a requested workflow implies unsafe non-idempotent writes.
+- AI generation runs local validation (`ip test` and `ip scan`) before deploy.
+- Failed execution logs can feed an `ip ai fix --from-last-run` workflow that proposes a patch and tests it locally before deployment.
+- Tests cover prompt-to-code generation contracts, secret-manifest generation, sample payload generation, validation failure handling, and failure-log diagnosis workflows.
+
+### MCP / Agent-Operable Control Plane
+
+**Status:** Todo (Phase 2 — sequence after authoring UX is seamless)
+
+Expose the control-plane lifecycle — author, deploy, run, observe — as a Model Context Protocol (MCP) server so any MCP-compatible AI client (Claude Desktop, Claude Code, IDE assistants, agent frameworks) can operate the platform conversationally. This completes the AI-authoring story: an agent that can write an integration should also be able to deploy it, trigger a run, and read the resulting logs through one governed interface, rather than handing off to a human at the UI.
+
+Why this fits this product specifically:
+
+- The hard, dangerous parts are already built — a clean command/dispatcher model, RBAC (`RequirePermission`), agent/user tokens, and an immutable audit log. That trio is exactly what makes agent-driven infrastructure actions safe, and most products that bolt on MCP lack it. Here, MCP is a thin, well-governed adapter, not a from-scratch build.
+- It is the natural completion of AI-assisted authoring (see Developer Experience): "AI can write integrations" becomes "AI can operate the platform."
+- MCP is becoming the standard AI-tooling interface, so being MCP-native is a go-to-market wedge for a code-first, AI-friendly platform.
+
+Core design rule (non-negotiable):
+
+- MCP tools MUST flow through the same command + permission + audit pipeline as the REST API. No parallel implementation. Ideally generate the MCP tool schemas from the existing command metadata so they cannot drift.
+
+Acceptance criteria:
+
+- The first MCP milestone is read-mostly and validation-oriented: list integrations, inspect packages, read execution logs, read trigger events, inspect missing secrets, and validate scan/package results.
+- Later write-capable MCP tools can expose operations such as `create_integration`, `deploy_package`, `run_integration`, and `create_workflow` only after the authoring loop and permission model are mature.
+- Every tool call is authenticated and authorized via the existing user/agent token + RBAC, and recorded in the audit log with the acting principal.
+- Tools are tiered: a read-only tier (list/inspect) is separable from a write tier (create/deploy/run).
+- Secrets are write-only over MCP — set/rotate is allowed, reading a secret value is never exposed.
+- Destructive or production-affecting tools (deploy, run, delete) surface enough context for an agent/human to confirm intent.
+- Tenancy isolation holds: a token scoped to one tenant cannot read or act across tenants.
+- Tests cover tool authorization failures, tenant isolation, secret write-only enforcement, and audit linkage.
+
+Notes and cautions:
+
+- This is a surface, not new capability — its value scales with how much users actually drive the platform via AI agents. Build it once the authoring loop (connectors, local test harness, AI generation) is genuinely seamless, so agents are operating a mature surface.
+- Blast radius is real: an agent that can create integrations, manage secrets, and trigger runs needs deliberate guardrails (the tiering, write-only secrets, and confirmation points above). The audit log is the after-the-fact backstop, not the only control.
+- Distinct, more speculative idea to keep separate: integrations *consuming* external MCP servers as a connector type. That overlaps the existing connector model without a clear near-term win; park it.
 
 ---
 

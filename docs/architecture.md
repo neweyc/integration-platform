@@ -91,6 +91,8 @@ public class Dispatcher(IServiceProvider services) : IDispatcher
 }
 ```
 
+The dispatcher is the single pipeline every control-plane mutation flows through, with permission enforcement (`RequirePermission`) at the endpoint and auditing via the `AuditingDispatcher` decorator. Any future alternative interface — notably an **MCP server** for AI-agent operation (see roadmap and backlog "MCP / Agent-Operable Control Plane") — must map onto this same command/permission/audit path rather than introduce a parallel one. This keeps authorization, tenancy isolation, validation, and audit linkage identical regardless of whether a call arrives over REST, the CLI, or MCP.
+
 ### Authentication
 
 Three auth mechanisms exist:
@@ -249,6 +251,8 @@ Integration -> one or more IntegrationTrigger records -> WorkItem -> ExecutionRe
 ```
 
 Under this model, one integration can be triggered by multiple schedules, one or more webhooks, manual operator action, queue events, file arrivals, API events, or future adapters. Runtime agents do not need a new execution path for any of these sources; trigger adapters produce work items and the agent executes the referenced integration class.
+
+The long-term governance boundary is: code declares trigger intent, while the control plane owns runtime authority. SDK attributes and assembly scanning should describe which triggers an integration supports and provide local or default values. The control plane should preserve operator-owned settings such as enabled state, environment-specific cron overrides, webhook secrets, queue/file bindings, and rate limits. When code-declared defaults drift from runtime settings, the UI and CLI should surface that drift and let an operator apply, ignore, or promote changes deliberately.
 
 ### Concurrency and scheduling
 
