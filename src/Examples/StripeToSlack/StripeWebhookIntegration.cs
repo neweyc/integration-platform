@@ -1,5 +1,5 @@
-using IntegrationPlatform.Sdk;
-using IntegrationPlatform.Connectors.Http;
+using Serto.Sdk;
+using Serto.Connectors.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Examples.StripeToSlack;

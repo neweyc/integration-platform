@@ -8,10 +8,10 @@ This guide explains how to author, test, and deploy integrations using the **Int
 
 The `ip` CLI is the primary tool for development.
 
-1. **Initialize:** `ip init MyProject` scaffolds a new C# project.
+1. **Initialize:** `serto init MyProject` scaffolds a new C# project.
 2. **Develop:** Write your logic in C#. Use attributes like `[ScheduledIntegration]` to define infrastructure.
-3. **Test Locally:** `ip dev` watches for changes and runs your integration instantly.
-4. **Deploy:** `ip deploy` builds and auto-provisions your integration in the Control Plane.
+3. **Test Locally:** `serto dev` watches for changes and runs your integration instantly.
+4. **Deploy:** `serto deploy` builds and auto-provisions your integration in the Control Plane.
 
 ---
 
@@ -20,9 +20,9 @@ The `ip` CLI is the primary tool for development.
 An integration is a C# class that implements `IIntegration`. The class contains your business logic; the platform handles everything else: trigger intake, scheduling, secret injection, execution, logging, and retry.
 
 ```csharp
-using IntegrationPlatform.Sdk;
-using IntegrationPlatform.Connectors.Http;
-using IntegrationPlatform.Connectors.Sql;
+using Serto.Sdk;
+using Serto.Connectors.Http;
+using Serto.Connectors.Sql;
 
 [ScheduledIntegration(
     "Sync Shopify Orders",
@@ -65,10 +65,10 @@ public class SyncOrdersIntegration : IIntegration
 
 ## Local Development & Testing
 
-Use the `ip dev` command for a high-velocity feedback loop.
+Use the `serto dev` command for a high-velocity feedback loop.
 
 ```bash
-ip dev
+serto dev
 ```
 
 This command:
@@ -80,7 +80,7 @@ This command:
 To test a specific class or provide a mock webhook payload:
 
 ```bash
-ip test MyIntegration --payload '{"id": 123}'
+serto test MyIntegration --payload '{"id": 123}'
 ```
 
 ---
@@ -90,7 +90,7 @@ ip test MyIntegration --payload '{"id": 123}'
 When you are ready to go live, use the `deploy` command.
 
 ```bash
-ip deploy --url http://your-control-plane --token pat_...
+serto deploy --url http://your-control-plane --token pat_...
 ```
 
 The Control Plane will scan your assembly, discover your classes decorated with integration and trigger attributes, and automatically create or update the executable integration plus its trigger records. This keeps one integration class able to support multiple triggers, such as scheduled and webhook entry points, without duplicating the integration code.
@@ -132,7 +132,7 @@ public record ExecutionMetadata(
 
 ## Core Connectors
 
-The platform provides built-in connectors to simplify common integration tasks. To use them, reference the `IntegrationPlatform.Connectors` assembly.
+The platform provides built-in connectors to simplify common integration tasks. To use them, reference the `Serto.Connectors` assembly.
 
 ### HTTP Connector
 
@@ -163,7 +163,7 @@ A typical integration project:
 
 ```
 MyIntegration/
-  ├── MyIntegration.csproj   # References IntegrationPlatform.Sdk
+  ├── MyIntegration.csproj   # References Serto.Sdk
   ├── MyIntegration.cs       # Your logic with [ScheduledIntegration]
   └── .gitignore
 ```

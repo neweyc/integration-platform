@@ -1,8 +1,8 @@
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace IntegrationPlatform.Testing;
+namespace Serto.Testing;
 
 public class TestIntegrationContext : IIntegrationContext
 {

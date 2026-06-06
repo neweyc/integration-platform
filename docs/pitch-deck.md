@@ -60,12 +60,12 @@ Operators manage production safely:
 Ideal developer flow:
 
 ```bash
-ip init order-sync
+serto init order-sync
 ip ai new "Every hour, sync pending SQL orders to the ERP API and alert Slack on failures"
-ip test
-ip scan
-ip package
-ip deploy
+serto test
+serto scan
+serto package
+serto deploy
 ```
 
 The control plane then shows:
@@ -152,7 +152,7 @@ The project is past prototype architecture and moving toward private beta readin
 Highest-leverage next milestones:
 
 1. **Developer authoring loop**
-   - `ip scan`, `ip package`, deploy preview, local webhook replay, secret manifest.
+   - `serto scan`, `serto package`, deploy preview, local webhook replay, secret manifest.
 
 2. **Trigger declarations and runtime overrides**
    - Code declares intent/defaults; control plane owns production authority and drift decisions.

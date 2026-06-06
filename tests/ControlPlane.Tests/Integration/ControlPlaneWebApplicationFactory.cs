@@ -15,8 +15,8 @@ internal sealed class ControlPlaneWebApplicationFactory(string connectionString)
     : WebApplicationFactory<Program>
 {
     private const string JwtSecret = "integration-test-secret-with-at-least-32-characters";
-    private const string JwtIssuer = "IntegrationPlatform.Tests";
-    private const string JwtAudience = "IntegrationPlatform.Tests";
+    private const string JwtIssuer = "Serto.Tests";
+    private const string JwtAudience = "Serto.Tests";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

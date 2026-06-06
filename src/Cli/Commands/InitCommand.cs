@@ -39,8 +39,8 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IntegrationPlatform.Sdk" Version="1.0.0" />
-    <PackageReference Include="IntegrationPlatform.Connectors" Version="1.0.0" />
+    <PackageReference Include="Serto.Sdk" Version="1.0.0" />
+    <PackageReference Include="Serto.Connectors" Version="1.0.0" />
   </ItemGroup>
 </Project>
 """;
@@ -48,8 +48,8 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
 
                 // Create a sample integration
                 var sampleClass = $$"""
-using IntegrationPlatform.Sdk;
-using IntegrationPlatform.Connectors.Http;
+using Serto.Sdk;
+using Serto.Connectors.Http;
 using Microsoft.Extensions.Logging;
 
 namespace {{projectName}};
@@ -84,7 +84,7 @@ obj/
         AnsiConsole.MarkupLine("Next steps:");
         AnsiConsole.MarkupLine($"  1. [yellow]cd {projectName}[/]");
         AnsiConsole.MarkupLine("  2. [yellow]dotnet build[/]");
-        AnsiConsole.MarkupLine("  3. [yellow]ip deploy[/] (coming soon)");
+        AnsiConsole.MarkupLine("  3. [yellow]serto deploy[/] (coming soon)");
 
         return 0;
     }

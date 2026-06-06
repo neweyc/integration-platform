@@ -1,5 +1,5 @@
 using ControlPlane.Features.IntegrationPackages.Scanning;
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Shared.Domain;
 
 namespace ControlPlane.Tests.Features.IntegrationPackages;

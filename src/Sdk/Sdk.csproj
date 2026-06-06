@@ -4,12 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>IntegrationPlatform.Sdk</RootNamespace>
+    <RootNamespace>Serto.Sdk</RootNamespace>
     <Version>1.0.0</Version>
-    <Authors>Integration Platform Team</Authors>
-    <Description>SDK for building code-first integrations on the Integration Platform.</Description>
-    <PackageProjectUrl>https://github.com/integration-platform/platform</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/integration-platform/platform</RepositoryUrl>
+    <Authors>Serto</Authors>
+    <Description>SDK for building code-first integrations on Serto.</Description>
+    <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
     <PackageTags>integration;automation;workflow;sdk</PackageTags>
   </PropertyGroup>
 

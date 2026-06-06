@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.Loader;
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Shared.Domain;
 
 namespace ControlPlane.Features.IntegrationPackages.Scanning;
@@ -29,10 +29,10 @@ public interface IAssemblyScanner
 
 public class AssemblyScanner : IAssemblyScanner
 {
-    private const string IntegrationInterfaceName = "IntegrationPlatform.Sdk.IIntegration";
-    private const string IntegrationAttributeName = "IntegrationPlatform.Sdk.IntegrationAttribute";
-    private const string ScheduledAttributeName = "IntegrationPlatform.Sdk.ScheduledIntegrationAttribute";
-    private const string WebhookAttributeName = "IntegrationPlatform.Sdk.WebhookIntegrationAttribute";
+    private const string IntegrationInterfaceName = "Serto.Sdk.IIntegration";
+    private const string IntegrationAttributeName = "Serto.Sdk.IntegrationAttribute";
+    private const string ScheduledAttributeName = "Serto.Sdk.ScheduledIntegrationAttribute";
+    private const string WebhookAttributeName = "Serto.Sdk.WebhookIntegrationAttribute";
 
     public List<DiscoveredIntegration> ScanZip(byte[] zipData)
     {

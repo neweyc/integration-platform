@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace IntegrationPlatform.Sdk;
+namespace Serto.Sdk;
 
 /// <summary>
 /// Injected into every integration run. Provides secrets, logging, and execution metadata.

@@ -7,9 +7,9 @@ cd "$ROOT_DIR"
 
 git diff --check
 
-"$HOME/.dotnet/dotnet" restore IntegrationPlatform.slnx
-"$HOME/.dotnet/dotnet" build IntegrationPlatform.slnx --no-restore -warnaserror -warnnotaserror:NU1900 /nr:false
-"$HOME/.dotnet/dotnet" test IntegrationPlatform.slnx --no-build /nr:false
+"$HOME/.dotnet/dotnet" restore Serto.slnx
+"$HOME/.dotnet/dotnet" build Serto.slnx --no-restore -warnaserror -warnnotaserror:NU1900 /nr:false
+"$HOME/.dotnet/dotnet" test Serto.slnx --no-build /nr:false
 
 if [ -d src/ControlPlane.Client/node_modules ]; then
   npm run lint --prefix src/ControlPlane.Client

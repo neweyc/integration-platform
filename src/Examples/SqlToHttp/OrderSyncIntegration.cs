@@ -1,6 +1,6 @@
-using IntegrationPlatform.Sdk;
-using IntegrationPlatform.Connectors.Sql;
-using IntegrationPlatform.Connectors.Http;
+using Serto.Sdk;
+using Serto.Connectors.Sql;
+using Serto.Connectors.Http;
 using Microsoft.Extensions.Logging;
 
 namespace Examples.SqlToHttp;

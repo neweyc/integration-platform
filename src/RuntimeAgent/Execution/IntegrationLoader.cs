@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 
 namespace RuntimeAgent.Execution;
 

@@ -1,10 +1,10 @@
 using System.Data;
 using Dapper;
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
-namespace IntegrationPlatform.Connectors.Sql;
+namespace Serto.Connectors.Sql;
 
 public sealed class SqlConnector
 {

@@ -20,7 +20,7 @@ public sealed class DevCommand : AsyncCommand<DevCommand.Settings>
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
         AnsiConsole.Clear();
-        AnsiConsole.Write(new FigletText("ip dev").Color(Color.Blue));
+        AnsiConsole.Write(new FigletText("serto dev").Color(Color.Blue));
         AnsiConsole.MarkupLine("[yellow]Watching for file changes...[/] Press [red]Ctrl+C[/] to stop.");
         AnsiConsole.MarkupLine("------------------------------------------------------------");
 

@@ -2,14 +2,14 @@
 
 ## Overview
 
-Integration Platform is a **Developer Integration Platform** designed for high-scale enterprise deployments. We treat integrations as **Infrastructure**, utilizing a **Code-as-the-Manifest** model that eliminates manual UI configuration.
+Serto is a **Developer Integration Platform** designed for high-scale enterprise deployments. We treat integrations as **Infrastructure**, utilizing a **Code-as-the-Manifest** model that eliminates manual UI configuration.
 
-![Integration Platform architecture overview](assets/architecture-overview.svg)
+![Serto architecture overview](assets/architecture-overview.svg)
 
 ### Key Architectural Layers
 
-1.  **SDK (`IntegrationPlatform.Sdk`):** The code-first manifest definition. Developers use attributes to define triggers, schedules, and operational constraints directly on their classes.
-2.  **Marketplace & Connectors (`IntegrationPlatform.Connectors`):** An extensible ecosystem of specialized connectors (e.g., SAP, Salesforce, SQL) that abstract enterprise complexity into idiomatic C#.
+1.  **SDK (`Serto.Sdk`):** The code-first manifest definition. Developers use attributes to define triggers, schedules, and operational constraints directly on their classes.
+2.  **Marketplace & Connectors (`Serto.Connectors`):** An extensible ecosystem of specialized connectors (e.g., SAP, Salesforce, SQL) that abstract enterprise complexity into idiomatic C#.
 3.  **Governance Layer:** Built-in **Audit Logs**, **RBAC**, and **SSO** that meet enterprise procurement and compliance requirements.
 4.  **Control Plane:** The multi-tenant orchestration engine. Performs **Assembly Scanning** to auto-provision integrations from uploaded packages.
 5.  **Runtime Agent:** A stateless worker service that provides a secure "Execution Sandbox" close to the data.
@@ -200,7 +200,7 @@ The agent discovers integration classes by scanning a directory for `.dll` files
 
 The SDK is the runtime contract: it defines how integration code plugs into the platform. Connectors are optional reusable libraries for common external-system work such as HTTP/API calls, SQL, SFTP/files, object storage, and notifications. Integrations are customer-specific business logic that composes the SDK and connectors.
 
-This boundary keeps `IntegrationPlatform.Sdk` small and stable while still making common integration chores consistent, observable, retry-aware, and easy to test. See [SDK, Connectors, Trigger Adapters, And Integrations](sdk-connectors-and-adapters.md).
+This boundary keeps `Serto.Sdk` small and stable while still making common integration chores consistent, observable, retry-aware, and easy to test. See [SDK, Connectors, Trigger Adapters, And Integrations](sdk-connectors-and-adapters.md).
 
 ### Assembly packages
 

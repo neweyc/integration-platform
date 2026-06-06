@@ -16,7 +16,7 @@ Product goal: replace legacy integration middleware with a modern, **Integration
 - **Multi-Trigger Integrations:** Separate integration code from trigger configuration so one integration can have schedules, webhooks, manual runs, and future event triggers.
 - **`ip` CLI:** Single tool for `init`, `test`, and `deploy`.
 - **Assembly Scanning:** Auto-provisioning integrations and trigger records from code on upload. (Done)
-- **Developer Authoring Loop:** Add `ip scan`, `ip package`, deploy previews, local webhook replay, and secret manifests so developers can predict exactly what will be provisioned.
+- **Developer Authoring Loop:** Add `serto scan`, `serto package`, deploy previews, local webhook replay, and secret manifests so developers can predict exactly what will be provisioned.
 - **Trigger Declarations And Runtime Overrides:** Treat code attributes as trigger intent/defaults while the control plane owns production enablement, secrets, overrides, and drift decisions.
 - **Local Dev Tunnel:** Tunnel cloud webhooks to local agents for instant debugging.
 - **AI-Assisted Authoring:** Make the SDK AI-legible and generate integrations from natural language, so developers can describe intent and get compiling, testable code.
@@ -26,7 +26,7 @@ Product goal: replace legacy integration middleware with a modern, **Integration
 - **Audit Logs:** Immutable record of all system and secret changes. (Done)
 - **RBAC:** Role-Based Access Control (Admin, Developer, Operator). (Done)
 - **SSO/SAML:** Integration with Enterprise Identity (Entra ID/Okta).
-- **Marketplace Engine:** Support for `ip install connector-x` to build a moat.
+- **Marketplace Engine:** Support for `serto install connector-x` to build a moat.
 
 ## Phase 5 — Workflow Orchestration
 - **DAG Foundation:** Workflow definitions, node dependencies, workflow runs, and fan-out/fan-in release semantics.

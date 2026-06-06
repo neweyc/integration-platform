@@ -305,9 +305,9 @@ Provide a seamless "One-Click" deployment experience for the CLI.
 
 Acceptance criteria:
 - UI has a "Developer" tab.
-- Users can generate a personal API token for use with `ip deploy`.
+- Users can generate a personal API token for use with `serto deploy`.
 - Tokens are securely hashed in the database.
-- One-click "Copy Command" for `ip login` or `ip deploy`.
+- One-click "Copy Command" for `serto login` or `serto deploy`.
 
 Completed notes:
 - Implemented `UserToken` (PAT) system with `pat_` prefix.
@@ -328,19 +328,19 @@ Acceptance criteria:
 Completed notes:
 - Created `StripeToSlack`, `SqlToHttp`, and `SalesforceSync` examples in `src/Examples`.
 
-### `ip dev` Hot-Reload Loop
+### `serto dev` Hot-Reload Loop
 
 **Status:** Done
 
 Create a habit-forming developer feedback loop.
 
 Acceptance criteria:
-- `ip dev` command watches local source files for changes.
-- Automatically triggers a project build and `ip test` on file save.
+- `serto dev` command watches local source files for changes.
+- Automatically triggers a project build and `serto test` on file save.
 - Clear, color-coded console output for success/failure.
 
 Completed notes:
-- Implemented `ip dev` command using `FileSystemWatcher`.
+- Implemented `serto dev` command using `FileSystemWatcher`.
 - Integrated with `TestCommand` for automatic execution on change.
 
 ---
@@ -433,9 +433,9 @@ Completed notes:
 The primary entry point for developers.
 
 Acceptance criteria:
-- `ip init` scaffolds a new integration project.
-- `ip dev` runs a local agent with hot-reload.
-- `ip deploy` packages and uploads to the control plane.
+- `serto init` scaffolds a new integration project.
+- `serto dev` runs a local agent with hot-reload.
+- `serto deploy` packages and uploads to the control plane.
 - CLI is cross-platform (Windows, macOS, Linux).
 
 ### Developer Authoring Loop
@@ -446,10 +446,10 @@ Make the normal developer path seamless before layering AI or MCP on top of it. 
 
 Acceptance criteria:
 
-- `ip scan` performs local assembly scanning and shows discovered integrations, trigger declarations, package metadata, class names, and validation errors before upload.
-- `ip package` builds the package archive, verifies DLL/dependency contents, calculates SHA-256, and runs the same scan preview.
-- `ip deploy` reports the package version, integrations created or updated, trigger records created or preserved, webhook URLs, missing secrets, and next scheduled runs.
-- `ip test` validates attributes, cron expressions, class discoverability, connector configuration, cancellation-token usage where feasible, and sample payload handling.
+- `serto scan` performs local assembly scanning and shows discovered integrations, trigger declarations, package metadata, class names, and validation errors before upload.
+- `serto package` builds the package archive, verifies DLL/dependency contents, calculates SHA-256, and runs the same scan preview.
+- `serto deploy` reports the package version, integrations created or updated, trigger records created or preserved, webhook URLs, missing secrets, and next scheduled runs.
+- `serto test` validates attributes, cron expressions, class discoverability, connector configuration, cancellation-token usage where feasible, and sample payload handling.
 - Local webhook replay lets developers run a signed sample payload without waiting on an external sender.
 - A generated or scanned secret manifest identifies required secret names without storing values in code.
 - Tests cover scan preview, package validation, deploy result reporting, missing secret detection, and webhook replay.
@@ -467,7 +467,7 @@ Acceptance criteria:
 - Package upload creates missing trigger records but preserves operator-owned settings including enabled state, production cron override, webhook secret, queue/file bindings, rate limits, and environment-specific configuration.
 - UI shows drift when code defaults change while operational overrides remain active.
 - Operators can apply a new code default, keep the current override, disable a trigger, or promote settings between environments.
-- `ip scan` and `ip deploy` clearly show which trigger fields are declared by code, which are controlled by the control plane, and which will be preserved.
+- `serto scan` and `serto deploy` clearly show which trigger fields are declared by code, which are controlled by the control plane, and which will be preserved.
 - Tests cover code default changes, preserved production overrides, preserved webhook secrets, disabled trigger preservation, and drift reporting.
 
 ### AI-Assisted Integration Authoring
@@ -482,7 +482,7 @@ Acceptance criteria:
 - `ip ai add-trigger`, `ip ai add-connector`, and `ip ai test` modify existing projects through normal files rather than opaque platform state.
 - Generated code uses `IIntegrationContext`, structured logging, cancellation tokens, connector APIs, secret references by name, and retry/idempotency-aware patterns.
 - Generated output never inlines secret values and warns when a requested workflow implies unsafe non-idempotent writes.
-- AI generation runs local validation (`ip test` and `ip scan`) before deploy.
+- AI generation runs local validation (`serto test` and `serto scan`) before deploy.
 - Failed execution logs can feed an `ip ai fix --from-last-run` workflow that proposes a patch and tests it locally before deployment.
 - Tests cover prompt-to-code generation contracts, secret-manifest generation, sample payload generation, validation failure handling, and failure-log diagnosis workflows.
 
@@ -1056,7 +1056,7 @@ Acceptance criteria:
 
 **Status:** Done
 
-Publish `IntegrationPlatform.Sdk` as a package.
+Publish `Serto.Sdk` as a package.
 
 Acceptance criteria:
 

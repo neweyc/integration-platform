@@ -1,4 +1,4 @@
-namespace IntegrationPlatform.Sdk;
+namespace Serto.Sdk;
 
 /// <summary>
 /// Implement this interface to define an integration.

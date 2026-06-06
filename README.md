@@ -1,4 +1,4 @@
-# Integration Platform
+# Serto
 
 A **Developer Integration Platform** built on the principle of **Integration-as-Code**. We replace legacy, opaque IPaaS "Low-Code" designers with a high-velocity workflow developers actually love.
 
@@ -8,8 +8,8 @@ We provide the **magic developer experience** of Vercel or Temporal for enterpri
 
 ### The Integration-as-Code Workflow:
 1. **Author:** Write a C# class and decorate it with `[ScheduledIntegration]`.
-2. **Develop:** `ip dev` watches your code and runs tests locally on every save.
-3. **Deploy:** `ip deploy`. The Control Plane auto-provisions the infrastructure based on your code.
+2. **Develop:** `serto dev` watches your code and runs tests locally on every save.
+3. **Deploy:** `serto deploy`. The Control Plane auto-provisions the infrastructure based on your code.
 
 We are the **"Terraform for Enterprise Integrations,"** designed specifically for engineering teams who need to solve complex SAP, Salesforce, and internal API automation without proprietary lock-in.
 
@@ -177,7 +177,7 @@ IP_API_TOKEN=<personal-access-token> dotnet run --project src/Cli -- deploy \
   --version 1.0.0
 ```
 
-If `--version` is omitted, `ip deploy` uses `PackageVersion` or `Version` from the project file and falls back to a timestamped development version. You can still copy published DLLs directly to the agent's `IntegrationsPath` for local development. Package sync avoids manual copying; integrations can be pinned to uploaded package versions, and rollback is performed by repointing the integration to a previous package version.
+If `--version` is omitted, `serto deploy` uses `PackageVersion` or `Version` from the project file and falls back to a timestamped development version. You can still copy published DLLs directly to the agent's `IntegrationsPath` for local development. Package sync avoids manual copying; integrations can be pinned to uploaded package versions, and rollback is performed by repointing the integration to a previous package version.
 
 See [docs/writing-integrations.md](docs/writing-integrations.md) for details.
 

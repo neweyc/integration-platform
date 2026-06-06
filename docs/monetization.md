@@ -15,7 +15,7 @@ We are not an IPaaS (Integration Platform as a Service) in the legacy sense (Boo
 
 Enterprise integration platforms (Dell Boomi, MuleSoft, Workato) are expensive and require specialist skills. Their low-code/no-code interfaces look accessible but hide complexity — non-trivial integrations end up requiring professional services anyway, and you're locked into a proprietary execution model.
 
-Integration Platform targets teams that already write code. It removes the platform tax without removing control.
+Serto targets teams that already write code. It removes the platform tax without removing control.
 
 ---
 
@@ -123,7 +123,7 @@ For teams with higher volume or compliance requirements.
 
 ## Competitive positioning
 
-| | Integration Platform | Dell Boomi | Zapier | Custom code |
+| | Serto | Dell Boomi | Zapier | Custom code |
 |--|--|--|--|--|
 | Skill required | C# developer | Specialist | Non-technical | Developer |
 | Integration as code | ✓ | ✗ | ✗ | ✓ |
@@ -183,6 +183,6 @@ As of Phase 2, the following commercial enablers are **Live**:
 To achieve a **$10M–$100M+ exit**, we must demonstrate:
 1.  **Workflow Moat:** Prove that once a team adopts our SDK and CLI, the "Integration-as-Code" workflow is too valuable to replace.
 2.  **Connector Ecosystem:** Build a marketplace of high-value "Enterprise Wedges" (e.g., SAP, Salesforce, Oracle) that simplify the hardest integration problems.
-3.  **Low-Friction Adoption:** High "Self-Serve" conversion rates from `ip init` to first paid quota hit.
+3.  **Low-Friction Adoption:** High "Self-Serve" conversion rates from `serto init` to first paid quota hit.
 4.  **Operational Maturity:** Enterprise-grade Audit Logs, RBAC, and Compliance reporting.
 5.  **Platform Stickiness:** Native integration with Azure, GitHub, and Entra ID (making us the default choice for the Microsoft ecosystem).

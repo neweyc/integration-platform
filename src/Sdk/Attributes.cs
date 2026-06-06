@@ -1,4 +1,4 @@
-namespace IntegrationPlatform.Sdk;
+namespace Serto.Sdk;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public class IntegrationAttribute(string name, string slug) : Attribute

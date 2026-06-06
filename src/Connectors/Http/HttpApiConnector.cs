@@ -1,9 +1,9 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Microsoft.Extensions.Logging;
 
-namespace IntegrationPlatform.Connectors.Http;
+namespace Serto.Connectors.Http;
 
 public sealed class HttpApiConnector
 {

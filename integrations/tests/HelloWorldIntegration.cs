@@ -1,4 +1,4 @@
-using IntegrationPlatform.Sdk;
+using Serto.Sdk;
 using Microsoft.Extensions.Logging;
 
 namespace TestIntegrations;

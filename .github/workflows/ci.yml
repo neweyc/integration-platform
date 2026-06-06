@@ -47,13 +47,13 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore .NET
-        run: dotnet restore IntegrationPlatform.slnx
+        run: dotnet restore Serto.slnx
 
       - name: Build .NET with warnings as errors
-        run: dotnet build IntegrationPlatform.slnx --configuration Release --no-restore -warnaserror /nr:false
+        run: dotnet build Serto.slnx --configuration Release --no-restore -warnaserror /nr:false
 
       - name: Test .NET
-        run: dotnet test IntegrationPlatform.slnx --configuration Release --no-build --logger trx --results-directory TestResults /nr:false
+        run: dotnet test Serto.slnx --configuration Release --no-build --logger trx --results-directory TestResults /nr:false
 
       - name: Setup Node
         uses: actions/setup-node@v4

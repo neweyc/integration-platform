@@ -4,7 +4,7 @@ using Cli.Commands;
 var app = new CommandApp();
 app.Configure(config =>
 {
-    config.SetApplicationName("ip");
+    config.SetApplicationName("serto");
     config.AddCommand<InitCommand>("init")
         .WithDescription("Scaffold a new integration project");
 
