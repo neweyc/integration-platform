@@ -11,6 +11,9 @@ app.Configure(config =>
     config.AddCommand<DeployCommand>("deploy")
         .WithDescription("Deploy the current project to the Control Plane");
 
+    config.AddCommand<ScanCommand>("scan")
+        .WithDescription("Preview integrations and triggers discovered from the current project");
+
     config.AddCommand<TestCommand>("test")
         .WithDescription("Run an integration locally for testing");
 

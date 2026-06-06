@@ -11,7 +11,8 @@ The `ip` CLI is the primary tool for development.
 1. **Initialize:** `ip init MyProject` scaffolds a new C# project.
 2. **Develop:** Write your logic in C#. Use attributes like `[ScheduledIntegration]` to define infrastructure.
 3. **Test Locally:** `ip dev` watches for changes and runs your integration instantly.
-4. **Deploy:** `ip deploy` builds and auto-provisions your integration in the Control Plane.
+4. **Scan:** `ip scan` previews what package upload will discover and validate.
+5. **Deploy:** `ip deploy` builds and auto-provisions your integration in the Control Plane.
 
 ---
 
@@ -82,6 +83,14 @@ To test a specific class or provide a mock webhook payload:
 ```bash
 ip test MyIntegration --payload '{"id": 123}'
 ```
+
+To preview what the control plane will discover before deploy:
+
+```bash
+ip scan
+```
+
+The scan builds the project, inspects the compiled assemblies for decorated `IIntegration` classes, validates discovered trigger metadata such as cron expressions, and prints the package name, version, class names, trigger declarations, and run policy. Use `--no-build` to scan the existing `bin` output after a normal build.
 
 ---
 

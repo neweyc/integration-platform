@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Examples.SqlToHttp;
 
-[ScheduledIntegration("SQL to API Sync", "sql-to-http", "0 */30 * * *", Description = "Sync pending orders from SQL to an external API every 30 minutes.")]
+[ScheduledIntegration("SQL to API Sync", "sql-to-http", "*/30 * * * *", Description = "Sync pending orders from SQL to an external API every 30 minutes.")]
 public class OrderSyncIntegration : IIntegration
 {
     public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
