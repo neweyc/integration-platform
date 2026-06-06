@@ -23,7 +23,7 @@ public class DeployCommandTests
     [Fact]
     public void ResolveToken_ReturnsNullWhenNoTokenAvailable()
     {
-        var token = DeployCommand.ResolveToken(" ", null);
+        var token = DeployCommand.ResolveToken(" ", (string?)null);
 
         Assert.Null(token);
     }

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Xml.Linq;
 using Spectre.Console;
@@ -32,71 +31,48 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         [CommandOption("-n|--name")]
         [Description("The package name to upload. Defaults to the project name.")]
         public string? PackageName { get; init; }
+
+        [CommandOption("-p|--project")]
+        [Description("Path to the integration .csproj. Defaults to the first .csproj in the current directory.")]
+        public string? ProjectPath { get; init; }
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        var currentDir = Directory.GetCurrentDirectory();
-        var csprojFile = Directory.GetFiles(currentDir, "*.csproj").FirstOrDefault();
+        var csprojFile = ScanCommand.ResolveProjectPath(settings.ProjectPath, Directory.GetCurrentDirectory());
 
-        if (csprojFile == null)
+        if (csprojFile is null)
         {
-            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj file found in the current directory.");
+            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj file found.");
             return 1;
         }
 
-        var projectName = Path.GetFileNameWithoutExtension(csprojFile);
-        var packageName = string.IsNullOrWhiteSpace(settings.PackageName) ? projectName : settings.PackageName.Trim();
-        var packageVersion = ResolvePackageVersion(csprojFile, settings.Version, DateTimeOffset.UtcNow);
-
-        AnsiConsole.MarkupLine($"[blue]Deploying integration project:[/] [green]{projectName}[/]");
-        AnsiConsole.MarkupLine($"[blue]Package:[/] [green]{packageName}[/] [blue]version:[/] [green]{packageVersion}[/]");
-
-        var publishDir = Path.Combine(currentDir, "publish");
-        var zipPath = Path.Combine(currentDir, CreatePackageArchiveFileName(packageName, packageVersion));
+        PackageBuildResult? package = null;
 
         try
         {
-            // 1. Build
-            await AnsiConsole.Status()
-                .StartAsync("Building project...", async ctx =>
-                {
-                    var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "dotnet",
-                        Arguments = $"publish \"{csprojFile}\" -c Release -o \"{publishDir}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    });
+            AnsiConsole.MarkupLine("[blue]Preparing deploy preview...[/]");
+            package = await PackageCommand.CreateAsync(
+                csprojFile,
+                settings.PackageName,
+                settings.Version,
+                outputDirectory: null,
+                keepArchive: true,
+                ct);
 
-                    if (process == null) throw new Exception("Failed to start dotnet publish");
+            ScanCommand.RenderPreview(package.ProjectName, package.PackageName, package.PackageVersion, package.ScanResult);
+            AnsiConsole.MarkupLine($"[blue]Archive SHA-256:[/] [green]{package.Sha256Hash}[/]");
 
-                    var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
-                    var stderrTask = process.StandardError.ReadToEndAsync(ct);
-                    await process.WaitForExitAsync(ct);
+            if (!package.ScanResult.IsValid)
+            {
+                AnsiConsole.MarkupLine("[red]Deploy cancelled.[/] Fix scan errors before upload.");
+                return 1;
+            }
 
-                    var stdout = await stdoutTask;
-                    var stderr = await stderrTask;
-
-                    if (process.ExitCode != 0)
-                    {
-                        throw new Exception($"Build failed: {stderr}{Environment.NewLine}{stdout}");
-                    }
-                });
-
-            // 2. Package
-            if (File.Exists(zipPath)) File.Delete(zipPath);
-
-            await AnsiConsole.Status()
-                .StartAsync("Packaging bundle...", async ctx =>
-                {
-                    await Task.Run(() => ZipFile.CreateFromDirectory(publishDir, zipPath), ct);
-                });
-
-            // 3. Upload
-            var token = ResolveToken(settings.Token, Environment.GetEnvironmentVariable("IP_API_TOKEN"))
+            var token = ResolveToken(
+                            settings.Token,
+                            Environment.GetEnvironmentVariable("SERTO_API_TOKEN"),
+                            Environment.GetEnvironmentVariable("IP_API_TOKEN"))
                         ?? AnsiConsole.Ask<string>("Enter your [green]API token[/]:");
 
             await AnsiConsole.Status()
@@ -107,12 +83,12 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                     using var content = new MultipartFormDataContent();
-                    var fileContent = new ByteArrayContent(await File.ReadAllBytesAsync(zipPath, ct));
+                    var fileContent = new ByteArrayContent(await File.ReadAllBytesAsync(package.ArchivePath, ct));
                     fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/zip");
 
-                    content.Add(new StringContent(packageName), "name");
-                    content.Add(new StringContent(packageVersion), "version");
-                    content.Add(fileContent, "file", Path.GetFileName(zipPath));
+                    content.Add(new StringContent(package.PackageName), "name");
+                    content.Add(new StringContent(package.PackageVersion), "version");
+                    content.Add(fileContent, "file", Path.GetFileName(package.ArchivePath));
 
                     var response = await client.PostAsync("/api/integration-packages", content, ct);
 
@@ -123,21 +99,27 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                     }
                 });
 
-            AnsiConsole.MarkupLine("[green]Success![/] Project deployed and integrations auto-provisioned.");
+            AnsiConsole.MarkupLine("[green]Success![/] Package uploaded; the control plane will auto-provision discovered integrations.");
         }
         finally
         {
-            if (File.Exists(zipPath)) File.Delete(zipPath);
-            if (Directory.Exists(publishDir)) Directory.Delete(publishDir, true);
+            if (package is not null && File.Exists(package.ArchivePath))
+                File.Delete(package.ArchivePath);
         }
 
         return 0;
     }
 
-    public static string? ResolveToken(string? explicitToken, string? environmentToken)
+    public static string? ResolveToken(string? explicitToken, params string?[] environmentTokens)
     {
         if (!string.IsNullOrWhiteSpace(explicitToken)) return explicitToken.Trim();
-        if (!string.IsNullOrWhiteSpace(environmentToken)) return environmentToken.Trim();
+
+        foreach (var token in environmentTokens ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(token))
+                return token.Trim();
+        }
+
         return null;
     }
 

@@ -440,7 +440,7 @@ Acceptance criteria:
 
 ### Developer Authoring Loop
 
-**Status:** Todo
+**Status:** In Progress
 
 Make the normal developer path seamless before layering AI or MCP on top of it. A developer should be able to create, test, scan, package, deploy, and inspect an integration without guessing what the control plane will do.
 
@@ -453,6 +453,20 @@ Acceptance criteria:
 - Local webhook replay lets developers run a signed sample payload without waiting on an external sender.
 - A generated or scanned secret manifest identifies required secret names without storing values in code.
 - Tests cover scan preview, package validation, deploy result reporting, missing secret detection, and webhook replay.
+
+Completed notes:
+
+- Added `serto scan` to build and inspect local integration assemblies before upload.
+- Added `serto package` to publish, archive, validate, calculate SHA-256, and print the same scan preview without uploading.
+- Updated `serto deploy` to run the package/scan preview before upload and cancel when scan validation fails.
+- Added source-based required-secret detection for direct `context.Secrets`, `TryGetValue`, `WithBearerToken`, and `SqlConnector` usage.
+- Added CLI tests for scan metadata, invalid cron validation, required-secret detection, and package hash calculation.
+
+Remaining gaps:
+
+- Deploy upload response still returns package metadata only, so `serto deploy` cannot yet report server-side created/updated/preserved trigger records, webhook URLs, or next scheduled runs.
+- `serto test` does not yet validate cancellation-token usage, connector configuration, sample payload behavior, or required secrets.
+- Local signed webhook replay is not implemented yet.
 
 ### Trigger Declarations And Runtime Overrides
 
