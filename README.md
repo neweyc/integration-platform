@@ -195,14 +195,14 @@ Build and run the control plane as a Docker container:
 
 ```bash
 # Build from repository root
-docker build -f src/ControlPlane/Dockerfile -t integration-platform .
+docker build -f src/ControlPlane/Dockerfile -t serto .
 
 # Run with environment variables
 docker run -p 8080:8080 \
   -e ConnectionStrings__DefaultConnection="Host=db;Database=integrationplatform;Username=user;Password=pass" \
   -e Jwt__Key="your-256-bit-secret-key" \
   -e Encryption__MasterKey="your-encryption-master-key" \
-  integration-platform
+  serto
 ```
 
 The Dockerfile builds both the React frontend and .NET backend in a multi-stage build.

@@ -6,7 +6,7 @@ This guide explains how to author, test, and deploy integrations using the **Int
 
 ## The Workflow
 
-The `ip` CLI is the primary tool for development.
+The `serto` CLI is the primary tool for development.
 
 1. **Initialize:** `serto init MyProject` scaffolds a new C# project.
 2. **Develop:** Write your logic in C#. Use attributes like `[ScheduledIntegration]` to define infrastructure.

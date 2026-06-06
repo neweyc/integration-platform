@@ -81,7 +81,7 @@ function HeroSection() {
           <span className="flex size-8 items-center justify-center rounded-lg border bg-background">
             <Workflow className="size-4" />
           </span>
-          <span>Integration Platform</span>
+          <span>Serto</span>
         </Link>
         <nav className="flex items-center gap-2">
           <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/login">

@@ -190,7 +190,7 @@ Accepts an invitation and creates a new user.
 
 ## User Tokens (Personal Access Tokens)
 
-Personal Access Tokens (PATs) allow secure access to the API from the `ip` CLI and other automated tools without requiring JWT/OAuth flows. Tokens are prefixed with `pat_` and are securely hashed in the database.
+Personal Access Tokens (PATs) allow secure access to the API from the `serto` CLI and other automated tools without requiring JWT/OAuth flows. Tokens are prefixed with `pat_` and are securely hashed in the database.
 
 ### `GET /api/user-tokens`
 

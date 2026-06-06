@@ -6,7 +6,7 @@ We are not an IPaaS (Integration Platform as a Service) in the legacy sense (Boo
 
 **We solve the "Low-Code Trap":** Enterprise integrations end up requiring code anyway. Instead of hiding that code in a proprietary black box, we make it the first-class citizen. By treating integrations as **Infrastructure**, we enable:
 - **Version Control:** Integrations live in Git.
-- **CI/CD:** Automated testing and deployment via the `ip` CLI.
+- **CI/CD:** Automated testing and deployment via the `serto` CLI.
 - **Velocity:** Engineering teams build 10x faster using idiomatic C# and our specialized **Enterprise Connectors**.
 
 ---

@@ -99,7 +99,7 @@ Three auth mechanisms exist:
 
 1. **User JWT** — issued on login/setup, contains `sub`, `email`, `tenant_id`, `role` claims. Used for all web-based API calls.
 
-2. **Personal Access Tokens (PATs)** — format `pat_<base64url(32 random bytes)>`. Used by the `ip` CLI. SHA-256 hash stored in the database. Authenticated via `UserTokenAuthenticationMiddleware` which injects standard user claims.
+2. **Personal Access Tokens (PATs)** — format `pat_<base64url(32 random bytes)>`. Used by the `serto` CLI. SHA-256 hash stored in the database. Authenticated via `UserTokenAuthenticationMiddleware` which injects standard user claims.
 
 3. **Agent tokens** — format `agt_<base64url(32 random bytes)>`. SHA-256 hash stored in the database. Presented via `X-Agent-Token` header. Scoped to a single tenant + environment.
 

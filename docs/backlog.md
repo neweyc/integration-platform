@@ -426,7 +426,7 @@ Completed notes:
 - Discovered metadata is validated before the package row is created, preventing invalid attribute data such as bad cron expressions from creating unusable package versions.
 - Scanner tests cover base integration metadata and multi-trigger discovery; upload tests cover package pinning, multi-trigger upsert, and invalid discovered cron handling.
 
-### `ip` CLI
+### `serto` CLI
 
 **Status:** Done
 

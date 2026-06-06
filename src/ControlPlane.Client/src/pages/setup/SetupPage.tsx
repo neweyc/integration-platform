@@ -57,7 +57,7 @@ export function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Integration Platform</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Serto</h1>
           <p className="text-muted-foreground mt-1">Set up your workspace</p>
         </div>
 

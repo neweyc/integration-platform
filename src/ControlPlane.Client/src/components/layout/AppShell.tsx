@@ -46,7 +46,7 @@ export function AppShell() {
       <div className="flex min-h-screen w-full">
         <Sidebar>
           <SidebarHeader className="p-4">
-            <span className="font-semibold text-sm">Integration Platform</span>
+            <span className="font-semibold text-sm">Serto</span>
           </SidebarHeader>
 
           <Separator />

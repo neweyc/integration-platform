@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="980" viewBox="0 0 1440 980" role="img" aria-labelledby="title desc">
-  <title id="title">Integration Platform architecture overview</title>
+  <title id="title">Serto architecture overview</title>
   <desc id="desc">Diagram showing the React frontend, control plane, PostgreSQL database, runtime agent, integration assemblies, and customer systems.</desc>
   <defs>
     <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
@@ -53,7 +53,7 @@
 
   <rect class="bg" width="1440" height="980"/>
 
-  <text class="title" x="72" y="72">Integration Platform Architecture</text>
+  <text class="title" x="72" y="72">Serto Architecture</text>
   <text class="subtitle" x="72" y="102">Control plane owns configuration, state, scheduling, secrets, and observability. Runtime agents execute integration code close to customer systems.</text>
 
   <rect class="boundary" x="52" y="130" width="755" height="790" rx="18"/>
