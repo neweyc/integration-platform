@@ -202,7 +202,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"build \"{csprojFile}\" -c \"{configuration}\" --no-restore",
+            Arguments = $"build \"{csprojFile}\" -c \"{configuration}\"",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -210,7 +210,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
         });
 
         if (process is null)
-            throw new InvalidOperationException("Failed to start dotnet publish.");
+            throw new InvalidOperationException("Failed to start dotnet build.");
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
         var stderrTask = process.StandardError.ReadToEndAsync(ct);
@@ -284,14 +284,10 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
         if (!Regex.IsMatch(integration.ClassName, @"^[\w]+(?:\.[\w]+)*$"))
             yield return $"{integration.ClassName}: class name must be a valid fully-qualified .NET type name.";
 
-        if (integration.TimeoutSeconds is <= 0)
-            yield return $"{integration.ClassName}: timeout must be greater than zero seconds.";
-
-        if (integration.RetryMaxAttempts is < 0)
-            yield return $"{integration.ClassName}: retry max attempts cannot be negative.";
-
-        if (integration.RetryBackoffSeconds is < 0)
-            yield return $"{integration.ClassName}: retry backoff cannot be negative.";
+        // Note: timeout/retry are read via GetPositiveInt, which coerces zero/negative attribute
+        // values to null (matching the server scanner). Non-positive values are silently treated
+        // as "unset", so there is no separate numeric guard here — that keeps the preview faithful
+        // to what deploy will actually provision.
 
         var triggerSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var trigger in integration.Triggers)
