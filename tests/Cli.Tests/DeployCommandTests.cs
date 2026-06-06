@@ -98,6 +98,39 @@ public class DeployCommandTests
         Assert.Equal("customer-integrations.1.0-rollback.zip", fileName);
     }
 
+    [Fact]
+    public void FormatTriggerDetails_IncludesScheduleNextRun()
+    {
+        var details = DeployCommand.FormatTriggerDetails(new PackageProvisionedTriggerResponse(
+            Guid.NewGuid(),
+            "Every Five",
+            "every-five",
+            "Scheduled",
+            Enabled: true,
+            "Created",
+            CronExpression: "*/5 * * * *",
+            NextRunAt: new DateTime(2026, 6, 5, 12, 5, 0, DateTimeKind.Utc)));
+
+        Assert.Contains("cron: */5 * * * *", details);
+        Assert.Contains("2026-06-05T12:05:00", details);
+    }
+
+    [Fact]
+    public void FormatTriggerDetails_IncludesWebhookSecretPreservation()
+    {
+        var details = DeployCommand.FormatTriggerDetails(new PackageProvisionedTriggerResponse(
+            Guid.NewGuid(),
+            "Hook",
+            "hook",
+            "Webhook",
+            Enabled: true,
+            "Updated",
+            WebhookUrl: "/webhooks/acme/order-sync/hook",
+            WebhookSecretPreserved: true));
+
+        Assert.Equal("/webhooks/acme/order-sync/hook, secret preserved", details);
+    }
+
     private static DateTimeOffset FixedNow => new(2026, 6, 3, 12, 34, 56, TimeSpan.Zero);
 
     private static TemporaryProjectFile TemporaryProject(string contents)

@@ -147,7 +147,7 @@ builder.Services.AddScoped<PackageRepository>();
 builder.Services.AddScoped<IPackageRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageReadRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageDeleteRepository>(sp => sp.GetRequiredService<PackageRepository>());
-builder.Services.AddScoped<ICommandHandler<UploadPackageCommand, PackageMetadata>, UploadPackageHandler>();
+builder.Services.AddScoped<ICommandHandler<UploadPackageCommand, PackageUploadResult>, UploadPackageHandler>();
 builder.Services.AddScoped<ICommandHandler<ListPackagesCommand, ListPackagesResult>, ListPackagesHandler>();
 builder.Services.AddScoped<ICommandHandler<GetPackageCommand, PackageMetadata?>, GetPackageHandler>();
 builder.Services.AddScoped<ICommandHandler<DownloadPackageCommand, DownloadPackageResult?>, DownloadPackageHandler>();

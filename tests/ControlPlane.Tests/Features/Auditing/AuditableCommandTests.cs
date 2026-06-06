@@ -95,7 +95,9 @@ public class AuditableCommandTests
     {
         var cmd = new UploadPackageCommand(Guid.NewGuid(), "Acme.Pkg", "1.2.3", "pkg.zip", [1, 2, 3]);
         var id = Guid.NewGuid();
-        var result = new PackageMetadata(id, "Acme.Pkg", "1.2.3", "pkg.zip", 3, "hash", DateTime.UtcNow);
+        var result = new PackageUploadResult(
+            new PackageMetadata(id, "Acme.Pkg", "1.2.3", "pkg.zip", 3, "hash", DateTime.UtcNow),
+            []);
 
         var d = cmd.Describe(result);
 

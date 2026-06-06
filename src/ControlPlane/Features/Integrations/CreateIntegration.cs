@@ -73,8 +73,18 @@ public interface IIntegrationRepository
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
     Task<Integration> CreateAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
-    Task<Integration> UpsertBySlugAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
+    Task<IntegrationUpsertResult> UpsertBySlugAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
 }
+
+public record IntegrationUpsertResult(
+    Integration Integration,
+    bool Created,
+    IReadOnlyList<IntegrationTriggerUpsertResult> Triggers);
+
+public record IntegrationTriggerUpsertResult(
+    IntegrationTrigger Trigger,
+    bool Created,
+    bool WebhookSecretPreserved);
 
 public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>

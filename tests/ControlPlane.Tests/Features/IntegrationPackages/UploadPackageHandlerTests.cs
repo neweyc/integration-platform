@@ -21,6 +21,26 @@ public class UploadPackageHandlerTests
     {
         _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository, _encryption);
         _repository.CreateAsync(Arg.Any<AssemblyPackage>()).Returns(call => call.Arg<AssemblyPackage>());
+        _integrationRepository.GetTenantSlugAsync(_tenantId).Returns("acme");
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(),
+                Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                var triggers = call.Arg<IReadOnlyList<IntegrationTrigger>>();
+                foreach (var trigger in triggers)
+                    integration.Triggers.Add(trigger);
+
+                return new IntegrationUpsertResult(
+                    integration,
+                    Created: true,
+                    triggers.Select(t => new IntegrationTriggerUpsertResult(
+                        t,
+                        Created: true,
+                        WebhookSecretPreserved: false)).ToList());
+            });
         _scanner.ScanZip(Arg.Any<byte[]>()).Returns([]);
     }
 
@@ -37,11 +57,11 @@ public class UploadPackageHandlerTests
             "integrations.zip",
             data));
 
-        Assert.Equal("MyCompany.Integrations", result.Name);
-        Assert.Equal("1.0.0", result.Version);
-        Assert.Equal("integrations.zip", result.FileName);
-        Assert.Equal(data.Length, result.SizeBytes);
-        Assert.Matches("^[a-f0-9]{64}$", result.Sha256Hash);
+        Assert.Equal("MyCompany.Integrations", result.Package.Name);
+        Assert.Equal("1.0.0", result.Package.Version);
+        Assert.Equal("integrations.zip", result.Package.FileName);
+        Assert.Equal(data.Length, result.Package.SizeBytes);
+        Assert.Matches("^[a-f0-9]{64}$", result.Package.Sha256Hash);
     }
 
     [Fact]
@@ -80,7 +100,7 @@ public class UploadPackageHandlerTests
             && i.TimeoutSeconds == 300
             && i.RetryMaxAttempts == 2
             && i.RetryBackoffSeconds == 60
-            && i.PackageId == result.Id
+            && i.PackageId == result.Package.Id
             && i.Status == IntegrationStatus.Enabled),
             Arg.Is<IReadOnlyList<IntegrationTrigger>>(triggers =>
                 triggers.Count == 1
@@ -130,6 +150,97 @@ public class UploadPackageHandlerTests
                                  && t.Type == TriggerType.Webhook
                                  && t.CronExpression == null
                                  && t.EncryptedWebhookSecret != null)));
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReturnsProvisioningReport()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Order Sync",
+                "order-sync",
+                "Acme.OrderSync",
+                "Syncs orders",
+                TimeoutSeconds: 120,
+                RetryMaxAttempts: 1,
+                RetryBackoffSeconds: 30,
+                [
+                    new DiscoveredIntegrationTrigger("Every Five", "every-five", TriggerType.Scheduled, "*/5 * * * *"),
+                    new DiscoveredIntegrationTrigger("Hook", "hook", TriggerType.Webhook, CronExpression: null)
+                ])
+        ]);
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId,
+            "MyCompany.Integrations",
+            "1.0.0",
+            "integrations.zip",
+            data));
+
+        var provisioned = Assert.Single(result.Provisioning);
+        Assert.Equal("Created", provisioned.Action);
+        Assert.Equal("order-sync", provisioned.Slug);
+        Assert.Equal(result.Package.Id, provisioned.PackageId);
+        Assert.Contains(provisioned.Triggers, t =>
+            t.Slug == "every-five"
+            && t.Action == "Created"
+            && t.CronExpression == "*/5 * * * *"
+            && t.NextRunAt is not null);
+        Assert.Contains(provisioned.Triggers, t =>
+            t.Slug == "hook"
+            && t.Action == "Created"
+            && t.WebhookUrl == "/webhooks/acme/order-sync/hook"
+            && !t.WebhookSecretPreserved);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ExistingWebhookTrigger_ReportsPreservedSecret()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Order Sync",
+                "order-sync",
+                "Acme.OrderSync",
+                Description: null,
+                TimeoutSeconds: null,
+                RetryMaxAttempts: null,
+                RetryBackoffSeconds: null,
+                [
+                    new DiscoveredIntegrationTrigger("Hook", "hook", TriggerType.Webhook, CronExpression: null)
+                ])
+        ]);
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(),
+                Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                var trigger = call.Arg<IReadOnlyList<IntegrationTrigger>>().Single();
+                integration.Triggers.Add(trigger);
+
+                return new IntegrationUpsertResult(
+                    integration,
+                    Created: false,
+                    [new IntegrationTriggerUpsertResult(trigger, Created: false, WebhookSecretPreserved: true)]);
+            });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId,
+            "MyCompany.Integrations",
+            "1.0.0",
+            "integrations.zip",
+            data));
+
+        var provisioned = Assert.Single(result.Provisioning);
+        Assert.Equal("Updated", provisioned.Action);
+        var trigger = Assert.Single(provisioned.Triggers);
+        Assert.Equal("Updated", trigger.Action);
+        Assert.True(trigger.WebhookSecretPreserved);
     }
 
     [Fact]

@@ -139,7 +139,7 @@ public class AgentExecutionApiIntegrationTests
         var uploadResponse = await client.PostAsync("/api/integration-packages", form);
         Assert.Equal(HttpStatusCode.Created, uploadResponse.StatusCode);
 
-        var uploaded = (await uploadResponse.Content.ReadFromJsonAsync<PackageResponse>())!;
+        var uploaded = (await uploadResponse.Content.ReadFromJsonAsync<PackageUploadResponse>())!;
 
         var agentToken = await PostAgentTokenAsync(client, setup.Token);
 
@@ -149,12 +149,12 @@ public class AgentExecutionApiIntegrationTests
         var packages = await GetJsonAsync<AgentPackagesResponse>(client, "/api/agent/packages");
         var package = Assert.Single(packages.Packages);
 
-        Assert.Equal(uploaded.Id, package.Id);
-        Assert.Equal(uploaded.Name, package.Name);
-        Assert.Equal(uploaded.Version, package.Version);
-        Assert.Equal(uploaded.Sha256Hash, package.Sha256Hash);
+        Assert.Equal(uploaded.Package.Id, package.Id);
+        Assert.Equal(uploaded.Package.Name, package.Name);
+        Assert.Equal(uploaded.Package.Version, package.Version);
+        Assert.Equal(uploaded.Package.Sha256Hash, package.Sha256Hash);
 
-        var download = await client.GetAsync($"/api/agent/packages/{uploaded.Id}/download");
+        var download = await client.GetAsync($"/api/agent/packages/{uploaded.Package.Id}/download");
         Assert.Equal(HttpStatusCode.OK, download.StatusCode);
         Assert.Equal(zip, await download.Content.ReadAsByteArrayAsync());
     }
@@ -348,6 +348,7 @@ public class AgentExecutionApiIntegrationTests
     private sealed record SetupResponse(Guid TenantId, string Token);
     private sealed record IntegrationResponse(Guid Id);
     private sealed record AgentTokenResponse(Guid Id, string Token);
+    private sealed record PackageUploadResponse(PackageResponse Package);
     private sealed record PackageResponse(Guid Id, string Name, string Version, string Sha256Hash);
     private sealed record AgentPackagesResponse(IReadOnlyList<AgentPackageResponse> Packages);
     private sealed record AgentPackageResponse(Guid Id, string Name, string Version, string Sha256Hash);
