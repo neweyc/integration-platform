@@ -753,7 +753,56 @@ curl -X POST http://localhost:5000/api/integration-packages \
   -F "file=@./publish/integrations.zip"
 ```
 
-**Response:** `201 Created` with package metadata. Upload also scans decorated `IIntegration` classes and auto-provisions matching integration and trigger records pinned to the uploaded package version.
+**Response:** `201 Created` with package metadata and a provisioning report. Upload also scans decorated `IIntegration` classes and auto-provisions matching integration and trigger records pinned to the uploaded package version.
+
+```json
+{
+  "package": {
+    "id": "0aa96bc3-6c90-4a99-8ac6-b5c742e559c9",
+    "name": "MyCompany.Integrations",
+    "version": "1.0.0",
+    "fileName": "integrations.zip",
+    "sizeBytes": 18432,
+    "sha256Hash": "e3b0c44298fc1c149afbf4c8996fb924...",
+    "createdAt": "2026-06-05T19:30:00Z"
+  },
+  "provisioning": [
+    {
+      "id": "5073ddcc-0dd9-41e3-b5b0-b31608369c56",
+      "name": "Order Sync",
+      "slug": "order-sync",
+      "environment": "production",
+      "className": "Acme.OrderSync",
+      "action": "Updated",
+      "packageId": "0aa96bc3-6c90-4a99-8ac6-b5c742e559c9",
+      "triggers": [
+        {
+          "id": "d4eb68fa-23f5-4748-9927-5df0508607e9",
+          "name": "Every Five",
+          "slug": "every-five",
+          "type": "Scheduled",
+          "enabled": true,
+          "action": "Created",
+          "cronExpression": "*/5 * * * *",
+          "nextRunAt": "2026-06-05T19:35:00Z"
+        },
+        {
+          "id": "ed54eea2-3690-4a9a-bd23-4804518cc1ff",
+          "name": "Hook",
+          "slug": "hook",
+          "type": "Webhook",
+          "enabled": true,
+          "action": "Updated",
+          "webhookUrl": "/webhooks/acme/order-sync/hook",
+          "webhookSecretPreserved": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+Webhook secrets are preserved when an existing webhook trigger is updated by package upload; upload does not rotate operator-facing webhook credentials.
 
 ---
 

@@ -459,12 +459,14 @@ Completed notes:
 - Added `serto scan` to build and inspect local integration assemblies before upload.
 - Added `serto package` to publish, archive, validate, calculate SHA-256, and print the same scan preview without uploading.
 - Updated `serto deploy` to run the package/scan preview before upload and cancel when scan validation fails.
+- Updated package upload to return a server-side provisioning report, including created/updated integrations, trigger actions, webhook URLs, preserved webhook-secret status, pinned package id, and computed next scheduled run.
+- Updated `serto deploy` to render the server-side provisioning report after upload.
 - Added source-based required-secret detection for direct `context.Secrets`, `TryGetValue`, `WithBearerToken`, and `SqlConnector` usage.
-- Added CLI tests for scan metadata, invalid cron validation, required-secret detection, and package hash calculation.
+- Added CLI and control-plane tests for scan metadata, invalid cron validation, required-secret detection, package hash calculation, upload provisioning reports, and deploy trigger detail formatting.
 
 Remaining gaps:
 
-- Deploy upload response still returns package metadata only, so `serto deploy` cannot yet report server-side created/updated/preserved trigger records, webhook URLs, or next scheduled runs.
+- Deploy reports server-side package provisioning, but it does not yet compare required secret names against the target environment's configured secrets.
 - `serto test` does not yet validate cancellation-token usage, connector configuration, sample payload behavior, or required secrets.
 - Local signed webhook replay is not implemented yet.
 

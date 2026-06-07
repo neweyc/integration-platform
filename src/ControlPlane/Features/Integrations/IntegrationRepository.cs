@@ -34,7 +34,7 @@ public class IntegrationRepository(AppDbContext db)
         return integration;
     }
 
-    public async Task<Integration> UpsertBySlugAsync(
+    public async Task<IntegrationUpsertResult> UpsertBySlugAsync(
         Integration integration,
         IReadOnlyList<IntegrationTrigger> triggers,
         CancellationToken ct = default)
@@ -50,7 +50,13 @@ public class IntegrationRepository(AppDbContext db)
 
             db.Integrations.Add(integration);
             await db.SaveChangesAsync(ct);
-            return integration;
+            return new IntegrationUpsertResult(
+                integration,
+                Created: true,
+                integration.Triggers.Select(t => new IntegrationTriggerUpsertResult(
+                    t,
+                    Created: true,
+                    WebhookSecretPreserved: false)).ToList());
         }
 
         existing.Name = integration.Name;
@@ -62,10 +68,10 @@ public class IntegrationRepository(AppDbContext db)
         existing.RetryBackoffSeconds = integration.RetryBackoffSeconds;
         existing.PackageId = integration.PackageId;
         existing.UpdatedAt = DateTime.UtcNow;
-        ReplaceTriggers(existing, triggers);
+        var triggerResults = ReplaceTriggers(existing, triggers);
 
         await db.SaveChangesAsync(ct);
-        return existing;
+        return new IntegrationUpsertResult(existing, Created: false, triggerResults);
     }
 
     public Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default) =>
@@ -111,10 +117,13 @@ public class IntegrationRepository(AppDbContext db)
         return true;
     }
 
-    private static void ReplaceTriggers(Integration integration, IReadOnlyList<IntegrationTrigger> triggers)
+    private static IReadOnlyList<IntegrationTriggerUpsertResult> ReplaceTriggers(
+        Integration integration,
+        IReadOnlyList<IntegrationTrigger> triggers)
     {
         var existingBySlug = integration.Triggers.ToDictionary(t => t.Slug, StringComparer.OrdinalIgnoreCase);
         var desiredSlugs = triggers.Select(t => t.Slug).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var results = new List<IntegrationTriggerUpsertResult>();
 
         foreach (var existing in integration.Triggers.Where(t => !desiredSlugs.Contains(t.Slug)).ToList())
             integration.Triggers.Remove(existing);
@@ -123,19 +132,40 @@ public class IntegrationRepository(AppDbContext db)
         {
             if (existingBySlug.TryGetValue(desired.Slug, out var existing))
             {
+                var webhookSecretPreserved = existing.Type == TriggerType.Webhook
+                                             && desired.Type == TriggerType.Webhook
+                                             && existing.EncryptedWebhookSecret is not null;
                 existing.Name = desired.Name;
                 existing.Type = desired.Type;
                 existing.Enabled = desired.Enabled;
                 existing.CronExpression = desired.CronExpression;
-                if (desired.EncryptedWebhookSecret is not null)
+                if (webhookSecretPreserved)
+                {
+                    // Existing webhook secrets are operator-facing credentials; package upload must not rotate them.
+                }
+                else if (desired.EncryptedWebhookSecret is not null)
+                {
                     existing.EncryptedWebhookSecret = desired.EncryptedWebhookSecret;
+                }
                 else if (desired.Type != TriggerType.Webhook)
+                {
                     existing.EncryptedWebhookSecret = null;
+                }
                 existing.UpdatedAt = DateTime.UtcNow;
+                results.Add(new IntegrationTriggerUpsertResult(
+                    existing,
+                    Created: false,
+                    webhookSecretPreserved));
                 continue;
             }
 
             integration.Triggers.Add(desired);
+            results.Add(new IntegrationTriggerUpsertResult(
+                desired,
+                Created: true,
+                WebhookSecretPreserved: false));
         }
+
+        return results;
     }
 }

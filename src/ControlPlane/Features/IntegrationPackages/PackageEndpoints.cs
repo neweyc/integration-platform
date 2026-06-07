@@ -31,7 +31,7 @@ public static class PackageEndpoints
                     memory.ToArray()),
                 ct);
 
-            return Results.Created($"/api/integration-packages/{result.Id}", result);
+            return Results.Created($"/api/integration-packages/{result.Package.Id}", result);
         }).DisableAntiforgery().RequirePermission(Permission.ManagePackages);
 
         group.MapGet("/", async (

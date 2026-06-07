@@ -4,6 +4,7 @@ using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
+using Cronos;
 using Shared.Domain;
 
 namespace ControlPlane.Features.IntegrationPackages;
@@ -13,11 +14,11 @@ public record UploadPackageCommand(
     string Name,
     string Version,
     string FileName,
-    byte[] Data) : ICommand<PackageMetadata>, IAuditableCommand
+    byte[] Data) : ICommand<PackageUploadResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.PackageUploaded, "Package",
-            (result as PackageMetadata)?.Id.ToString(), $"Uploaded package '{Name}' v{Version}");
+            (result as PackageUploadResult)?.Package.Id.ToString(), $"Uploaded package '{Name}' v{Version}");
 }
 
 public record PackageMetadata(
@@ -28,6 +29,32 @@ public record PackageMetadata(
     long SizeBytes,
     string Sha256Hash,
     DateTime CreatedAt);
+
+public record PackageUploadResult(
+    PackageMetadata Package,
+    IReadOnlyList<PackageProvisioningResult> Provisioning);
+
+public record PackageProvisioningResult(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Environment,
+    string ClassName,
+    string Action,
+    Guid PackageId,
+    IReadOnlyList<PackageProvisionedTriggerResult> Triggers);
+
+public record PackageProvisionedTriggerResult(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Type,
+    bool Enabled,
+    string Action,
+    string? CronExpression = null,
+    DateTime? NextRunAt = null,
+    string? WebhookUrl = null,
+    bool WebhookSecretPreserved = false);
 
 public interface IPackageRepository
 {
@@ -45,11 +72,11 @@ public class UploadPackageHandler(
     IAssemblyScanner scanner,
     IIntegrationRepository integrationRepository,
     IEncryptionService encryption)
-    : ICommandHandler<UploadPackageCommand, PackageMetadata>
+    : ICommandHandler<UploadPackageCommand, PackageUploadResult>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
 
-    public async Task<PackageMetadata> HandleAsync(UploadPackageCommand command, CancellationToken ct = default)
+    public async Task<PackageUploadResult> HandleAsync(UploadPackageCommand command, CancellationToken ct = default)
     {
         Validate(command);
 
@@ -72,13 +99,16 @@ public class UploadPackageHandler(
         };
 
         var created = await repository.CreateAsync(package, ct);
+        var metadata = ToMetadata(created);
+        var tenantSlug = await integrationRepository.GetTenantSlugAsync(command.TenantId, ct);
+        var provisioning = new List<PackageProvisioningResult>();
 
         // Auto-provision integrations from code attributes
         foreach (var integration in discovered)
         {
             var triggers = ToTriggerInputs(integration);
 
-            await integrationRepository.UpsertBySlugAsync(new Integration
+            var upsert = await integrationRepository.UpsertBySlugAsync(new Integration
             {
                 TenantId = command.TenantId,
                 Name = integration.Name,
@@ -92,9 +122,11 @@ public class UploadPackageHandler(
                 PackageId = created.Id,
                 Status = IntegrationStatus.Enabled
             }, CreateIntegrationHandler.BuildTriggers(command.TenantId, triggers, encryption), ct);
+
+            provisioning.Add(ToProvisioningResult(upsert, created.Id, tenantSlug));
         }
 
-        return ToMetadata(created);
+        return new PackageUploadResult(metadata, provisioning);
     }
 
     private static void ValidateDiscoveredIntegration(Guid tenantId, DiscoveredIntegration integration)
@@ -130,6 +162,50 @@ public class UploadPackageHandler(
             package.SizeBytes,
             package.Sha256Hash,
             package.CreatedAt);
+
+    private static PackageProvisioningResult ToProvisioningResult(
+        IntegrationUpsertResult upsert,
+        Guid packageId,
+        string? tenantSlug)
+    {
+        var integration = upsert.Integration;
+
+        return new PackageProvisioningResult(
+            integration.Id,
+            integration.Name,
+            integration.Slug,
+            integration.Environment,
+            integration.ClassName,
+            upsert.Created ? "Created" : "Updated",
+            packageId,
+            upsert.Triggers.Select(t => ToProvisionedTriggerResult(integration, t, tenantSlug)).ToList());
+    }
+
+    private static PackageProvisionedTriggerResult ToProvisionedTriggerResult(
+        Integration integration,
+        IntegrationTriggerUpsertResult upsert,
+        string? tenantSlug)
+    {
+        var trigger = upsert.Trigger;
+        var nextRunAt = trigger.Type == TriggerType.Scheduled && !string.IsNullOrWhiteSpace(trigger.CronExpression)
+            ? CronExpression.Parse(trigger.CronExpression).GetNextOccurrence(DateTime.UtcNow, TimeZoneInfo.Utc)
+            : null;
+        var webhookUrl = trigger.Type == TriggerType.Webhook && tenantSlug is not null
+            ? $"/webhooks/{tenantSlug}/{integration.Slug}/{trigger.Slug}"
+            : null;
+
+        return new PackageProvisionedTriggerResult(
+            trigger.Id,
+            trigger.Name,
+            trigger.Slug,
+            trigger.Type.ToString(),
+            trigger.Enabled,
+            upsert.Created ? "Created" : "Updated",
+            trigger.CronExpression,
+            nextRunAt,
+            webhookUrl,
+            upsert.WebhookSecretPreserved);
+    }
 
     private static void Validate(UploadPackageCommand command)
     {

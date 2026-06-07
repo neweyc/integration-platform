@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Xml.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -75,6 +76,7 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                             Environment.GetEnvironmentVariable("IP_API_TOKEN"))
                         ?? AnsiConsole.Ask<string>("Enter your [green]API token[/]:");
 
+            PackageUploadResponse? uploadResult = null;
             await AnsiConsole.Status()
                 .StartAsync("Uploading to Control Plane...", async ctx =>
                 {
@@ -97,9 +99,14 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                         var error = await response.Content.ReadAsStringAsync(ct);
                         throw new Exception($"Upload failed: {response.StatusCode} - {error}");
                     }
+
+                    uploadResult = await response.Content.ReadFromJsonAsync<PackageUploadResponse>(cancellationToken: ct);
                 });
 
-            AnsiConsole.MarkupLine("[green]Success![/] Package uploaded; the control plane will auto-provision discovered integrations.");
+            if (uploadResult is not null)
+                RenderUploadResult(uploadResult);
+            else
+                AnsiConsole.MarkupLine("[green]Success![/] Package uploaded; the control plane will auto-provision discovered integrations.");
         }
         finally
         {
@@ -147,4 +154,109 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
 
         return $"{safeName}.{safeVersion}.zip";
     }
+
+    public static void RenderUploadResult(PackageUploadResponse result)
+    {
+        AnsiConsole.MarkupLine($"[green]Success![/] Uploaded [green]{Markup.Escape(result.Package.Name)}[/] [blue]version:[/] [green]{Markup.Escape(result.Package.Version)}[/]");
+        AnsiConsole.MarkupLine($"[blue]Package id:[/] [green]{result.Package.Id}[/]");
+        AnsiConsole.MarkupLine($"[blue]Server SHA-256:[/] [green]{Markup.Escape(result.Package.Sha256Hash)}[/]");
+
+        if (result.Provisioning.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No integrations were discovered by the control plane.[/]");
+            return;
+        }
+
+        var integrations = new Table().Title("Provisioned integrations");
+        integrations.AddColumn("Action");
+        integrations.AddColumn("Integration");
+        integrations.AddColumn("Slug");
+        integrations.AddColumn("Class");
+        integrations.AddColumn("Package");
+
+        foreach (var item in result.Provisioning)
+        {
+            integrations.AddRow(
+                Markup.Escape(item.Action),
+                Markup.Escape(item.Name),
+                Markup.Escape(item.Slug),
+                Markup.Escape(item.ClassName),
+                Markup.Escape(result.Package.Version));
+        }
+
+        AnsiConsole.Write(integrations);
+
+        var triggers = new Table().Title("Provisioned triggers");
+        triggers.AddColumn("Integration");
+        triggers.AddColumn("Action");
+        triggers.AddColumn("Trigger");
+        triggers.AddColumn("Type");
+        triggers.AddColumn("Runtime details");
+
+        foreach (var item in result.Provisioning)
+        {
+            foreach (var trigger in item.Triggers)
+            {
+                triggers.AddRow(
+                    Markup.Escape(item.Slug),
+                    Markup.Escape(trigger.Action),
+                    Markup.Escape(trigger.Slug),
+                    Markup.Escape(trigger.Type),
+                    Markup.Escape(FormatTriggerDetails(trigger)));
+            }
+        }
+
+        AnsiConsole.Write(triggers);
+    }
+
+    public static string FormatTriggerDetails(PackageProvisionedTriggerResponse trigger)
+    {
+        if (trigger.Type.Equals("Scheduled", StringComparison.OrdinalIgnoreCase))
+            return trigger.NextRunAt is null
+                ? $"cron: {trigger.CronExpression ?? "not set"}"
+                : $"cron: {trigger.CronExpression}, next: {trigger.NextRunAt:O}";
+
+        if (trigger.Type.Equals("Webhook", StringComparison.OrdinalIgnoreCase))
+        {
+            var preserved = trigger.WebhookSecretPreserved ? ", secret preserved" : "";
+            return $"{trigger.WebhookUrl ?? "webhook URL unavailable"}{preserved}";
+        }
+
+        return trigger.Enabled ? "enabled" : "disabled";
+    }
 }
+
+public record PackageUploadResponse(
+    PackageMetadataResponse Package,
+    IReadOnlyList<PackageProvisioningResponse> Provisioning);
+
+public record PackageMetadataResponse(
+    Guid Id,
+    string Name,
+    string Version,
+    string FileName,
+    long SizeBytes,
+    string Sha256Hash,
+    DateTime CreatedAt);
+
+public record PackageProvisioningResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Environment,
+    string ClassName,
+    string Action,
+    Guid PackageId,
+    IReadOnlyList<PackageProvisionedTriggerResponse> Triggers);
+
+public record PackageProvisionedTriggerResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Type,
+    bool Enabled,
+    string Action,
+    string? CronExpression = null,
+    DateTime? NextRunAt = null,
+    string? WebhookUrl = null,
+    bool WebhookSecretPreserved = false);
