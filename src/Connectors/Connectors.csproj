@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
-    <ProjectReference Include="..\Shared\Shared.csproj" />
     <PackageReference Include="Dapper" Version="2.1.35" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
   </ItemGroup>
@@ -11,12 +10,17 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>Serto.Connectors</PackageId>
     <Version>1.0.0</Version>
     <Authors>Serto</Authors>
     <Description>Core connectors for Serto, providing simplified HTTP and SQL access.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
     <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>integration;automation;workflow;connectors;http;sql</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
 </Project>

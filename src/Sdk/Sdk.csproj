@@ -5,12 +5,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Serto.Sdk</RootNamespace>
+    <PackageId>Serto.Sdk</PackageId>
     <Version>1.0.0</Version>
     <Authors>Serto</Authors>
     <Description>SDK for building code-first integrations on Serto.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
     <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>integration;automation;workflow;sdk</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
