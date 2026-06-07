@@ -248,6 +248,50 @@ public class UploadPackageHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ReportsPreservedTriggerOverridesAsDrift()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Order Sync", "order-sync", "Acme.OrderSync",
+                Description: null, TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                [new DiscoveredIntegrationTrigger("Schedule", "schedule", TriggerType.Scheduled, "30 1 * * *")])
+        ]);
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(),
+                Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                var trigger = call.Arg<IReadOnlyList<IntegrationTrigger>>().Single();
+                // Simulate operator overrides preserved across the redeploy.
+                trigger.CronExpression = "*/5 * * * *";
+                trigger.DeclaredCronExpression = "30 1 * * *";
+                trigger.Enabled = false;
+                trigger.DeclaredEnabled = true;
+                integration.Triggers.Add(trigger);
+
+                return new IntegrationUpsertResult(
+                    integration,
+                    Created: false,
+                    [new IntegrationTriggerUpsertResult(
+                        trigger, Created: false, WebhookSecretPreserved: false,
+                        CronOverridden: true, EnabledOverridden: true)]);
+            });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data));
+
+        var trigger = Assert.Single(Assert.Single(result.Provisioning).Triggers);
+        Assert.True(trigger.CronOverridden);
+        Assert.True(trigger.EnabledOverridden);
+        Assert.Equal("*/5 * * * *", trigger.CronExpression);
+        Assert.Equal("30 1 * * *", trigger.DeclaredCronExpression);
+    }
+
+    [Fact]
     public async Task HandleAsync_DiscoveredIntegrationWithInvalidCron_DoesNotCreatePackage()
     {
         var data = CreateZipWithDll();

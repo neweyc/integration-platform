@@ -132,6 +132,42 @@ public class DeployCommandTests
     }
 
     [Fact]
+    public void FormatTriggerDetails_ShowsCronOverrideDrift()
+    {
+        var details = DeployCommand.FormatTriggerDetails(new PackageProvisionedTriggerResponse(
+            Guid.NewGuid(),
+            "Schedule",
+            "schedule",
+            "Scheduled",
+            Enabled: true,
+            "Updated",
+            CronExpression: "*/5 * * * *",
+            NextRunAt: new DateTime(2026, 6, 7, 0, 5, 0, DateTimeKind.Utc),
+            DeclaredCronExpression: "0 0 * * *",
+            CronOverridden: true));
+
+        Assert.Contains("cron: */5 * * * *", details);
+        Assert.Contains("override preserved", details);
+        Assert.Contains("code declares 0 0 * * *", details);
+    }
+
+    [Fact]
+    public void FormatTriggerDetails_ShowsEnabledOverride()
+    {
+        var details = DeployCommand.FormatTriggerDetails(new PackageProvisionedTriggerResponse(
+            Guid.NewGuid(),
+            "Schedule",
+            "schedule",
+            "Scheduled",
+            Enabled: false,
+            "Updated",
+            CronExpression: "0 0 * * *",
+            EnabledOverridden: true));
+
+        Assert.Contains("operator kept disabled", details);
+    }
+
+    [Fact]
     public void FormatSecretCheckLines_ReportsMissingSecrets()
     {
         var lines = DeployCommand.FormatSecretCheckLines(new PackageSecretCheckResponse(

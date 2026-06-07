@@ -253,6 +253,20 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
 
     public static string FormatTriggerDetails(PackageProvisionedTriggerResponse trigger)
     {
+        var detail = FormatBaseTriggerDetails(trigger);
+
+        // Surface operator overrides preserved across this redeploy as drift the operator can reconcile.
+        var overrides = new List<string>();
+        if (trigger.CronOverridden)
+            overrides.Add($"cron override preserved (code declares {trigger.DeclaredCronExpression ?? "none"})");
+        if (trigger.EnabledOverridden)
+            overrides.Add($"operator kept {(trigger.Enabled ? "enabled" : "disabled")}");
+
+        return overrides.Count == 0 ? detail : $"{detail} — {string.Join("; ", overrides)}";
+    }
+
+    private static string FormatBaseTriggerDetails(PackageProvisionedTriggerResponse trigger)
+    {
         if (trigger.Type.Equals("Scheduled", StringComparison.OrdinalIgnoreCase))
             return trigger.NextRunAt is null
                 ? $"cron: {trigger.CronExpression ?? "not set"}"
@@ -308,4 +322,7 @@ public record PackageProvisionedTriggerResponse(
     string? CronExpression = null,
     DateTime? NextRunAt = null,
     string? WebhookUrl = null,
-    bool WebhookSecretPreserved = false);
+    bool WebhookSecretPreserved = false,
+    string? DeclaredCronExpression = null,
+    bool CronOverridden = false,
+    bool EnabledOverridden = false);

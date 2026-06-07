@@ -54,7 +54,10 @@ public record IntegrationTriggerResult(
     string? CronExpression = null,
     string? WebhookUrl = null,
     string? WebhookSecret = null,
-    WebhookSigning? WebhookSigning = null);
+    WebhookSigning? WebhookSigning = null,
+    string? DeclaredCronExpression = null,
+    bool CronOverridden = false,
+    bool EnabledOverridden = false);
 
 /// <summary>
 /// Tells a webhook integrator exactly how to sign their requests.
@@ -84,7 +87,18 @@ public record IntegrationUpsertResult(
 public record IntegrationTriggerUpsertResult(
     IntegrationTrigger Trigger,
     bool Created,
-    bool WebhookSecretPreserved);
+    bool WebhookSecretPreserved,
+    bool CronOverridden = false,
+    bool EnabledOverridden = false);
+
+// Whether a trigger reconcile is driven by code (package upload, which records declared defaults and
+// preserves operator overrides) or by an operator (UI/API update, whose active values become overrides
+// when they diverge from the declared defaults).
+public enum TriggerReconcileSource
+{
+    Operator,
+    Code
+}
 
 public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>
@@ -143,6 +157,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
                 oneTimeSecrets?.Add(input.Slug, plainSecret);
             }
 
+            var cronExpression = input.Type == TriggerType.Scheduled ? input.CronExpression : null;
             triggers.Add(new IntegrationTrigger
             {
                 TenantId = tenantId,
@@ -150,7 +165,10 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
                 Slug = input.Slug,
                 Type = input.Type,
                 Enabled = input.Enabled,
-                CronExpression = input.Type == TriggerType.Scheduled ? input.CronExpression : null,
+                CronExpression = cronExpression,
+                // A freshly built trigger has no override yet: the declared defaults match the active values.
+                DeclaredCronExpression = cronExpression,
+                DeclaredEnabled = input.Enabled,
                 EncryptedWebhookSecret = encryptedWebhookSecret
             });
         }
@@ -282,6 +300,9 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
             trigger.CronExpression,
             webhookUrl,
             webhookSecret,
-            signing);
+            signing,
+            trigger.DeclaredCronExpression,
+            CronOverridden: !string.Equals(trigger.CronExpression, trigger.DeclaredCronExpression, StringComparison.Ordinal),
+            EnabledOverridden: trigger.Enabled != trigger.DeclaredEnabled);
     }
 }

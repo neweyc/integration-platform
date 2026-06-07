@@ -721,6 +721,15 @@ function IntegrationsTable({
                             {trigger.cronExpression}
                           </code>
                         )}
+                        {(trigger.cronOverridden || trigger.enabledOverridden) && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500 text-amber-600"
+                            title={triggerDriftTooltip(trigger)}
+                          >
+                            drift
+                          </Badge>
+                        )}
                       </span>
                     ))
                   )}
@@ -770,6 +779,20 @@ function IntegrationsTable({
       </Table>
     </div>
   )
+}
+
+function triggerDriftTooltip(trigger: IntegrationTrigger): string {
+  const parts: string[] = []
+  if (trigger.cronOverridden)
+    parts.push(
+      `Cron override in effect — running "${trigger.cronExpression ?? 'none'}", code declares "${trigger.declaredCronExpression ?? 'none'}".`,
+    )
+  if (trigger.enabledOverridden)
+    parts.push(
+      `Operator kept this trigger ${trigger.enabled ? 'enabled' : 'disabled'}, differing from the code default.`,
+    )
+  parts.push('These operator overrides are preserved across redeploys.')
+  return parts.join(' ')
 }
 
 function StatusBadge({ status }: { status: Integration['status'] }) {

@@ -68,7 +68,8 @@ public class IntegrationRepository(AppDbContext db)
         existing.RetryBackoffSeconds = integration.RetryBackoffSeconds;
         existing.PackageId = integration.PackageId;
         existing.UpdatedAt = DateTime.UtcNow;
-        var triggerResults = ReplaceTriggers(existing, triggers);
+        // Package upload is code-driven: record new declared defaults and preserve operator overrides.
+        var triggerResults = ReplaceTriggers(existing, triggers, TriggerReconcileSource.Code);
 
         await db.SaveChangesAsync(ct);
         return new IntegrationUpsertResult(existing, Created: false, triggerResults);
@@ -99,7 +100,9 @@ public class IntegrationRepository(AppDbContext db)
         IReadOnlyList<IntegrationTrigger> triggers,
         CancellationToken ct = default)
     {
-        ReplaceTriggers(integration, triggers);
+        // Operator-driven update: active values are taken as-is and become overrides when they
+        // diverge from the code-declared defaults.
+        ReplaceTriggers(integration, triggers, TriggerReconcileSource.Operator);
         db.Integrations.Update(integration);
         await db.SaveChangesAsync(ct);
         return integration;
@@ -119,7 +122,8 @@ public class IntegrationRepository(AppDbContext db)
 
     private static IReadOnlyList<IntegrationTriggerUpsertResult> ReplaceTriggers(
         Integration integration,
-        IReadOnlyList<IntegrationTrigger> triggers)
+        IReadOnlyList<IntegrationTrigger> triggers,
+        TriggerReconcileSource source)
     {
         var existingBySlug = integration.Triggers.ToDictionary(t => t.Slug, StringComparer.OrdinalIgnoreCase);
         var desiredSlugs = triggers.Select(t => t.Slug).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -137,8 +141,7 @@ public class IntegrationRepository(AppDbContext db)
                                              && existing.EncryptedWebhookSecret is not null;
                 existing.Name = desired.Name;
                 existing.Type = desired.Type;
-                existing.Enabled = desired.Enabled;
-                existing.CronExpression = desired.CronExpression;
+                ReconcileRuntimeValues(existing, desired, source);
                 if (webhookSecretPreserved)
                 {
                     // Existing webhook secrets are operator-facing credentials; package upload must not rotate them.
@@ -155,7 +158,9 @@ public class IntegrationRepository(AppDbContext db)
                 results.Add(new IntegrationTriggerUpsertResult(
                     existing,
                     Created: false,
-                    webhookSecretPreserved));
+                    webhookSecretPreserved,
+                    CronOverridden: IsCronOverridden(existing),
+                    EnabledOverridden: existing.Enabled != existing.DeclaredEnabled));
                 continue;
             }
 
@@ -168,4 +173,40 @@ public class IntegrationRepository(AppDbContext db)
 
         return results;
     }
+
+    // Reconciles the active Enabled/CronExpression against the code-declared defaults.
+    //
+    // Code-driven (package upload): the new code values become the declared defaults. The active value
+    // follows code only when it was not already an operator override; an existing override is preserved
+    // and surfaces as drift (active != declared).
+    //
+    // Operator-driven (UI/API): the active values are taken as-is and the declared defaults are left
+    // untouched, so an operator value that diverges from the declared default becomes an override.
+    private static void ReconcileRuntimeValues(
+        IntegrationTrigger existing,
+        IntegrationTrigger desired,
+        TriggerReconcileSource source)
+    {
+        if (source == TriggerReconcileSource.Operator)
+        {
+            existing.Enabled = desired.Enabled;
+            existing.CronExpression = desired.CronExpression;
+            return;
+        }
+
+        var cronOverridden = IsCronOverridden(existing);
+        var enabledOverridden = existing.Enabled != existing.DeclaredEnabled;
+
+        existing.DeclaredCronExpression = desired.CronExpression;
+        existing.DeclaredEnabled = desired.Enabled;
+
+        if (!cronOverridden)
+            existing.CronExpression = desired.CronExpression;
+
+        if (!enabledOverridden)
+            existing.Enabled = desired.Enabled;
+    }
+
+    private static bool IsCronOverridden(IntegrationTrigger trigger) =>
+        !string.Equals(trigger.CronExpression, trigger.DeclaredCronExpression, StringComparison.Ordinal);
 }

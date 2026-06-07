@@ -13,6 +13,11 @@ export interface IntegrationTrigger {
   cronExpression?: string | null
   webhookUrl?: string | null
   webhookSecret?: string | null
+  // The cron/enabled the code last declared. When the active value diverges, an operator override
+  // is in effect and is preserved across redeploys; the divergence is reported as drift.
+  declaredCronExpression?: string | null
+  cronOverridden?: boolean
+  enabledOverridden?: boolean
 }
 
 export interface Integration {
