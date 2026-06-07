@@ -736,6 +736,7 @@ Uploads a new package version.
 | `name` | Yes | Package name, e.g. `MyCompany.Integrations` |
 | `version` | Yes | Version string, e.g. `1.0.0` |
 | `file` | Yes | `.zip` archive containing at least one `.dll` |
+| `requiredSecrets` | No | Comma-separated secret names the package needs (e.g. `ERP_API_KEY,DB_CONNECTION_STRING`). Detected by the client-side source scan (`serto scan`/`deploy`) and used only to build the `secretCheck` in the response. Omit it to skip the check. |
 
 **Validation**
 - File must be a valid `.zip` archive
@@ -750,10 +751,11 @@ curl -X POST http://localhost:5000/api/integration-packages \
   -H "Authorization: Bearer <jwt>" \
   -F "name=MyCompany.Integrations" \
   -F "version=1.0.0" \
-  -F "file=@./publish/integrations.zip"
+  -F "file=@./publish/integrations.zip" \
+  -F "requiredSecrets=ERP_API_KEY,DB_CONNECTION_STRING"
 ```
 
-**Response:** `201 Created` with package metadata and a provisioning report. Upload also scans decorated `IIntegration` classes and auto-provisions matching integration and trigger records pinned to the uploaded package version.
+**Response:** `201 Created` with package metadata, a provisioning report, and a secret check. Upload also scans decorated `IIntegration` classes and auto-provisions matching integration and trigger records pinned to the uploaded package version.
 
 ```json
 {
@@ -798,11 +800,28 @@ curl -X POST http://localhost:5000/api/integration-packages \
         }
       ]
     }
-  ]
+  ],
+  "secretCheck": {
+    "environment": "production",
+    "required": ["DB_CONNECTION_STRING", "ERP_API_KEY"],
+    "satisfied": ["ERP_API_KEY"],
+    "missing": ["DB_CONNECTION_STRING"]
+  }
 }
 ```
 
 Webhook secrets are preserved when an existing webhook trigger is updated by package upload; upload does not rotate operator-facing webhook credentials.
+
+The `secretCheck` object compares the `requiredSecrets` form field against the secrets configured in the provisioning environment (`production`):
+
+| Field | Description |
+|-------|-------------|
+| `environment` | Environment whose configured secrets were checked. Always `production` today (the auto-provisioning environment). |
+| `required` | Distinct required secret names received, sorted, case-insensitively de-duplicated. |
+| `satisfied` | Required names that are configured in the environment. |
+| `missing` | Required names that are **not** configured. Integrations needing these will fail at runtime until they are set. |
+
+The check is advisory: a non-empty `missing` list does **not** fail the upload. Matching is case-insensitive. When `requiredSecrets` is omitted, all three arrays are empty.
 
 ---
 

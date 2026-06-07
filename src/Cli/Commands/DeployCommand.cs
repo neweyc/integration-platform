@@ -171,6 +171,9 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         if (result.Provisioning.Count == 0)
         {
             AnsiConsole.MarkupLine("[yellow]No integrations were discovered by the control plane.[/]");
+            // Still surface the secret check — a package can require secrets even with nothing provisioned.
+            if (result.SecretCheck is { } noProvisioningSecretCheck)
+                RenderSecretCheck(noProvisioningSecretCheck);
             return;
         }
 
