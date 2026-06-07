@@ -363,6 +363,9 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             @"\.Secrets\s*\[\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\]",
             @"\.Secrets\s*\.TryGetValue\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""",
             @"\.WithBearerToken\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
+            @"\.WithApiKeyHeader\s*\(\s*""[^""]+""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
+            @"\.WithApiKeyQuery\s*\(\s*""[^""]+""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
+            @"\.WithBasicAuth\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
             @"\.SqlConnector\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)"
         };
 
@@ -374,7 +377,10 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             foreach (var pattern in patterns)
             {
                 foreach (Match match in Regex.Matches(source, pattern))
-                    secrets.Add(match.Groups["secret"].Value);
+                {
+                    foreach (Capture capture in match.Groups["secret"].Captures)
+                        secrets.Add(capture.Value);
+                }
             }
         }
 

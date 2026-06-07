@@ -224,7 +224,7 @@ Acceptance criteria:
 
 Completed notes:
 
-- Implemented `HttpApiConnector` with fluent API, JSON support, and Bearer token from secrets.
+- Implemented `HttpApiConnector` with fluent API, JSON verbs, bearer/header/query/basic auth from secrets, idempotency headers, retry/rate-limit handling, normalized HTTP errors, and next-link/offset pagination helpers.
 - Implemented `SqlConnector` with Dapper support for queries and commands.
 - Added extension methods to `IIntegrationContext` for easy connector access.
 - Updated documentation and added NuGet metadata to projects.
