@@ -7,19 +7,22 @@
     <RootNamespace>Serto.Sdk</RootNamespace>
     <PackageId>Serto.Sdk</PackageId>
     <Version>1.0.0</Version>
-    <Authors>Serto</Authors>
+    <Authors>Craytech</Authors>
+    <Company>Craytech</Company>
     <Description>SDK for building code-first integrations on Serto.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
     <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>integration;automation;workflow;sdk</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

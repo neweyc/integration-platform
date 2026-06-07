@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -10,13 +11,15 @@
     <Nullable>enable</Nullable>
     <PackageId>Serto.Testing</PackageId>
     <Version>1.0.0</Version>
-    <Authors>Serto</Authors>
+    <Authors>Craytech</Authors>
+    <Company>Craytech</Company>
     <Description>Testing helpers for Serto integrations — provides a test context and integration runner.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
     <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>integration;automation;workflow;testing</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
