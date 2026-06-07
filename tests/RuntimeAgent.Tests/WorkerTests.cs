@@ -252,20 +252,28 @@ public class WorkerTests
             controlPlane, loader, httpFactory, options,
             NullLogger<IntegrationExecutor>.Instance);
 
-        // Simulate control plane being unavailable
+        // Simulate control plane being unavailable. Signal when the worker actually polls so the
+        // test can wait on the real call rather than racing a wall-clock timer — the previous
+        // fixed 150ms window was platform-flaky (passed on macOS, failed on a slower Linux CI).
+        var polled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
-            .Returns<List<IntegrationItem>>(x => throw new HttpRequestException("Control plane unavailable"));
+            .Returns<List<IntegrationItem>>(x =>
+            {
+                polled.TrySetResult();
+                throw new HttpRequestException("Control plane unavailable");
+            });
 
         var worker = new Worker(controlPlane, executor, loader, NoOpSyncer(controlPlane, options), options,
             NullLogger<Worker>.Instance);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // Act - should not throw, worker should handle the error and continue
         try
         {
             await worker.StartAsync(cts.Token);
-            await Task.Delay(100, CancellationToken.None);
+            // Wait until the worker has actually attempted to poll (deterministic, not timing-based).
+            await polled.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         }
         catch (OperationCanceledException) { }
         finally
