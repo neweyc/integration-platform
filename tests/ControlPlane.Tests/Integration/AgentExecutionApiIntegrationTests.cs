@@ -301,6 +301,52 @@ public class AgentExecutionApiIntegrationTests
         Assert.False(item.IsStale);
     }
 
+    [Fact]
+    public async Task UploadPackage_WithRequiredSecrets_ReportsSecretCheckAgainstConfiguredSecrets()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(
+            client,
+            "/api/setup",
+            new
+            {
+                TenantName = "Acme",
+                TenantSlug = $"acme-{Guid.NewGuid():N}",
+                AdminEmail = "admin@example.com",
+                AdminPassword = "Password123!"
+            });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        // Configure one of the two required secrets in production.
+        var setSecret = await client.PutAsJsonAsync("/api/secrets/production/ERP_API_KEY", new { Value = "configured" });
+        Assert.Equal(HttpStatusCode.OK, setSecret.StatusCode);
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("MyCompany.Integrations"), "Name" },
+            { new StringContent("1.0.0"), "Version" },
+            { new ByteArrayContent(CreateZipWithDll()), "File", "integrations.zip" },
+            // Field name and comma-separated format mirror exactly what the CLI deploy sends.
+            { new StringContent("ERP_API_KEY,DB_CONNECTION_STRING"), "requiredSecrets" }
+        };
+
+        var uploadResponse = await client.PostAsync("/api/integration-packages", form);
+        Assert.Equal(HttpStatusCode.Created, uploadResponse.StatusCode);
+
+        var uploaded = (await uploadResponse.Content.ReadFromJsonAsync<PackageUploadWithSecretsResponse>())!;
+
+        Assert.Equal("production", uploaded.SecretCheck.Environment);
+        Assert.Contains("ERP_API_KEY", uploaded.SecretCheck.Satisfied);
+        Assert.Contains("DB_CONNECTION_STRING", uploaded.SecretCheck.Missing);
+        Assert.DoesNotContain("ERP_API_KEY", uploaded.SecretCheck.Missing);
+    }
+
     private static async Task<T> GetJsonAsync<T>(HttpClient client, string url)
     {
         var response = await client.GetAsync(url);
@@ -350,6 +396,12 @@ public class AgentExecutionApiIntegrationTests
     private sealed record AgentTokenResponse(Guid Id, string Token);
     private sealed record PackageUploadResponse(PackageResponse Package);
     private sealed record PackageResponse(Guid Id, string Name, string Version, string Sha256Hash);
+    private sealed record PackageUploadWithSecretsResponse(PackageResponse Package, PackageSecretCheckResponse SecretCheck);
+    private sealed record PackageSecretCheckResponse(
+        string Environment,
+        IReadOnlyList<string> Required,
+        IReadOnlyList<string> Satisfied,
+        IReadOnlyList<string> Missing);
     private sealed record AgentPackagesResponse(IReadOnlyList<AgentPackageResponse> Packages);
     private sealed record AgentPackageResponse(Guid Id, string Name, string Version, string Sha256Hash);
     private sealed record ManualRunResponse(Guid RequestId);

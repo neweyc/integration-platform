@@ -92,6 +92,13 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                     content.Add(new StringContent(package.PackageVersion), "version");
                     content.Add(fileContent, "file", Path.GetFileName(package.ArchivePath));
 
+                    // The server can't detect required secrets from a compiled assembly, so send the
+                    // names found by the local source scan for it to check against configured secrets.
+                    if (package.ScanResult.RequiredSecrets.Count > 0)
+                        content.Add(
+                            new StringContent(string.Join(",", package.ScanResult.RequiredSecrets)),
+                            "requiredSecrets");
+
                     var response = await client.PostAsync("/api/integration-packages", content, ct);
 
                     if (!response.IsSuccessStatusCode)
@@ -164,6 +171,9 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         if (result.Provisioning.Count == 0)
         {
             AnsiConsole.MarkupLine("[yellow]No integrations were discovered by the control plane.[/]");
+            // Still surface the secret check — a package can require secrets even with nothing provisioned.
+            if (result.SecretCheck is { } noProvisioningSecretCheck)
+                RenderSecretCheck(noProvisioningSecretCheck);
             return;
         }
 
@@ -207,6 +217,38 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         }
 
         AnsiConsole.Write(triggers);
+
+        if (result.SecretCheck is { } secretCheck)
+            RenderSecretCheck(secretCheck);
+    }
+
+    public static void RenderSecretCheck(PackageSecretCheckResponse check)
+    {
+        var color = check.Required.Count == 0 ? "grey"
+            : check.Missing.Count == 0 ? "green"
+            : "yellow";
+
+        foreach (var line in FormatSecretCheckLines(check))
+            AnsiConsole.MarkupLine($"[{color}]{Markup.Escape(line)}[/]");
+    }
+
+    // Pure summary of the server's secret check, kept separate from rendering so it can be tested.
+    public static IReadOnlyList<string> FormatSecretCheckLines(PackageSecretCheckResponse check)
+    {
+        if (check.Required.Count == 0)
+            return ["Secret check: no secrets were detected as required by the scanned source."];
+
+        var lines = new List<string>
+        {
+            $"Secret check (environment: {check.Environment}): " +
+            $"{check.Required.Count} required, {check.Satisfied.Count} configured, {check.Missing.Count} missing"
+        };
+
+        lines.Add(check.Missing.Count == 0
+            ? $"All required secrets are configured in {check.Environment}."
+            : $"Missing in {check.Environment}: {string.Join(", ", check.Missing)} — integrations needing these will fail until they are set.");
+
+        return lines;
     }
 
     public static string FormatTriggerDetails(PackageProvisionedTriggerResponse trigger)
@@ -228,7 +270,14 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
 
 public record PackageUploadResponse(
     PackageMetadataResponse Package,
-    IReadOnlyList<PackageProvisioningResponse> Provisioning);
+    IReadOnlyList<PackageProvisioningResponse> Provisioning,
+    PackageSecretCheckResponse? SecretCheck = null);
+
+public record PackageSecretCheckResponse(
+    string Environment,
+    IReadOnlyList<string> Required,
+    IReadOnlyList<string> Satisfied,
+    IReadOnlyList<string> Missing);
 
 public record PackageMetadataResponse(
     Guid Id,

@@ -123,6 +123,8 @@ SERTO_API_TOKEN=pat_... serto deploy --url http://your-control-plane
 
 `serto deploy` publishes the project, creates the archive, runs the scan preview, prints the package hash, and uploads the package only if validation passes. The Control Plane will scan your assembly, discover your classes decorated with integration and trigger attributes, and automatically create or update the executable integration plus its trigger records. This keeps one integration class able to support multiple triggers, such as scheduled and webhook entry points, without duplicating the integration code.
 
+The deploy also sends the required secret names found by the scan, and the Control Plane compares them against the secrets configured in the provisioning environment. After upload, the result includes a **secret check** listing which required secrets are configured and which are missing. Missing secrets are reported as a warning only — they do not block the deploy — but any integration that needs an unset secret will fail until you add it (via the Secrets UI or `PUT /api/secrets/{environment}/{key}`).
+
 Use `[Integration]` for executable metadata without stored triggers. Use `[ScheduledIntegration]` and `[WebhookIntegration]` when the package should also provision trigger records. Timeout and retry properties are optional integer named arguments; leave them unset to use the platform defaults.
 
 ---
