@@ -31,6 +31,16 @@ Near-term product priorities:
 - **Backend**: ASP.NET Core 10, EF Core, PostgreSQL
 - **Frontend**: React 19, Vite, TypeScript, TanStack Query, shadcn/ui, Tailwind
 
+## Documentation
+
+- [Installation Guide](docs/installation.md) — local dev, Docker/production, configuration reference
+- [Quick Start](docs/quickstart.md) — run the platform and deploy your first integration in ~10 minutes
+- [Writing integrations](docs/writing-integrations.md) — SDK, triggers, connectors, and secrets
+- [API reference](docs/api-reference.md) — control-plane HTTP API
+- [Architecture](docs/architecture.md) — how the control plane, agent, and CLI fit together
+
+The sections below are a condensed version of the [Installation Guide](docs/installation.md).
+
 ## Local development
 
 ### Prerequisites
@@ -73,7 +83,7 @@ Navigate to `http://localhost:5173` — you'll be directed to `/setup` to create
 |----------|------------------------|
 | Host     | `localhost`            |
 | Port     | `5433`                 |
-| Database | `integrationplatform`  |
+| Database | `integration_platform` |
 | Username | `devuser`              |
 | Password | `devpassword`          |
 
