@@ -13,6 +13,7 @@ public static class PackageEndpoints
             .RequireAuthorization();
 
         group.MapPost("/", async (
+            HttpRequest httpRequest,
             [FromForm] UploadPackageRequest request,
             IDispatcher dispatcher,
             ICurrentUser currentUser,
@@ -22,13 +23,21 @@ public static class PackageEndpoints
             using var memory = new MemoryStream();
             await stream.CopyToAsync(memory, ct);
 
+            // Optional comma-separated names from the client-side source scan (serto scan/deploy).
+            // Read directly from the form so an absent field stays optional — binding it as a
+            // member of the [FromForm] record makes a missing value reject the whole request.
+            var requiredSecrets = httpRequest.Form.TryGetValue("requiredSecrets", out var rawSecrets)
+                ? rawSecrets.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                : null;
+
             var result = await dispatcher.SendAsync(
                 new UploadPackageCommand(
                     currentUser.TenantId,
                     request.Name,
                     request.Version,
                     request.File.FileName,
-                    memory.ToArray()),
+                    memory.ToArray(),
+                    requiredSecrets),
                 ct);
 
             return Results.Created($"/api/integration-packages/{result.Package.Id}", result);

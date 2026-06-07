@@ -2,6 +2,7 @@ using System.IO.Compression;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -14,13 +15,16 @@ public class UploadPackageHandlerTests
     private readonly IAssemblyScanner _scanner = Substitute.For<IAssemblyScanner>();
     private readonly IIntegrationRepository _integrationRepository = Substitute.For<IIntegrationRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly ISecretReadRepository _secretRepository = Substitute.For<ISecretReadRepository>();
     private readonly UploadPackageHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public UploadPackageHandlerTests()
     {
-        _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository, _encryption);
+        _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository, _encryption, _secretRepository);
         _repository.CreateAsync(Arg.Any<AssemblyPackage>()).Returns(call => call.Arg<AssemblyPackage>());
+        _secretRepository.ListAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<Secret>());
         _integrationRepository.GetTenantSlugAsync(_tenantId).Returns("acme");
         _integrationRepository.UpsertBySlugAsync(
                 Arg.Any<Integration>(),
@@ -275,6 +279,59 @@ public class UploadPackageHandlerTests
             Arg.Any<Integration>(),
             Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_NoRequiredSecrets_ReturnsEmptySecretCheck()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data));
+
+        Assert.Equal("production", result.SecretCheck.Environment);
+        Assert.Empty(result.SecretCheck.Required);
+        Assert.Empty(result.SecretCheck.Satisfied);
+        Assert.Empty(result.SecretCheck.Missing);
+        // No required secrets means we never need to read the environment's configured secrets.
+        await _secretRepository.DidNotReceive().ListAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_RequiredSecrets_ReportsSatisfiedAndMissingAgainstProduction()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _secretRepository.ListAsync(_tenantId, "production", Arg.Any<CancellationToken>())
+            .Returns(new List<Secret> { new() { Key = "ERP_API_KEY", Environment = "production", TenantId = _tenantId } });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data,
+            RequiredSecrets: ["ERP_API_KEY", "DB_CONNECTION_STRING"]));
+
+        Assert.Equal("production", result.SecretCheck.Environment);
+        Assert.Equal(["DB_CONNECTION_STRING", "ERP_API_KEY"], result.SecretCheck.Required);
+        Assert.Equal(["ERP_API_KEY"], result.SecretCheck.Satisfied);
+        Assert.Equal(["DB_CONNECTION_STRING"], result.SecretCheck.Missing);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RequiredSecrets_MatchesConfiguredCaseInsensitivelyAndDedupes()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _secretRepository.ListAsync(_tenantId, "production", Arg.Any<CancellationToken>())
+            .Returns(new List<Secret> { new() { Key = "ERP_API_KEY", Environment = "production", TenantId = _tenantId } });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data,
+            RequiredSecrets: ["erp_api_key", "ERP_API_KEY", "  "]));
+
+        Assert.Equal(["erp_api_key"], result.SecretCheck.Required);
+        Assert.Equal(["erp_api_key"], result.SecretCheck.Satisfied);
+        Assert.Empty(result.SecretCheck.Missing);
     }
 
     [Fact]

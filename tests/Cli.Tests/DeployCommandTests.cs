@@ -131,6 +131,42 @@ public class DeployCommandTests
         Assert.Equal("/webhooks/acme/order-sync/hook, secret preserved", details);
     }
 
+    [Fact]
+    public void FormatSecretCheckLines_ReportsMissingSecrets()
+    {
+        var lines = DeployCommand.FormatSecretCheckLines(new PackageSecretCheckResponse(
+            "production",
+            Required: ["DB_CONNECTION_STRING", "ERP_API_KEY"],
+            Satisfied: ["ERP_API_KEY"],
+            Missing: ["DB_CONNECTION_STRING"]));
+
+        Assert.Contains(lines, l => l.Contains("2 required") && l.Contains("1 configured") && l.Contains("1 missing"));
+        Assert.Contains(lines, l => l.Contains("Missing in production") && l.Contains("DB_CONNECTION_STRING"));
+    }
+
+    [Fact]
+    public void FormatSecretCheckLines_AllConfigured()
+    {
+        var lines = DeployCommand.FormatSecretCheckLines(new PackageSecretCheckResponse(
+            "production",
+            Required: ["ERP_API_KEY"],
+            Satisfied: ["ERP_API_KEY"],
+            Missing: []));
+
+        Assert.Contains(lines, l => l.Contains("All required secrets are configured in production"));
+        Assert.DoesNotContain(lines, l => l.Contains("Missing"));
+    }
+
+    [Fact]
+    public void FormatSecretCheckLines_NoneRequired()
+    {
+        var lines = DeployCommand.FormatSecretCheckLines(new PackageSecretCheckResponse(
+            "production", Required: [], Satisfied: [], Missing: []));
+
+        var line = Assert.Single(lines);
+        Assert.Contains("no secrets were detected", line);
+    }
+
     private static DateTimeOffset FixedNow => new(2026, 6, 3, 12, 34, 56, TimeSpan.Zero);
 
     private static TemporaryProjectFile TemporaryProject(string contents)
