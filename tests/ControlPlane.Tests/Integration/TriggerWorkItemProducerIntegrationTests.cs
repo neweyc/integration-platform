@@ -32,7 +32,11 @@ public class TriggerWorkItemProducerIntegrationTests
             Type = TriggerType.Queue,
             Enabled = true
         };
+        // Truncate to microseconds so the value round-trips losslessly through PostgreSQL
+        // (timestamp precision is microseconds; .NET DateTime ticks are 100ns). Without this the
+        // exact-equality assertions below are platform-flaky — they pass on macOS but fail on Linux CI.
         var now = DateTime.UtcNow;
+        now = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond));
 
         await using (var db = database.CreateContext())
         {
