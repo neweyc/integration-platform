@@ -20,6 +20,13 @@ app.Configure(config =>
     config.AddCommand<TestCommand>("test")
         .WithDescription("Run an integration locally for testing");
 
+    config.AddBranch("webhook", webhook =>
+    {
+        webhook.SetDescription("Webhook development tools");
+        webhook.AddCommand<WebhookReplayCommand>("replay")
+            .WithDescription("Sign and replay a sample webhook payload");
+    });
+
     config.AddCommand<DevCommand>("dev")
         .WithDescription("Watch for file changes and run tests automatically");
 });
