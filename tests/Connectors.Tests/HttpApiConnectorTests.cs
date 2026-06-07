@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Serto.Connectors.Http;
 using Serto.Testing;
 
@@ -91,6 +92,63 @@ public class HttpApiConnectorTests
     }
 
     [Fact]
+    public async Task PostJsonAsync_DoesNotRetryWithoutIdempotencyKey()
+    {
+        using var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var context = Context(handler);
+
+        await Assert.ThrowsAsync<HttpApiConnectorException>(() =>
+            context.HttpConnector("https://api.example.com")
+                .WithRetryPolicy(2, TimeSpan.Zero, TimeSpan.Zero)
+                .PostJsonAsync<object, ResponseDto>("/orders", new { id = 1 }));
+
+        // A non-idempotent POST must not be retried unless an idempotency key makes it safe.
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task PostJsonAsync_RetriesServerErrorWhenIdempotencyKeySet()
+    {
+        var attempts = 0;
+        using var handler = new RecordingHandler(_ =>
+        {
+            attempts++;
+            return attempts == 1
+                ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                : JsonResponse(new { ok = true });
+        });
+        var context = Context(handler);
+
+        var result = await context.HttpConnector("https://api.example.com")
+            .WithIdempotencyKey("order-1")
+            .WithRetryPolicy(2, TimeSpan.Zero, TimeSpan.Zero)
+            .PostJsonAsync<object, ResponseDto>("/orders", new { id = 1 });
+
+        Assert.True(result!.Ok);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task ApiKeyQuery_SecretIsRedactedInLogs()
+    {
+        using var handler = new RecordingHandler(_ => JsonResponse(new { ok = true }));
+        var logger = new CapturingLogger();
+        var context = Context(handler, new Dictionary<string, string> { ["API_KEY"] = "super-secret-value" });
+        context.Logger = logger;
+
+        await context.HttpConnector("https://api.example.com")
+            .WithApiKeyQuery("api_key", "API_KEY")
+            .GetJsonAsync<ResponseDto>("/orders");
+
+        // The key reaches the wire...
+        Assert.Contains("api_key=super-secret-value", handler.Requests.Single().RequestUri!.ToString());
+        // ...but never the captured execution logs.
+        var logged = string.Join("\n", logger.Messages);
+        Assert.Contains("api_key=***", logged);
+        Assert.DoesNotContain("super-secret-value", logged);
+    }
+
+    [Fact]
     public async Task GetJsonAsync_ThrowsNormalizedExceptionOnFailure()
     {
         using var handler = new RecordingHandler(_ =>
@@ -176,6 +234,28 @@ public class HttpApiConnectorTests
             foreach (var header in request.Headers)
                 clone.Headers.Add(header.Key, header.Value);
             return clone;
+        }
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
         }
     }
 

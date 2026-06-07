@@ -220,17 +220,17 @@ public sealed class HttpApiConnector
         {
             response?.Dispose();
             using var request = CreateRequest(method, path, bodyBytes);
-            _context.Logger.LogInformation("HTTP {Method} {Uri} attempt {Attempt}", method, request.RequestUri, attempt + 1);
+            _context.Logger.LogInformation("HTTP {Method} {Uri} attempt {Attempt}", method, SanitizeUriForLog(request.RequestUri), attempt + 1);
 
             response = await _context.Http.SendAsync(request, ct);
-            if (!ShouldRetry(response, attempt))
+            if (!ShouldRetry(method, response, attempt))
                 return response;
 
             var delay = ResolveRetryDelay(response, attempt);
             _context.Logger.LogWarning(
                 "HTTP {Method} {Uri} returned {StatusCode}; retrying in {DelayMs}ms",
                 method,
-                request.RequestUri,
+                SanitizeUriForLog(request.RequestUri),
                 (int)response.StatusCode,
                 delay.TotalMilliseconds);
             await Task.Delay(delay, ct);
@@ -304,10 +304,52 @@ public sealed class HttpApiConnector
             ? value
             : throw new InvalidOperationException($"Secret '{key}' not found for HTTP connector.");
 
-    private bool ShouldRetry(HttpResponseMessage response, int attempt) =>
+    private bool ShouldRetry(HttpMethod method, HttpResponseMessage response, int attempt) =>
         attempt < _maxRetries
+        && CanRetryMethod(method)
         && (_retryStatusCodes.Contains(response.StatusCode)
             || ((int)response.StatusCode >= 500 && (int)response.StatusCode <= 599));
+
+    // Idempotent verbs are always safe to retry. POST/PATCH are only retried when an idempotency key
+    // is set, so a retried write cannot silently duplicate a side effect the server may already have
+    // applied for a request that failed after it was processed.
+    private bool CanRetryMethod(HttpMethod method) =>
+        method == HttpMethod.Get
+        || method == HttpMethod.Put
+        || method == HttpMethod.Delete
+        || method == HttpMethod.Head
+        || method == HttpMethod.Options
+        || !string.IsNullOrWhiteSpace(_idempotencyKey);
+
+    // The query-parameter auth path embeds a secret in the URL. Header/bearer/basic auth keep the
+    // secret in request headers (never logged), but a query API key would otherwise be written to the
+    // execution log via the request URI — redact just that parameter before logging.
+    private string SanitizeUriForLog(Uri? uri)
+    {
+        if (uri is null)
+            return "(none)";
+
+        if (_auth is not ApiKeyQuerySecretAuth queryAuth)
+            return uri.ToString();
+
+        var raw = uri.ToString();
+        var queryStart = raw.IndexOf('?');
+        if (queryStart < 0)
+            return raw;
+
+        var encodedName = WebUtility.UrlEncode(queryAuth.ParameterName);
+        var pairs = raw[(queryStart + 1)..].Split('&');
+        for (var i = 0; i < pairs.Length; i++)
+        {
+            var eq = pairs[i].IndexOf('=');
+            var key = eq < 0 ? pairs[i] : pairs[i][..eq];
+            if (string.Equals(key, queryAuth.ParameterName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(key, encodedName, StringComparison.OrdinalIgnoreCase))
+                pairs[i] = key + "=***";
+        }
+
+        return raw[..queryStart] + "?" + string.Join("&", pairs);
+    }
 
     private TimeSpan ResolveRetryDelay(HttpResponseMessage response, int attempt)
     {

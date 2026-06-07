@@ -180,6 +180,8 @@ var data = await client.GetJsonAsync<MyData>("/path", ct);
 
 For paged APIs, use `GetAllPagesAsync` for cursor/next-link style APIs or `GetOffsetPagesAsync` for offset/limit APIs. HTTP connector secret references are detected by `serto scan` and included in deploy secret checks.
 
+Retries (on `429` and `5xx`, honoring `Retry-After`) apply automatically to idempotent verbs. Non-idempotent writes (`POST`, `PATCH`) are **only** retried when you set `WithIdempotencyKey(...)`, so a retried write can't duplicate a side effect the server may already have applied. Secrets passed as query-parameter API keys (`WithApiKeyQuery`) are redacted from execution logs.
+
 ### SQL Connector
 
 The SQL connector (built on Dapper) makes it easy to execute queries and commands against SQL Server databases using connection strings stored in secrets.
