@@ -85,6 +85,16 @@ To test a specific class or provide a mock webhook payload:
 serto test MyIntegration --payload '{"id": 123}'
 ```
 
+To replay a signed webhook payload against the control plane without configuring an external sender:
+
+```bash
+SERTO_WEBHOOK_SECRET=whs_... serto webhook replay \
+  http://localhost:5000/webhooks/acme/order-sync/hook \
+  --payload '{"id":123}'
+```
+
+Use `--payload-file ./sample-webhook.json` for larger samples and `--delivery-id` when you need to test idempotency behavior with a stable delivery id. The replay command signs the payload with the same `X-Integration-Signature`, `X-Integration-Timestamp`, and `X-Integration-Delivery` headers expected by production webhook delivery.
+
 To preview what the control plane will discover before deploy:
 
 ```bash
