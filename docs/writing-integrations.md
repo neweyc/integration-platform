@@ -166,15 +166,21 @@ The platform provides built-in connectors to simplify common integration tasks. 
 
 ### HTTP Connector
 
-The HTTP connector provides a fluent API for making JSON-based API calls, handling authentication from secrets, and logging requests automatically.
+The HTTP connector provides a fluent API for JSON-based API calls with secret-backed authentication, execution-aware logging, retries, rate-limit handling, idempotency headers, and pagination helpers.
 
 ```csharp
 var client = context.HttpConnector("https://api.example.com")
-                    .WithBearerToken("MY_SECRET_KEY")
-                    .WithHeader("X-Custom", "value");
+                    .WithBearerToken("MY_SECRET_KEY")          // or WithApiKeyHeader / WithApiKeyQuery / WithBasicAuth
+                    .WithHeader("X-Custom", "value")
+                    .WithRetryPolicy(maxRetries: 3)
+                    .WithIdempotencyKey(context.Execution.ExecutionId.ToString());
 
 var data = await client.GetJsonAsync<MyData>("/path", ct);
 ```
+
+For paged APIs, use `GetAllPagesAsync` for cursor/next-link style APIs or `GetOffsetPagesAsync` for offset/limit APIs. HTTP connector secret references are detected by `serto scan` and included in deploy secret checks.
+
+Retries (on `429` and `5xx`, honoring `Retry-After`) apply automatically to idempotent verbs. Non-idempotent writes (`POST`, `PATCH`) are **only** retried when you set `WithIdempotencyKey(...)`, so a retried write can't duplicate a side effect the server may already have applied. Secrets passed as query-parameter API keys (`WithApiKeyQuery`) are redacted from execution logs.
 
 ### SQL Connector
 

@@ -123,6 +123,9 @@ public class Integration
         _ = context.Secrets["DIRECT_SECRET"];
         _ = context.Secrets.TryGetValue("TRY_GET_SECRET", out var value);
         _ = context.HttpConnector("https://example.com").WithBearerToken("HTTP_SECRET");
+        _ = context.HttpConnector("https://example.com").WithApiKeyHeader("X-Api-Key", "HEADER_SECRET");
+        _ = context.HttpConnector("https://example.com").WithApiKeyQuery("api_key", "QUERY_SECRET");
+        _ = context.HttpConnector("https://example.com").WithBasicAuth("BASIC_USER", "BASIC_PASSWORD");
         _ = context.SqlConnector("SQL_SECRET");
     }
 }
@@ -131,7 +134,16 @@ public class Integration
         var secrets = ScanCommand.DiscoverRequiredSecrets(directory.Path);
 
         Assert.Equal(
-            ["DIRECT_SECRET", "HTTP_SECRET", "SQL_SECRET", "TRY_GET_SECRET"],
+            [
+                "BASIC_PASSWORD",
+                "BASIC_USER",
+                "DIRECT_SECRET",
+                "HEADER_SECRET",
+                "HTTP_SECRET",
+                "QUERY_SECRET",
+                "SQL_SECRET",
+                "TRY_GET_SECRET"
+            ],
             secrets);
     }
 
