@@ -16,6 +16,13 @@ public class IntegrationTrigger : Entity
     // For scheduled triggers.
     public string? CronExpression { get; set; }
 
+    // The cron/enabled state the code last declared. The active CronExpression/Enabled above may
+    // diverge when an operator overrides them in the control plane; that divergence is treated as
+    // an operator override that package redeploys preserve (recording the new code default here and
+    // reporting the difference as drift).
+    public string? DeclaredCronExpression { get; set; }
+    public bool DeclaredEnabled { get; set; } = true;
+
     // For webhook triggers. The secret is shown once at creation and stored encrypted.
     public string? EncryptedWebhookSecret { get; set; }
 }

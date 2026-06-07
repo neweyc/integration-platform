@@ -112,6 +112,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(t => t.Name).IsRequired().HasMaxLength(200);
             b.Property(t => t.Slug).IsRequired().HasMaxLength(100);
             b.Property(t => t.CronExpression).HasMaxLength(100);
+            b.Property(t => t.DeclaredCronExpression).HasMaxLength(100);
+            b.Property(t => t.DeclaredEnabled).HasDefaultValue(true);
             b.Property(t => t.EncryptedWebhookSecret);
             b.HasIndex(t => new { t.TenantId, t.IntegrationId, t.Slug }).IsUnique();
             b.HasIndex(t => new { t.TenantId, t.Type, t.Enabled });

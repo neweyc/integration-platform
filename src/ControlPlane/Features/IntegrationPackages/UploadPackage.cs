@@ -67,7 +67,10 @@ public record PackageProvisionedTriggerResult(
     string? CronExpression = null,
     DateTime? NextRunAt = null,
     string? WebhookUrl = null,
-    bool WebhookSecretPreserved = false);
+    bool WebhookSecretPreserved = false,
+    string? DeclaredCronExpression = null,
+    bool CronOverridden = false,
+    bool EnabledOverridden = false);
 
 public interface IPackageRepository
 {
@@ -249,7 +252,10 @@ public class UploadPackageHandler(
             trigger.CronExpression,
             nextRunAt,
             webhookUrl,
-            upsert.WebhookSecretPreserved);
+            upsert.WebhookSecretPreserved,
+            trigger.DeclaredCronExpression,
+            upsert.CronOverridden,
+            upsert.EnabledOverridden);
     }
 
     private static void Validate(UploadPackageCommand command)

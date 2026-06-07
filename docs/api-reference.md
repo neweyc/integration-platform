@@ -786,7 +786,10 @@ curl -X POST http://localhost:5000/api/integration-packages \
           "enabled": true,
           "action": "Created",
           "cronExpression": "*/5 * * * *",
-          "nextRunAt": "2026-06-05T19:35:00Z"
+          "nextRunAt": "2026-06-05T19:35:00Z",
+          "declaredCronExpression": "0 * * * *",
+          "cronOverridden": true,
+          "enabledOverridden": false
         },
         {
           "id": "ed54eea2-3690-4a9a-bd23-4804518cc1ff",
@@ -811,6 +814,8 @@ curl -X POST http://localhost:5000/api/integration-packages \
 ```
 
 Webhook secrets are preserved when an existing webhook trigger is updated by package upload; upload does not rotate operator-facing webhook credentials.
+
+A package upload records the code-declared cron/enabled as each trigger's defaults but **preserves operator overrides**: if an operator disabled a trigger or set a production cron different from the code default, a redeploy keeps the operator's value and reports the divergence as drift. On each provisioned trigger, `declaredCronExpression` is the cron the code last declared, `cronOverridden` / `enabledOverridden` indicate an active operator override (active value differs from the declared default), and `cronExpression` / `enabled` are the active runtime values. The same `declaredCronExpression` / `cronOverridden` / `enabledOverridden` fields appear on triggers returned by `GET /api/integrations` and `GET /api/integrations/{id}`.
 
 The `secretCheck` object compares the `requiredSecrets` form field against the secrets configured in the provisioning environment (`production`):
 

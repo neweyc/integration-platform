@@ -82,7 +82,7 @@ Remaining gaps:
 
 ### Trigger Declarations And Runtime Overrides
 
-**Status:** Todo
+**Status:** In Progress
 
 Separate trigger intent in code from operational authority in the control plane. Developers should declare which triggers an integration supports and provide local/default values, while the control plane owns production enablement and environment-specific runtime settings.
 
@@ -95,6 +95,19 @@ Acceptance criteria:
 - Operators can apply a new code default, keep the current override, disable a trigger, or promote settings between environments.
 - `serto scan` and `serto deploy` clearly show which trigger fields are declared by code, which are controlled by the control plane, and which will be preserved.
 - Tests cover code default changes, preserved production overrides, preserved webhook secrets, disabled trigger preservation, and drift reporting.
+
+Completed notes:
+
+- `IntegrationTrigger` now stores code-declared defaults (`DeclaredCronExpression`, `DeclaredEnabled`) alongside the active `CronExpression`/`Enabled`. Divergence between active and declared is treated as an operator override.
+- Trigger reconcile is split into code-driven (package upload) and operator-driven (UI/API update) modes. Code-driven redeploys record the new declared defaults and preserve operator overrides of enabled-state and cron (webhook-secret preservation already existed); operator updates set active values, and divergence from the declared default becomes the override.
+- The provisioning report, `serto deploy` output, and the integration list/get API expose per-trigger `cronOverridden`/`enabledOverridden` and the declared cron, so preserved overrides surface as drift. The integrations UI shows a "drift" badge with a tooltip explaining the override.
+- Tests cover disabled-trigger preservation, cron-override preservation with the new declared default recorded, follow-code-when-not-overridden, and operator-change-then-redeploy-preserves; plus provisioning-report drift mapping and CLI drift formatting.
+
+Remaining gaps:
+
+- Operator actions are not built yet: apply-the-new-code-default (clear an override), and promote settings between environments.
+- Queue/file bindings, rate limits, and environment-specific configuration are not modeled as declared-vs-override yet (only enabled-state and cron are).
+- The drift UI is read-only (badge + tooltip); there is no reconcile control.
 
 ### AI-Assisted Integration Authoring
 
