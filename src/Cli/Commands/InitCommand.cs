@@ -39,8 +39,8 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Serto.Sdk" Version="1.0.0" />
-    <PackageReference Include="Serto.Connectors" Version="1.0.0" />
+    <PackageReference Include="Serto.Sdk" Version="1.0.3" />
+    <PackageReference Include="Serto.Connectors" Version="1.0.3" />
   </ItemGroup>
 </Project>
 """;
@@ -84,7 +84,8 @@ obj/
         AnsiConsole.MarkupLine("Next steps:");
         AnsiConsole.MarkupLine($"  1. [yellow]cd {projectName}[/]");
         AnsiConsole.MarkupLine("  2. [yellow]dotnet build[/]");
-        AnsiConsole.MarkupLine("  3. [yellow]serto deploy[/] (coming soon)");
+        AnsiConsole.MarkupLine("  3. [yellow]serto scan[/]");
+        AnsiConsole.MarkupLine("  4. [yellow]serto deploy[/]");
 
         return 0;
     }

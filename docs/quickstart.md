@@ -37,7 +37,7 @@ export SERTO_API_TOKEN=pat_...
 
 ## 3. Write an integration
 
-Create a small project at the repo root. Because the `Serto.Sdk` NuGet packages aren't published yet, reference the in-repo SDK projects directly.
+Create a small project at the repo root and reference the published Serto packages.
 
 ```bash
 mkdir my-integrations && cd my-integrations
@@ -55,8 +55,8 @@ mkdir my-integrations && cd my-integrations
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../src/Sdk/Sdk.csproj" />
-    <ProjectReference Include="../src/Connectors/Connectors.csproj" />
+    <PackageReference Include="Serto.Sdk" Version="1.0.3" />
+    <PackageReference Include="Serto.Connectors" Version="1.0.3" />
   </ItemGroup>
 </Project>
 ```

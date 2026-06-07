@@ -96,12 +96,12 @@ dotnet publish src/Cli -c Release -o ~/.serto
 alias serto='dotnet ~/.serto/Cli.dll'
 ```
 
-> **Note:** `serto init` scaffolds a project that references the `Serto.Sdk` and `Serto.Connectors` NuGet packages. Those packages are **not published yet**. To build an integration against the current source tree, reference the in-repo SDK projects instead (this is what `src/Examples` does):
+> **Note:** `serto init` scaffolds a project that references the published `Serto.Sdk` and `Serto.Connectors` NuGet packages. The current package version is `1.0.3`:
 >
 > ```xml
 > <ItemGroup>
->   <ProjectReference Include="path/to/src/Sdk/Sdk.csproj" />
->   <ProjectReference Include="path/to/src/Connectors/Connectors.csproj" />
+>   <PackageReference Include="Serto.Sdk" Version="1.0.3" />
+>   <PackageReference Include="Serto.Connectors" Version="1.0.3" />
 > </ItemGroup>
 > ```
 
@@ -216,7 +216,7 @@ npm run build   # outputs to src/ControlPlane/wwwroot
 - **Control plane can't connect to the database** — confirm the dev container is healthy (`docker compose -f docker-compose.dev.yml ps`) and that the connection string host/port match (`127.0.0.1:5433`).
 - **UI loads but API calls fail in dev** — make sure the control plane is running on `:5000`; the Vite dev server on `:5173` proxies to it.
 - **`/setup` doesn't appear** — setup is only offered until the first tenant exists. If a tenant was already created, go to the login page instead.
-- **Scaffolded integration won't restore `Serto.Sdk`** — the SDK NuGet packages aren't published yet; use a `ProjectReference` to the in-repo SDK (see the CLI note above).
+- **Scaffolded integration won't restore `Serto.Sdk`** — confirm NuGet.org is reachable and that the generated project references a published package version such as `1.0.3`.
 
 ---
 
