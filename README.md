@@ -207,23 +207,21 @@ Output goes to `src/ControlPlane/wwwroot` and is served by the .NET server at `h
 
 ## Docker deployment
 
-Build and run the control plane as a Docker container:
+Production deployments use published Docker images, so servers do not need a source checkout:
 
 ```bash
-# Build from repository root
-docker build -f src/ControlPlane/Dockerfile -t serto .
-
-# Run with environment variables
-docker run -p 8080:8080 \
-  -e ConnectionStrings__DefaultConnection="Host=db;Database=integrationplatform;Username=user;Password=pass" \
-  -e Jwt__Key="your-256-bit-secret-key" \
-  -e Encryption__MasterKey="your-encryption-master-key" \
-  serto
+cp .env.example .env
+# Fill in POSTGRES_PASSWORD, JWT_SECRET, and ENCRYPTION_MASTER_KEY.
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-The Dockerfile builds both the React frontend and .NET backend in a multi-stage build.
+The production compose file pulls `craytech/serto.controlplane:${SERTO_IMAGE_TAG:-1.0.3}` and runs it with PostgreSQL. It can also run `craytech/serto.agent:${SERTO_IMAGE_TAG:-1.0.3}` with the optional `agent` profile for single-host trials:
 
-For production, use Docker Compose or Kubernetes with proper secrets management.
+```bash
+docker compose -f docker-compose.prod.yml --profile agent up -d
+```
+
+For maintainers publishing images, see [Docker Images](docs/docker-images.md).
 
 ## Running tests
 

@@ -17,11 +17,13 @@ WORKDIR /src
 
 # Copy project files first so Docker can cache the restore layer
 COPY src/Shared/Shared.csproj src/Shared/
+COPY src/Sdk/Sdk.csproj src/Sdk/
 COPY src/ControlPlane/ControlPlane.csproj src/ControlPlane/
 RUN dotnet restore src/ControlPlane/ControlPlane.csproj
 
 # Copy everything else and build
 COPY src/Shared/ src/Shared/
+COPY src/Sdk/ src/Sdk/
 COPY src/ControlPlane/ src/ControlPlane/
 
 # Copy the built frontend into wwwroot before publishing

@@ -145,9 +145,9 @@ The agent loads local assemblies from `IntegrationsPath`, syncs uploaded package
 
 ---
 
-## Production deployment (Docker)
+## Production Deployment (Docker)
 
-`docker-compose.yml` builds the control-plane image and runs it with PostgreSQL.
+For production, use the published Docker images instead of building from source on the server. The production compose file runs PostgreSQL and the published control-plane image. The runtime agent can also be run from its published image when the Docker host has access to the systems your integrations need to reach.
 
 ### 1. Create a `.env`
 
@@ -155,7 +155,7 @@ The agent loads local assemblies from `IntegrationsPath`, syncs uploaded package
 cp .env.example .env
 ```
 
-Fill in the values — never commit `.env`:
+Fill in the values. Never commit `.env`:
 
 ```ini
 POSTGRES_USER=platform
@@ -165,18 +165,38 @@ POSTGRES_PASSWORD=<strong-password>
 #   openssl rand -base64 32
 JWT_SECRET=<random, min 32 chars>
 ENCRYPTION_MASTER_KEY=<random>
+
+SERTO_IMAGE_TAG=1.0.3
 ```
 
-### 2. Start the stack
+### 2. Start the control plane
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 - Control plane: `http://localhost:8080`
 - PostgreSQL: `localhost:5432`
 
 Open `http://localhost:8080` and complete `/setup`.
+
+### 3. Run an agent from Docker
+
+Create an agent token in the UI, then add it to `.env`:
+
+```ini
+SERTO_AGENT_TOKEN=agt_<your-token>
+SERTO_AGENT_ENVIRONMENT=production
+```
+
+For a single-host trial, start the agent profile:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile agent up -d
+```
+
+In production, the agent should run wherever it has network access to the systems the integrations use. That might be the same Docker host, but it is often a separate host inside a private network. If the agent is not running in the same compose network as the control plane, set `SERTO_AGENT_CONTROL_PLANE_URL` to the externally reachable control-plane URL.
 
 > ⚠️ **Two secrets you must set carefully and not change later:**
 > - **`ENCRYPTION_MASTER_KEY`** encrypts all stored secrets. Changing it after secrets exist makes every stored secret undecryptable. Set it once, back it up securely.
