@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.RegularExpressions;
 using Cronos;
@@ -88,9 +89,34 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             .GroupBy(Path.GetFileNameWithoutExtension, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key ?? string.Empty, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
+        var (discovered, warnings) = LoadAssemblies(dlls, dllByName);
+
+        // Alc.Unload() is asynchronous — the file mappings are only released once the GC
+        // collects the ALC and its assemblies. Without this, callers that delete the publish
+        // directory immediately after scanning hit "access to path ... is denied" on Windows.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        if (discovered.Count == 0)
+            warnings.Add("No decorated IIntegration classes were discovered.");
+
+        var errors = new List<string>();
+        foreach (var integration in discovered)
+            errors.AddRange(Validate(integration));
+
+        return new ScanResult(discovered, warnings, errors);
+    }
+
+    // NoInlining ensures the ALC and all assembly references are fully out of scope
+    // before the caller forces GC, so the collectible context can actually be collected.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (List<ScannedIntegration> Discovered, List<string> Warnings) LoadAssemblies(
+        string[] dlls,
+        Dictionary<string, string> dllByName)
+    {
         var discovered = new List<ScannedIntegration>();
         var warnings = new List<string>();
-        var errors = new List<string>();
         var alc = new AssemblyLoadContext("CliScanContext", isCollectible: true);
         alc.Resolving += (_, assemblyName) =>
             assemblyName.Name is not null && dllByName.TryGetValue(assemblyName.Name, out var dependencyPath)
@@ -121,13 +147,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             alc.Unload();
         }
 
-        if (discovered.Count == 0)
-            warnings.Add("No decorated IIntegration classes were discovered.");
-
-        foreach (var integration in discovered)
-            errors.AddRange(Validate(integration));
-
-        return new ScanResult(discovered, warnings, errors);
+        return (discovered, warnings);
     }
 
     public static IReadOnlyList<ScannedIntegration> ScanAssembly(Assembly assembly)
