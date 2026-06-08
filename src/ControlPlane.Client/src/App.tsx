@@ -8,6 +8,7 @@ import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { WorkflowsPage } from '@/pages/workflows/WorkflowsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
+import { UserTokensPage } from '@/pages/userTokens/UserTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { AuditLogPage } from '@/pages/audit/AuditLogPage'
 import { AcceptInvitationPage } from '@/pages/users/AcceptInvitationPage'
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/workflows" element={<WorkflowsPage />} />
               <Route path="/secrets" element={<SecretsPage />} />
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
+              <Route path="/access-tokens" element={<UserTokensPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/audit-log" element={<AuditLogPage />} />
             </Route>
