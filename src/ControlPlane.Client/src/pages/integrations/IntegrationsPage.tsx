@@ -619,6 +619,9 @@ function LastRun({ execution }: { execution?: ExecutionSummary | null }) {
     <div className="space-y-1">
       <ExecutionStatusBadge status={execution.status} />
       <p className="text-xs text-muted-foreground">{formatDateTime(execution.startedAt)}</p>
+      {execution.packageVersion && (
+        <p className="text-xs text-muted-foreground font-mono">pkg {execution.packageVersion}</p>
+      )}
     </div>
   )
 }

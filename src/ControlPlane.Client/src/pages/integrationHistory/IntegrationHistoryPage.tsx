@@ -140,6 +140,9 @@ export function IntegrationHistoryPage() {
                 <h3 className="text-sm font-medium">Logs</h3>
                 <p className="text-xs text-muted-foreground">
                   {formatDateTime(selectedExecution.startedAt)} · {selectedExecution.status}
+                  {selectedExecution.packageVersion
+                    ? ` · package ${selectedExecution.packageName ?? ''}${selectedExecution.packageName ? ' ' : ''}${selectedExecution.packageVersion}`
+                    : ''}
                 </p>
               </div>
               {logsError && (
@@ -246,6 +249,11 @@ function ExecutionRow({
           <p className="text-sm">
             {execution.triggerSource ?? 'Run'} · {formatDateTime(execution.startedAt)}
           </p>
+          {execution.packageVersion && (
+            <p className="truncate text-xs text-muted-foreground">
+              Package {execution.packageName ? `${execution.packageName} ` : ''}{execution.packageVersion}
+            </p>
+          )}
           {execution.errorMessage && (
             <p className="truncate text-xs text-destructive" title={execution.errorMessage}>
               {execution.errorMessage}

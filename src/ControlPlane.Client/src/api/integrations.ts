@@ -43,6 +43,8 @@ export interface ExecutionSummary {
   completedAt?: string | null
   durationMs?: number | null
   errorMessage?: string | null
+  packageName?: string | null
+  packageVersion?: string | null
   // Correlates an execution with the trigger event that produced it (matched on workItemId).
   workItemId?: string | null
   triggerSource?: TriggerSource | null
