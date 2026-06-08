@@ -28,4 +28,10 @@ public class AgentOptions
 
     // How often to check for new or updated packages, in seconds
     public int PackageSyncIntervalSeconds { get; set; } = 300;
+
+    // How long a pooled HTTP connection to the control plane may sit idle before the agent
+    // proactively closes it. Kept well below typical server keep-alive timeouts so the agent
+    // never reuses a connection the server has already dropped — the cause of intermittent
+    // "the response ended prematurely" errors when reporting logs or completing executions.
+    public int ControlPlaneConnectionIdleTimeoutSeconds { get; set; } = 15;
 }

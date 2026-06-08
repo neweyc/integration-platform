@@ -19,6 +19,15 @@ builder.Services.AddHttpClient<IControlPlaneClient, ControlPlaneClient>(client =
 {
     client.BaseAddress = new Uri(options.ControlPlaneUrl);
     client.DefaultRequestHeaders.Add("X-Agent-Token", options.AgentToken);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    // Proactively retire idle connections before the server's keep-alive timeout closes them.
+    // Without this, the agent can reuse a connection the control plane has already dropped during
+    // the gap between polling and reporting a result, surfacing as "the response ended prematurely".
+    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(options.ControlPlaneConnectionIdleTimeoutSeconds),
+    // Recycle connections periodically so DNS/load-balancer changes are picked up.
+    PooledConnectionLifetime = TimeSpan.FromMinutes(5)
 });
 
 // Named HTTP client available inside integrations via IIntegrationContext.Http

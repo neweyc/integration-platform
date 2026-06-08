@@ -254,6 +254,43 @@ Acceptance criteria:
 - Agent reports pre-start failures for missing integration classes where possible.
 - Tests cover missing class, expired claim, reclaim, and new request after terminal failure.
 
+### Orphaned Running Execution Reaper
+
+**Status:** Done
+
+Recover executions that are stuck in `Running` because the agent started them but never reported a terminal result — for example, the agent crashed mid-run, or lost its connection to the control plane during `FlushAsync`/`CompleteExecutionAsync` after a successful `StartExecutionAsync`.
+
+This is a real wedge, not a theoretical one: the poll/claim path in `PollRepository` skips any integration that has an execution record in `Running` status (`runningIntegrations` guard), and nothing ages those records out. A single orphaned `Running` record therefore sidelines an integration permanently — its scheduled, manual, webhook, and retry work all stop dispatching — with no automatic recovery and no operator-facing signal. The only fix today is a manual SQL update to mark the record `Failed`.
+
+This differs from work-item claims, which already self-heal: claims carry `ClaimExpiresAt` and are reclaimed after the 5-minute lease. Execution records have `StartedAt`/`CompletedAt` but no equivalent expiry, so the running guard never releases.
+
+Acceptance criteria:
+
+- Execution records stuck in `Running` past a configurable threshold move to a terminal `Failed` (or distinct `Orphaned`) state with a clear error message.
+- Reaping releases the poll/claim running guard so the integration dispatches again.
+- The threshold accounts for the integration's configured timeout, so a legitimately long run is not reaped early.
+- Reaping is environment- and tenant-safe and does not race a late completion report for the same execution (a completion arriving after reap is handled consistently).
+- Orphaned/reaped executions are visible in execution history and ideally surface as an operator signal.
+- The reaper runs without an external scheduler (background service in the control plane) and is covered by tests for the stuck-Running case, the not-yet-expired case, and the late-completion-after-reap case.
+
+Notes:
+
+- Relates to [Manual Run Claim Failure Handling] (pre-start failures) — this item covers post-start, mid-execution loss. Together they close the gap of executions that never reach a terminal state.
+- The triggering connection failure ("the response ended prematurely" on the agent → control-plane channel) is mitigated separately by agent HTTP connection-pool tuning; the reaper is the control-plane-side backstop regardless of cause.
+
+Completed notes:
+
+- Added `ReapOrphanedExecutionsHandler` + `IOrphanedExecutionRepository`: sweeps all tenants for `Running` execution records, marks those past their ceiling as `Failed` with an explanatory message, and mirrors the terminal status onto the linked work item so the poll/claim running guard releases.
+- Per-record ceiling is the integration's configured timeout plus a grace window (`TimeoutGraceSeconds`, default 120s); integrations with no declared timeout fall back to `DefaultMaxRunningSeconds` (default 3600s). Both, plus the sweep interval, are configurable via the `OrphanedExecutionReaper` config section.
+- Added `OrphanedExecutionReaper` background service. It invokes the handler directly inside a DI scope rather than through the auditing dispatcher, since a system sweep has no acting user; sweep failures are logged and retried rather than taking the service down.
+- Reaping deliberately does not queue a retry — the cause is an unhealthy agent, so the next scheduled tick or a fresh manual run is the recovery path. A late completion report after reap is handled by the existing `CompleteExecutionHandler` (find-by-id then set status), so the real outcome still lands.
+- Reaped executions remain in history as `Failed` with the orphaned reason, so they are visible in the UI.
+- Tests cover stuck-past-default-ceiling, within-default-ceiling, within timeout+grace, past timeout+grace, work-item mirroring, no-retry-queued, and the empty-running case.
+
+Remaining gaps:
+
+- No distinct `Orphaned` execution status or dedicated operator alert yet — reaped runs surface as ordinary `Failed` with an explanatory message rather than a first-class signal.
+
 ### Agent Version Reporting
 
 **Status:** In Progress

@@ -190,6 +190,14 @@ builder.Services.AddScoped<ICommandHandler<StartExecutionCommand, StartExecution
 builder.Services.AddScoped<ICommandHandler<CompleteExecutionCommand, bool>, CompleteExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<RecordExecutionLogCommand, bool>, RecordExecutionLogHandler>();
 
+// Orphaned execution reaper — backstop for executions stuck Running after an agent crash/disconnect
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("OrphanedExecutionReaper").Get<OrphanedExecutionReaperOptions>()
+    ?? new OrphanedExecutionReaperOptions());
+builder.Services.AddScoped<IOrphanedExecutionRepository, OrphanedExecutionRepository>();
+builder.Services.AddScoped<ICommandHandler<ReapOrphanedExecutionsCommand, ReapOrphanedExecutionsResult>, ReapOrphanedExecutionsHandler>();
+builder.Services.AddHostedService<OrphanedExecutionReaper>();
+
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserReadRepository, UserRepository>();
