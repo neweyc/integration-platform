@@ -147,7 +147,7 @@ The agent loads local assemblies from `IntegrationsPath`, syncs uploaded package
 
 ## Production Deployment (Docker)
 
-For production, use the published Docker images instead of building from source on the server. The production compose file runs PostgreSQL and the published control-plane image. The runtime agent can also be run from its published image when the Docker host has access to the systems your integrations need to reach.
+For production, use the published Docker images instead of building from source on the server. A typical deployment runs the control plane on one host, PostgreSQL on a managed database or separate database host, and runtime agents on one or more hosts inside the networks that contain the systems your integrations need to reach.
 
 ### 1. Create a `.env`
 
@@ -167,6 +167,7 @@ JWT_SECRET=<random, min 32 chars>
 ENCRYPTION_MASTER_KEY=<random>
 
 SERTO_IMAGE_TAG=1.0.3
+SERTO_CONTROL_PLANE_CONNECTION_STRING="Host=db.example.com;Database=integration_platform;Username=platform;Password=<strong-password>"
 ```
 
 ### 2. Start the control plane
@@ -177,26 +178,34 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 - Control plane: `http://localhost:8080`
-- PostgreSQL: `localhost:5432`
 
 Open `http://localhost:8080` and complete `/setup`.
 
-### 3. Run an agent from Docker
+### 3. Run agents from Docker
 
 Create an agent token in the UI, then add it to `.env`:
 
 ```ini
 SERTO_AGENT_TOKEN=agt_<your-token>
 SERTO_AGENT_ENVIRONMENT=production
+SERTO_AGENT_CONTROL_PLANE_URL=https://your-control-plane.example.com
 ```
 
-For a single-host trial, start the agent profile:
+On each agent host:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile agent up -d
+docker compose -f docker-compose.agent.yml pull
+docker compose -f docker-compose.agent.yml up -d
 ```
 
-In production, the agent should run wherever it has network access to the systems the integrations use. That might be the same Docker host, but it is often a separate host inside a private network. If the agent is not running in the same compose network as the control plane, set `SERTO_AGENT_CONTROL_PLANE_URL` to the externally reachable control-plane URL.
+### Single-host trial
+
+For a quick trial on one machine, use the trial compose file. It runs PostgreSQL and the control plane together:
+
+```bash
+docker compose -f docker-compose.trial.yml pull
+docker compose -f docker-compose.trial.yml up -d
+```
 
 > ⚠️ **Two secrets you must set carefully and not change later:**
 > - **`ENCRYPTION_MASTER_KEY`** encrypts all stored secrets. Changing it after secrets exist makes every stored secret undecryptable. Set it once, back it up securely.

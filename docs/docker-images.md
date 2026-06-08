@@ -45,6 +45,14 @@ docker push craytech/serto.agent:latest
 
 ## Deployment Model
 
-The control plane image is usually deployed with PostgreSQL.
+The control plane image is usually deployed on an application host and pointed at PostgreSQL running on managed database infrastructure or a separate database host.
 
-The runtime agent image should be deployed wherever it has network access to the systems the integrations need to reach. That can be the same Docker host for a trial, but in production it is often inside the customer's private network while the control plane is hosted elsewhere.
+The runtime agent image should be deployed wherever it has network access to the systems the integrations need to reach. That can be the same Docker host for a trial, but in production it is often inside the customer's private network while the control plane is hosted elsewhere. Multiple agent hosts can run the same image with different `SERTO_AGENT_TOKEN` and `SERTO_AGENT_ENVIRONMENT` values.
+
+Compose examples:
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.prod.yml` | Control plane only, pointed at an external PostgreSQL connection string |
+| `docker-compose.agent.yml` | Runtime agent only, suitable for each agent host |
+| `docker-compose.trial.yml` | Single-host trial with PostgreSQL plus control plane |

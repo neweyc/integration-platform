@@ -1,0 +1,20 @@
+services:
+  agent:
+    image: craytech/serto.agent:${SERTO_IMAGE_TAG:-1.0.3}
+    environment:
+      Agent__ControlPlaneUrl: ${SERTO_AGENT_CONTROL_PLANE_URL}
+      Agent__AgentToken: ${SERTO_AGENT_TOKEN}
+      Agent__Environment: ${SERTO_AGENT_ENVIRONMENT:-production}
+      Agent__IntegrationsPath: /app/integrations
+      Agent__PackagesPath: /app/packages
+      Agent__PollIntervalSeconds: ${SERTO_AGENT_POLL_INTERVAL_SECONDS:-30}
+      Agent__PackageSyncIntervalSeconds: ${SERTO_AGENT_PACKAGE_SYNC_INTERVAL_SECONDS:-300}
+      Agent__MaxConcurrentExecutions: ${SERTO_AGENT_MAX_CONCURRENT_EXECUTIONS:-5}
+      Agent__ShutdownDrainSeconds: ${SERTO_AGENT_SHUTDOWN_DRAIN_SECONDS:-30}
+    volumes:
+      - agent_integrations:/app/integrations
+      - agent_packages:/app/packages
+
+volumes:
+  agent_integrations:
+  agent_packages:

@@ -211,15 +211,17 @@ Production deployments use published Docker images, so servers do not need a sou
 
 ```bash
 cp .env.example .env
-# Fill in POSTGRES_PASSWORD, JWT_SECRET, and ENCRYPTION_MASTER_KEY.
+# Fill in SERTO_CONTROL_PLANE_CONNECTION_STRING, JWT_SECRET, and ENCRYPTION_MASTER_KEY.
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The production compose file pulls `craytech/serto.controlplane:${SERTO_IMAGE_TAG:-1.0.3}` and runs it with PostgreSQL. It can also run `craytech/serto.agent:${SERTO_IMAGE_TAG:-1.0.3}` with the optional `agent` profile for single-host trials:
+The production compose file pulls `craytech/serto.controlplane:${SERTO_IMAGE_TAG:-1.0.3}` and points it at an external PostgreSQL database. Runtime agents are deployed separately on hosts that can reach the systems your integrations use:
 
 ```bash
-docker compose -f docker-compose.prod.yml --profile agent up -d
+docker compose -f docker-compose.agent.yml up -d
 ```
+
+For a single-host trial with PostgreSQL and the control plane together, use `docker-compose.trial.yml`.
 
 For maintainers publishing images, see [Docker Images](docs/docker-images.md).
 
