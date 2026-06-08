@@ -25,9 +25,26 @@ export interface ListAgentTokensResponse {
   tokens: AgentTokenSummary[]
 }
 
+export interface AgentHeartbeatSummary {
+  id: string
+  agentTokenId: string
+  environment: string
+  version: string | null
+  hostname: string | null
+  currentConcurrency: number
+  maxConcurrency: number
+  lastSeenAt: string
+  isStale: boolean
+}
+
+export interface ListAgentHeartbeatsResponse {
+  agents: AgentHeartbeatSummary[]
+}
+
 export const agentTokensApi = {
   list: () => api.get<ListAgentTokensResponse>('/agent-tokens'),
   create: (data: CreateAgentTokenRequest) =>
     api.post<CreateAgentTokenResponse>('/agent-tokens', data),
   revoke: (id: string) => api.delete<void>(`/agent-tokens/${id}`),
+  listHeartbeats: () => api.get<ListAgentHeartbeatsResponse>('/agent-tokens/heartbeats'),
 }

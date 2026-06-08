@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { agentTokensApi, type AgentTokenSummary } from '@/api/agentTokens'
+import { agentTokensApi, type AgentTokenSummary, type AgentHeartbeatSummary } from '@/api/agentTokens'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
+import { cn } from '@/lib/utils'
 
 export function AgentTokensPage() {
   const queryClient = useQueryClient()
@@ -37,6 +38,13 @@ export function AgentTokensPage() {
     queryKey: ['agent-tokens'],
     queryFn: agentTokensApi.list,
     enabled: canManageAgentTokens,
+  })
+
+  const { data: heartbeatData, isLoading: heartbeatsLoading } = useQuery({
+    queryKey: ['agent-heartbeats'],
+    queryFn: agentTokensApi.listHeartbeats,
+    enabled: canManageAgentTokens,
+    refetchInterval: 30_000,
   })
 
   const createToken = useMutation({
@@ -77,7 +85,22 @@ export function AgentTokensPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Active agents</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Runtime agents that have recently connected. Status refreshes every 30 seconds.
+          </p>
+        </div>
+        {heartbeatsLoading ? (
+          <AgentStatusSkeleton />
+        ) : (
+          <AgentStatusTable agents={heartbeatData?.agents ?? []} />
+        )}
+      </div>
+
+      <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Agent tokens</h2>
@@ -102,6 +125,7 @@ export function AgentTokensPage() {
           onRevoke={id => revokeToken.mutate(id)}
         />
       )}
+      </div>
 
       <Sheet open={sheetOpen} onOpenChange={handleCloseSheet}>
         <SheetContent>
@@ -218,6 +242,99 @@ function TokensTable({
                   Revoke
                 </Button>
               </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function AgentStatusTable({ agents }: { agents: AgentHeartbeatSummary[] }) {
+  if (agents.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground border rounded-lg">
+        <p className="text-sm">No agents have connected yet.</p>
+        <p className="text-sm mt-1">Start a runtime agent with a valid token to see it here.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Status</TableHead>
+            <TableHead>Hostname</TableHead>
+            <TableHead>Environment</TableHead>
+            <TableHead>Version</TableHead>
+            <TableHead>Concurrency</TableHead>
+            <TableHead>Last seen</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {agents.map(agent => (
+            <TableRow key={agent.id}>
+              <TableCell>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'h-2 w-2 rounded-full shrink-0',
+                      agent.isStale ? 'bg-muted-foreground' : 'bg-green-500'
+                    )}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {agent.isStale ? 'Offline' : 'Online'}
+                  </span>
+                </span>
+              </TableCell>
+              <TableCell className="font-medium">
+                {agent.hostname ?? <span className="text-muted-foreground">—</span>}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline">{agent.environment}</Badge>
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {agent.version ?? '—'}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {agent.currentConcurrency} / {agent.maxConcurrency}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {new Date(agent.lastSeenAt).toLocaleString()}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function AgentStatusSkeleton() {
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Status</TableHead>
+            <TableHead>Hostname</TableHead>
+            <TableHead>Environment</TableHead>
+            <TableHead>Version</TableHead>
+            <TableHead>Concurrency</TableHead>
+            <TableHead>Last seen</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 2 }).map((_, i) => (
+            <TableRow key={i}>
+              <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-32" /></TableCell>
             </TableRow>
           ))}
         </TableBody>
