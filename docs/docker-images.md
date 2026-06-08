@@ -43,6 +43,26 @@ docker tag craytech/serto.agent:1.0.3 craytech/serto.agent:latest
 docker push craytech/serto.agent:latest
 ```
 
+## CLI Tool Package
+
+The CLI is packaged as a .NET global tool with package id `Serto.Cli` and command name `serto`.
+
+Build and publish the tool package:
+
+```bash
+dotnet pack src/Cli/Cli.csproj -c Release -o artifacts/packages -p:NuGetAudit=false
+dotnet nuget push artifacts/packages/Serto.Cli.1.0.3.nupkg \
+  --api-key "$NUGET_API_KEY" \
+  --source https://api.nuget.org/v3/index.json
+```
+
+Install it on a fresh machine:
+
+```bash
+dotnet tool install --global Serto.Cli --version 1.0.3
+serto --help
+```
+
 ## Deployment Model
 
 The control plane image is usually deployed on an application host and pointed at PostgreSQL running on managed database infrastructure or a separate database host.

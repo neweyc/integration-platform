@@ -5,6 +5,19 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>serto</ToolCommandName>
+    <PackageId>Serto.Cli</PackageId>
+    <Version>1.0.3</Version>
+    <Authors>Craytech</Authors>
+    <Company>Craytech</Company>
+    <Description>Command-line tools for scaffolding, testing, scanning, packaging, and deploying Serto integrations.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>integration;automation;workflow;cli;tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Testing\Testing.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

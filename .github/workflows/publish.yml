@@ -61,6 +61,14 @@ jobs:
           -p:Version=${{ steps.version.outputs.version }}
           --output ./nupkgs
 
+      - name: Pack Serto.Cli
+        run: >
+          dotnet pack src/Cli/Cli.csproj
+          --configuration Release
+          --no-build
+          -p:Version=${{ steps.version.outputs.version }}
+          --output ./nupkgs
+
       - name: Push to NuGet
         run: >
           dotnet nuget push ./nupkgs/*.nupkg

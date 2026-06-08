@@ -88,7 +88,14 @@ Available commands:
 | `serto dev` | Watch source files and re-run tests on save |
 | `serto webhook replay` | Sign and POST a sample webhook payload to a running control plane |
 
-To get a real `serto` command instead of `dotnet run --project src/Cli --`, publish it and put it on your `PATH`:
+To get a real `serto` command instead of `dotnet run --project src/Cli --`, install the CLI as a .NET global tool after it has been published to NuGet:
+
+```bash
+dotnet tool install --global Serto.Cli --version 1.0.3
+serto --help
+```
+
+For local development before publishing the tool package, publish it and put it on your `PATH`:
 
 ```bash
 dotnet publish src/Cli -c Release -o ~/.serto
