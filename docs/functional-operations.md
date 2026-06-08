@@ -155,6 +155,12 @@ Scheduling state is stored in `integration_schedule_states` with `last_dispatche
 
 Trigger adapters create work items. Due scheduled integrations create claimed scheduled work items, manual run requests create pending manual work items, and signed webhook deliveries create pending webhook work items with payload context. Future queue, file, database, dependency, dataset, or API-event triggers should follow the same producer pattern. Agents claim work items with a 5-minute claim expiry, start executions from claimed work items, and completion mirrors the terminal execution state back to the work item. If an agent crashes after claiming work but before opening an execution record, another agent can reclaim the work item after the claim expires.
 
+If an agent crashes or loses its connection *after* opening an execution record but before reporting a terminal result, the record would otherwise stay `Running` forever and the poll/claim guard would sideline the integration. A control-plane background reaper closes out such orphaned executions: any record running past the integration's configured timeout plus a grace window (or a default ceiling when no timeout is set) is marked `Failed` and its work item released, so dispatch resumes. Thresholds are configurable via the `OrphanedExecutionReaper` settings section.
+
+### Execution history view
+
+Each integration has a full-page history at `/integrations/:id/history` (reached via the **History** action on the Integrations page). It shows a single merged timeline, newest first, combining runtime executions with trigger events. Executions are the primary, selectable rows; trigger events that did not produce a run — `Rejected`, `Deduplicated`, or a `ConvertedToWork` whose work item has not yet executed (shown as **Queued**) — appear as distinct lighter rows, so a webhook that was rejected or work that is stuck waiting for an agent is still visible. Selecting a run shows its logs alongside, with level filtering, message search, and live tailing for in-progress runs. The selected run is reflected in the URL, so a link to a specific execution can be shared.
+
 ---
 
 ## Integration packages

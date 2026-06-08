@@ -43,6 +43,9 @@ export interface ExecutionSummary {
   completedAt?: string | null
   durationMs?: number | null
   errorMessage?: string | null
+  // Correlates an execution with the trigger event that produced it (matched on workItemId).
+  workItemId?: string | null
+  triggerSource?: TriggerSource | null
 }
 
 export interface ExecutionLogItem {

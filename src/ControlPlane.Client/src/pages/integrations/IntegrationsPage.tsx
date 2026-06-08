@@ -1,14 +1,11 @@
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   integrationsApi,
   type Integration,
   type IntegrationTrigger,
   type ExecutionSummary,
-  type ExecutionLogItem,
-  type TriggerEvent,
-  type TriggerEventOutcome,
   type TriggerType,
   type CreateIntegrationRequest,
   type UpdateIntegrationRequest,
@@ -66,6 +63,7 @@ const emptyForm: FormState = {
 
 export function IntegrationsPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const user = getCurrentUser()
   const canViewIntegrations = hasPermission('ViewIntegrations', user)
   const canManageIntegrations = hasPermission('ManageIntegrations', user)
@@ -75,11 +73,6 @@ export function IntegrationsPage() {
   const [formMode, setFormMode] = useState<FormMode>('create')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTriggers, setEditingTriggers] = useState<IntegrationTrigger[]>([])
-  const [historyIntegration, setHistoryIntegration] = useState<Integration | null>(null)
-  const [selectedExecution, setSelectedExecution] = useState<ExecutionSummary | null>(null)
-  const [eventAdapterFilter, setEventAdapterFilter] = useState('')
-  const [eventOutcomeFilter, setEventOutcomeFilter] = useState<TriggerEventOutcome | ''>('')
-  const [eventTriggerFilter, setEventTriggerFilter] = useState('')
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
@@ -128,49 +121,6 @@ export function IntegrationsPage() {
       queryClient.invalidateQueries({ queryKey: ['trigger-events'] })
     },
     onError: (err: Error) => setRunError(err.message),
-  })
-
-  const {
-    data: executionHistory,
-    isLoading: isHistoryLoading,
-    error: historyError,
-  } = useQuery({
-    queryKey: ['integration-executions', historyIntegration?.id],
-    queryFn: () => integrationsApi.executions(historyIntegration!.id),
-    enabled: canViewExecutions && historyIntegration !== null,
-  })
-
-  const {
-    data: executionLogs,
-    isLoading: areLogsLoading,
-    error: logsError,
-  } = useQuery({
-    queryKey: ['execution-logs', historyIntegration?.id, selectedExecution?.id],
-    queryFn: () => integrationsApi.logs(historyIntegration!.id, selectedExecution!.id),
-    enabled: canViewExecutions && historyIntegration !== null && selectedExecution !== null,
-    refetchInterval: selectedExecution?.status === 'Running' ? 3_000 : false,
-  })
-
-  const {
-    data: triggerEvents,
-    isLoading: areTriggerEventsLoading,
-    error: triggerEventsError,
-  } = useQuery({
-    queryKey: [
-      'trigger-events',
-      historyIntegration?.id,
-      eventAdapterFilter,
-      eventOutcomeFilter,
-      eventTriggerFilter,
-    ],
-    queryFn: () => integrationsApi.triggerEvents({
-      integrationId: historyIntegration!.id,
-      adapterKey: eventAdapterFilter || undefined,
-      outcome: eventOutcomeFilter || undefined,
-      triggerId: eventTriggerFilter || undefined,
-      limit: 50,
-    }),
-    enabled: canViewExecutions && historyIntegration !== null,
   })
 
   function handleOpenCreate() {
@@ -300,7 +250,7 @@ export function IntegrationsPage() {
         <IntegrationsTable
           integrations={data?.integrations ?? []}
           onEdit={handleOpenEdit}
-          onViewHistory={setHistoryIntegration}
+          onViewHistory={id => navigate(`/integrations/${id}/history`)}
           onRun={id => runManual.mutate(id)}
           isRunPending={runManual.isPending}
           onDelete={id => deleteIntegration.mutate(id)}
@@ -498,158 +448,6 @@ export function IntegrationsPage() {
           </form>
         </SheetContent>
       </Sheet>
-
-      <Sheet
-        open={historyIntegration !== null}
-        onOpenChange={open => {
-          if (!open) {
-            setHistoryIntegration(null)
-            setSelectedExecution(null)
-            setEventAdapterFilter('')
-            setEventOutcomeFilter('')
-            setEventTriggerFilter('')
-          }
-        }}
-      >
-        <SheetContent className="sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{historyIntegration?.name ?? 'Execution history'}</SheetTitle>
-            <SheetDescription>
-              Runtime executions and trigger events for this integration.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="space-y-6 px-4 pb-4">
-            <section className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-medium">Trigger events</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Recent adapter activity and work-item conversion.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="eventAdapter" className="text-xs">Adapter</Label>
-                    <Select
-                      id="eventAdapter"
-                      value={eventAdapterFilter}
-                      onChange={e => setEventAdapterFilter(e.target.value)}
-                    >
-                      <option value="">All</option>
-                      <option value="manual">Manual</option>
-                      <option value="webhook">Webhook</option>
-                      <option value="queue">Queue</option>
-                      <option value="file">File</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="eventOutcome" className="text-xs">Outcome</Label>
-                    <Select
-                      id="eventOutcome"
-                      value={eventOutcomeFilter}
-                      onChange={e => setEventOutcomeFilter(e.target.value as TriggerEventOutcome | '')}
-                    >
-                      <option value="">All</option>
-                      <option value="Received">Received</option>
-                      <option value="Accepted">Accepted</option>
-                      <option value="ConvertedToWork">Converted</option>
-                      <option value="Deduplicated">Deduped</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Failed">Failed</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="eventTrigger" className="text-xs">Trigger</Label>
-                    <Select
-                      id="eventTrigger"
-                      value={eventTriggerFilter}
-                      onChange={e => setEventTriggerFilter(e.target.value)}
-                    >
-                      <option value="">All</option>
-                      {historyIntegration?.triggers.map(trigger => (
-                        <option key={trigger.id ?? trigger.slug} value={trigger.id ?? ''}>
-                          {trigger.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {triggerEventsError && (
-                <p className="text-sm text-destructive">
-                  {triggerEventsError instanceof Error
-                    ? triggerEventsError.message
-                    : 'Failed to load trigger events.'}
-                </p>
-              )}
-
-              {areTriggerEventsLoading ? (
-                <TriggerEventsSkeleton />
-              ) : (
-                <TriggerEventsList
-                  events={triggerEvents?.events ?? []}
-                  triggers={historyIntegration?.triggers ?? []}
-                />
-              )}
-            </section>
-
-            <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-medium">Executions</h3>
-                <p className="text-xs text-muted-foreground">
-                  Recent runtime agent runs.
-                </p>
-              </div>
-
-            {historyError && (
-              <p className="text-sm text-destructive">
-                {historyError instanceof Error
-                  ? historyError.message
-                  : 'Failed to load execution history.'}
-              </p>
-            )}
-
-            {isHistoryLoading ? (
-              <ExecutionHistorySkeleton />
-            ) : (
-              <ExecutionHistoryList
-                executions={executionHistory?.executions ?? []}
-                selectedExecutionId={selectedExecution?.id ?? null}
-                onSelectExecution={setSelectedExecution}
-              />
-            )}
-            </section>
-
-            {selectedExecution && (
-              <div className="mt-6 space-y-3">
-                <div>
-                  <h3 className="text-sm font-medium">Logs</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(selectedExecution.startedAt)}
-                  </p>
-                </div>
-
-                {logsError && (
-                  <p className="text-sm text-destructive">
-                    {logsError instanceof Error ? logsError.message : 'Failed to load logs.'}
-                  </p>
-                )}
-
-                {areLogsLoading ? (
-                  <ExecutionLogsSkeleton />
-                ) : (
-                  <ExecutionLogsPanel
-                    logs={executionLogs?.logs ?? []}
-                    isRunning={selectedExecution.status === 'Running'}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }
@@ -667,7 +465,7 @@ function IntegrationsTable({
 }: {
   integrations: Integration[]
   onEdit: (integration: Integration) => void
-  onViewHistory: (integration: Integration) => void
+  onViewHistory: (id: string) => void
   onRun: (id: string) => void
   isRunPending: boolean
   onDelete: (id: string) => void
@@ -758,7 +556,7 @@ function IntegrationsTable({
                   </Button>
                 )}
                 {canViewExecutions && (
-                  <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration)}>
+                  <Button variant="ghost" size="sm" onClick={() => onViewHistory(integration.id)}>
                     History
                   </Button>
                 )}
@@ -806,107 +604,6 @@ function StatusBadge({ status }: { status: Integration['status'] }) {
   )
 }
 
-function TriggerEventsList({
-  events,
-  triggers,
-}: {
-  events: TriggerEvent[]
-  triggers: IntegrationTrigger[]
-}) {
-  if (events.length === 0) {
-    return (
-      <div className="text-center py-10 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No trigger events recorded.</p>
-      </div>
-    )
-  }
-
-  const triggerNames = new Map(
-    triggers
-      .filter(trigger => trigger.id)
-      .map(trigger => [trigger.id!, trigger.name])
-  )
-
-  return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Received</TableHead>
-            <TableHead>Adapter</TableHead>
-            <TableHead>Outcome</TableHead>
-            <TableHead>Event key</TableHead>
-            <TableHead>Trigger</TableHead>
-            <TableHead>Work item</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {events.map(event => (
-            <TableRow key={event.id}>
-              <TableCell>
-                <div>
-                  <p className="text-sm">{formatDateTime(event.receivedAt)}</p>
-                  {event.errorMessage && (
-                    <p className="max-w-48 truncate text-xs text-destructive" title={event.errorMessage}>
-                      {event.errorMessage}
-                    </p>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell>
-                <div className="space-y-1">
-                  <Badge variant="outline">{event.adapterKey}</Badge>
-                  <p className="text-xs text-muted-foreground">{event.source}</p>
-                </div>
-              </TableCell>
-              <TableCell>
-                <TriggerEventOutcomeBadge outcome={event.outcome} />
-              </TableCell>
-              <TableCell>
-                {event.eventKey ? (
-                  <code className="block max-w-36 truncate rounded bg-muted px-1.5 py-0.5 text-xs" title={event.eventKey}>
-                    {event.eventKey}
-                  </code>
-                ) : (
-                  <span className="text-sm text-muted-foreground">None</span>
-                )}
-              </TableCell>
-              <TableCell>
-                {event.integrationTriggerId ? (
-                  <span className="text-sm">
-                    {triggerNames.get(event.integrationTriggerId) ?? shortId(event.integrationTriggerId)}
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground">None</span>
-                )}
-              </TableCell>
-              <TableCell>
-                {event.workItemId ? (
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{shortId(event.workItemId)}</code>
-                ) : (
-                  <span className="text-sm text-muted-foreground">None</span>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function TriggerEventOutcomeBadge({ outcome }: { outcome: TriggerEventOutcome }) {
-  const variant = outcome === 'Rejected' || outcome === 'Failed'
-    ? 'destructive'
-    : outcome === 'Deduplicated'
-      ? 'secondary'
-      : outcome === 'Received'
-        ? 'outline'
-        : 'default'
-
-  return <Badge variant={variant}>{outcome === 'ConvertedToWork' ? 'Converted' : outcome}</Badge>
-}
-
 function ExecutionStatusBadge({ status }: { status: ExecutionSummary['status'] }) {
   const variant = status === 'Failed' ? 'destructive' : status === 'Running' ? 'secondary' : 'default'
 
@@ -926,291 +623,6 @@ function LastRun({ execution }: { execution?: ExecutionSummary | null }) {
   )
 }
 
-function ExecutionHistoryList({
-  executions,
-  selectedExecutionId,
-  onSelectExecution,
-}: {
-  executions: ExecutionSummary[]
-  selectedExecutionId: string | null
-  onSelectExecution: (execution: ExecutionSummary) => void
-}) {
-  if (executions.length === 0) {
-    return (
-      <div className="text-center py-12 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No executions recorded yet.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Started</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Duration</TableHead>
-            <TableHead>Error</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {executions.map(execution => (
-            <TableRow key={execution.id}>
-              <TableCell>
-                <div>
-                  <p className="text-sm">{formatDateTime(execution.startedAt)}</p>
-                  <p className="text-xs text-muted-foreground">{execution.environment}</p>
-                </div>
-              </TableCell>
-              <TableCell>
-                <ExecutionStatusBadge status={execution.status} />
-              </TableCell>
-              <TableCell>
-                <span className="text-sm">{formatDuration(execution)}</span>
-              </TableCell>
-              <TableCell>
-                {execution.errorMessage ? (
-                  <p className="max-w-64 truncate text-sm text-destructive" title={execution.errorMessage}>
-                    {execution.errorMessage}
-                  </p>
-                ) : (
-                  <span className="text-sm text-muted-foreground">None</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <Button
-                  variant={selectedExecutionId === execution.id ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => onSelectExecution(execution)}
-                >
-                  Logs
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-const LOG_LEVEL_FILTERS = ['All', 'Error', 'Warning', 'Info', 'Debug'] as const
-type LogLevelFilter = (typeof LOG_LEVEL_FILTERS)[number]
-
-function matchesLevelFilter(logLevel: string, filter: LogLevelFilter): boolean {
-  if (filter === 'All') return true
-  if (filter === 'Error') return logLevel === 'Error' || logLevel === 'Critical'
-  if (filter === 'Warning') return logLevel === 'Warning'
-  if (filter === 'Info') return logLevel === 'Information' || logLevel === 'Info'
-  if (filter === 'Debug') return logLevel === 'Debug' || logLevel === 'Trace'
-  return true
-}
-
-function ExecutionLogsPanel({
-  logs,
-  isRunning,
-}: {
-  logs: ExecutionLogItem[]
-  isRunning: boolean
-}) {
-  const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('All')
-  const [search, setSearch] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-
-  function toggleExpand(id: string) {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const filtered = logs.filter(
-    log =>
-      matchesLevelFilter(log.level, levelFilter) &&
-      (search === '' || log.message.toLowerCase().includes(search.toLowerCase()))
-  )
-
-  if (logs.length === 0) {
-    return (
-      <div className="text-center py-10 text-muted-foreground border rounded-lg">
-        <p className="text-sm">
-          {isRunning ? 'Waiting for logs…' : 'No logs recorded for this execution.'}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {LOG_LEVEL_FILTERS.map(lvl => (
-          <button
-            key={lvl}
-            onClick={() => setLevelFilter(lvl)}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-              levelFilter === lvl
-                ? 'bg-foreground text-background'
-                : 'bg-muted text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {lvl}
-          </button>
-        ))}
-        <Input
-          className="h-7 w-44 text-xs"
-          placeholder="Search messages…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        {isRunning && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            Live
-          </span>
-        )}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground border rounded-lg">
-          <p className="text-sm">No logs match the current filter.</p>
-        </div>
-      ) : (
-        <div className="border rounded-lg divide-y">
-          {filtered.map(log => {
-            const isExpanded = expandedIds.has(log.id)
-            return (
-              <div key={log.id} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
-                <p className="text-xs text-muted-foreground">{formatLogTime(log.timestamp)}</p>
-                <ExecutionLogLevel level={log.level} />
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm break-words">{log.message}</p>
-                  {log.exception && (
-                    <div className="space-y-1">
-                      <button
-                        onClick={() => toggleExpand(log.id)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {isExpanded ? '▲ Hide exception' : '▼ Show exception'}
-                      </button>
-                      {isExpanded && (
-                        <pre className="overflow-auto rounded bg-muted p-2 text-xs text-destructive">
-                          {log.exception}
-                        </pre>
-                      )}
-                    </div>
-                  )}
-                  {log.propertiesJson && (
-                    <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
-                      {formatJson(log.propertiesJson)}
-                    </pre>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ExecutionLogLevel({ level }: { level: string }) {
-  const variant = level === 'Error' || level === 'Critical'
-    ? 'destructive'
-    : level === 'Warning'
-      ? 'secondary'
-      : 'outline'
-
-  return <Badge variant={variant}>{level}</Badge>
-}
-
-function ExecutionLogsSkeleton() {
-  return (
-    <div className="border rounded-lg divide-y">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-4 w-full" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TriggerEventsSkeleton() {
-  return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Received</TableHead>
-            <TableHead>Adapter</TableHead>
-            <TableHead>Outcome</TableHead>
-            <TableHead>Event key</TableHead>
-            <TableHead>Trigger</TableHead>
-            <TableHead>Work item</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <TableRow key={i}>
-              <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-              <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-              <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-              <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
-function ExecutionHistorySkeleton() {
-  return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Started</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Duration</TableHead>
-            <TableHead>Error</TableHead>
-            <TableHead />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <TableRow key={i}>
-              <TableCell>
-                <Skeleton className="h-4 w-36" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-20" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-16" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-4 w-32" />
-              </TableCell>
-              <TableCell />
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -1218,40 +630,6 @@ function formatDateTime(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value))
-}
-
-function formatLogTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(value))
-}
-
-function shortId(value: string) {
-  return value.slice(0, 8)
-}
-
-function formatJson(value: string) {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  } catch {
-    return value
-  }
-}
-
-function formatDuration(execution: ExecutionSummary) {
-  if (execution.status === 'Running') return 'Running'
-  if (execution.durationMs == null) return '-'
-
-  if (execution.durationMs < 1000) return `${execution.durationMs} ms`
-
-  const seconds = execution.durationMs / 1000
-  if (seconds < 60) return `${seconds.toFixed(1)} s`
-
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = Math.round(seconds % 60)
-  return `${minutes}m ${remainingSeconds}s`
 }
 
 function IntegrationsTableSkeleton() {

@@ -15,33 +15,45 @@ Use immutable version tags for deployments and documentation. `latest` can be pu
 
 ## Build And Push
 
-Build and publish the control plane from the repository root:
+Images must be published as **multi-architecture** manifests covering both `linux/amd64` and `linux/arm64`. A plain `docker build` only produces an image for the machine you build on — building on an Apple Silicon Mac yields an arm64-only image, and pulling it on an amd64 Linux host fails with `no matching manifest for linux/amd64`. Use `docker buildx` with explicit `--platform` so a single manifest serves both architectures. The Dockerfiles already cross-compile correctly via `$BUILDPLATFORM`/`TARGETARCH`.
+
+One-time setup of a builder that can produce multi-platform images (the default `docker` driver cannot push them):
 
 ```bash
-docker build \
+docker buildx create --name serto --driver docker-container --use --bootstrap
+```
+
+Build and publish the control plane from the repository root. `buildx` builds and pushes the manifest in a single step — there is no separate `docker push`, because a multi-platform image is not loaded into the local Docker engine:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
   -f src/ControlPlane/Dockerfile \
   -t craytech/serto.controlplane:1.0.3 \
+  -t craytech/serto.controlplane:latest \
+  --push \
   .
-
-docker push craytech/serto.controlplane:1.0.3
-
-docker tag craytech/serto.controlplane:1.0.3 craytech/serto.controlplane:latest
-docker push craytech/serto.controlplane:latest
 ```
 
 Build and publish the runtime agent from the repository root:
 
 ```bash
-docker build \
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
   -f src/RuntimeAgent/Dockerfile \
   -t craytech/serto.agent:1.0.3 \
+  -t craytech/serto.agent:latest \
+  --push \
   .
-
-docker push craytech/serto.agent:1.0.3
-
-docker tag craytech/serto.agent:1.0.3 craytech/serto.agent:latest
-docker push craytech/serto.agent:latest
 ```
+
+After pushing, confirm both architectures are present in the manifest:
+
+```bash
+docker buildx imagetools inspect craytech/serto.agent:1.0.3
+```
+
+The output should list a platform entry for both `linux/amd64` and `linux/arm64`.
 
 ## CLI Tool Package
 

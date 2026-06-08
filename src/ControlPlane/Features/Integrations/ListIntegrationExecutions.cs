@@ -22,7 +22,11 @@ public record ExecutionSummary(
     Guid? ParentExecutionId = null,
     Guid? RootExecutionId = null,
     string? PackageName = null,
-    string? PackageVersion = null);
+    string? PackageVersion = null,
+    // Exposed so the UI can correlate an execution with the trigger event that produced it
+    // (matched on WorkItemId) when building the merged history timeline.
+    Guid? WorkItemId = null,
+    string? TriggerSource = null);
 
 public interface IExecutionHistoryRepository
 {
@@ -87,6 +91,8 @@ public class ListIntegrationExecutionsHandler(
             execution.ParentExecutionId,
             execution.RootExecutionId,
             execution.PackageName,
-            execution.PackageVersion);
+            execution.PackageVersion,
+            execution.WorkItemId,
+            execution.TriggerSource.ToString());
     }
 }

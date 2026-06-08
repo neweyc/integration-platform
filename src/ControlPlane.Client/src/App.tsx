@@ -5,6 +5,7 @@ import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
 import { LandingPage } from '@/pages/landing/LandingPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
+import { IntegrationHistoryPage } from '@/pages/integrationHistory/IntegrationHistoryPage'
 import { WorkflowsPage } from '@/pages/workflows/WorkflowsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
@@ -56,6 +57,7 @@ export default function App() {
               }
             >
               <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/integrations/:id/history" element={<IntegrationHistoryPage />} />
               <Route path="/workflows" element={<WorkflowsPage />} />
               <Route path="/secrets" element={<SecretsPage />} />
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
