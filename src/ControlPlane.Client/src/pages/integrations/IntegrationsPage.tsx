@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { cn } from '@/lib/utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   integrationsApi,
@@ -147,6 +148,7 @@ export function IntegrationsPage() {
     queryKey: ['execution-logs', historyIntegration?.id, selectedExecution?.id],
     queryFn: () => integrationsApi.logs(historyIntegration!.id, selectedExecution!.id),
     enabled: canViewExecutions && historyIntegration !== null && selectedExecution !== null,
+    refetchInterval: selectedExecution?.status === 'Running' ? 3_000 : false,
   })
 
   const {
@@ -638,7 +640,10 @@ export function IntegrationsPage() {
                 {areLogsLoading ? (
                   <ExecutionLogsSkeleton />
                 ) : (
-                  <ExecutionLogsList logs={executionLogs?.logs ?? []} />
+                  <ExecutionLogsPanel
+                    logs={executionLogs?.logs ?? []}
+                    isRunning={selectedExecution.status === 'Running'}
+                  />
                 )}
               </div>
             )}
@@ -991,36 +996,125 @@ function ExecutionHistoryList({
   )
 }
 
-function ExecutionLogsList({ logs }: { logs: ExecutionLogItem[] }) {
+const LOG_LEVEL_FILTERS = ['All', 'Error', 'Warning', 'Info', 'Debug'] as const
+type LogLevelFilter = (typeof LOG_LEVEL_FILTERS)[number]
+
+function matchesLevelFilter(logLevel: string, filter: LogLevelFilter): boolean {
+  if (filter === 'All') return true
+  if (filter === 'Error') return logLevel === 'Error' || logLevel === 'Critical'
+  if (filter === 'Warning') return logLevel === 'Warning'
+  if (filter === 'Info') return logLevel === 'Information' || logLevel === 'Info'
+  if (filter === 'Debug') return logLevel === 'Debug' || logLevel === 'Trace'
+  return true
+}
+
+function ExecutionLogsPanel({
+  logs,
+  isRunning,
+}: {
+  logs: ExecutionLogItem[]
+  isRunning: boolean
+}) {
+  const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('All')
+  const [search, setSearch] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+  function toggleExpand(id: string) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const filtered = logs.filter(
+    log =>
+      matchesLevelFilter(log.level, levelFilter) &&
+      (search === '' || log.message.toLowerCase().includes(search.toLowerCase()))
+  )
+
   if (logs.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No logs recorded for this execution.</p>
+        <p className="text-sm">
+          {isRunning ? 'Waiting for logs…' : 'No logs recorded for this execution.'}
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="border rounded-lg divide-y">
-      {logs.map(log => (
-        <div key={log.id} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
-          <p className="text-xs text-muted-foreground">{formatLogTime(log.timestamp)}</p>
-          <ExecutionLogLevel level={log.level} />
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm break-words">{log.message}</p>
-            {log.exception && (
-              <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs text-destructive">
-                {log.exception}
-              </pre>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {LOG_LEVEL_FILTERS.map(lvl => (
+          <button
+            key={lvl}
+            onClick={() => setLevelFilter(lvl)}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              levelFilter === lvl
+                ? 'bg-foreground text-background'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
-            {log.propertiesJson && (
-              <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
-                {formatJson(log.propertiesJson)}
-              </pre>
-            )}
-          </div>
+          >
+            {lvl}
+          </button>
+        ))}
+        <Input
+          className="h-7 w-44 text-xs"
+          placeholder="Search messages…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        {isRunning && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            Live
+          </span>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground border rounded-lg">
+          <p className="text-sm">No logs match the current filter.</p>
         </div>
-      ))}
+      ) : (
+        <div className="border rounded-lg divide-y">
+          {filtered.map(log => {
+            const isExpanded = expandedIds.has(log.id)
+            return (
+              <div key={log.id} className="grid gap-2 p-3 sm:grid-cols-[8rem_6rem_1fr]">
+                <p className="text-xs text-muted-foreground">{formatLogTime(log.timestamp)}</p>
+                <ExecutionLogLevel level={log.level} />
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm break-words">{log.message}</p>
+                  {log.exception && (
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => toggleExpand(log.id)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {isExpanded ? '▲ Hide exception' : '▼ Show exception'}
+                      </button>
+                      {isExpanded && (
+                        <pre className="overflow-auto rounded bg-muted p-2 text-xs text-destructive">
+                          {log.exception}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                  {log.propertiesJson && (
+                    <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
+                      {formatJson(log.propertiesJson)}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
