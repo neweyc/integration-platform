@@ -498,9 +498,138 @@ Remaining limitations:
 - There is no UI health page yet.
 - Heartbeats do not yet drive dispatch routing, pool membership, or capacity-aware claim assignment.
 
+### Orphaned Running Execution Reaper
+
+**Status:** Done
+
+Recover executions that are stuck in `Running` because the agent started them but never reported a terminal result — for example, the agent crashed mid-run, or lost its connection to the control plane during `FlushAsync`/`CompleteExecutionAsync` after a successful `StartExecutionAsync`.
+
+This is a real wedge, not a theoretical one: the poll/claim path in `PollRepository` skips any integration that has an execution record in `Running` status (`runningIntegrations` guard), and nothing ages those records out. A single orphaned `Running` record therefore sidelines an integration permanently — its scheduled, manual, webhook, and retry work all stop dispatching — with no automatic recovery and no operator-facing signal. The only fix today is a manual SQL update to mark the record `Failed`.
+
+This differs from work-item claims, which already self-heal: claims carry `ClaimExpiresAt` and are reclaimed after the 5-minute lease. Execution records have `StartedAt`/`CompletedAt` but no equivalent expiry, so the running guard never releases.
+
+Acceptance criteria:
+
+- Execution records stuck in `Running` past a configurable threshold move to a terminal `Failed` (or distinct `Orphaned`) state with a clear error message.
+- Reaping releases the poll/claim running guard so the integration dispatches again.
+- The threshold accounts for the integration's configured timeout, so a legitimately long run is not reaped early.
+- Reaping is environment- and tenant-safe and does not race a late completion report for the same execution (a completion arriving after reap is handled consistently).
+- Orphaned/reaped executions are visible in execution history and ideally surface as an operator signal.
+- The reaper runs without an external scheduler (background service in the control plane) and is covered by tests for the stuck-Running case, the not-yet-expired case, and the late-completion-after-reap case.
+
+Notes:
+
+- Relates to [Manual Run Claim Failure Handling] (pre-start failures) — this item covers post-start, mid-execution loss. Together they close the gap of executions that never reach a terminal state.
+- The triggering connection failure ("the response ended prematurely" on the agent → control-plane channel) is mitigated separately by agent HTTP connection-pool tuning; the reaper is the control-plane-side backstop regardless of cause.
+
+Completed notes:
+
+- Added `ReapOrphanedExecutionsHandler` + `IOrphanedExecutionRepository`: sweeps all tenants for `Running` execution records, marks those past their ceiling as `Failed` with an explanatory message, and mirrors the terminal status onto the linked work item so the poll/claim running guard releases.
+- Per-record ceiling is the integration's configured timeout plus a grace window (`TimeoutGraceSeconds`, default 120s); integrations with no declared timeout fall back to `DefaultMaxRunningSeconds` (default 3600s). Both, plus the sweep interval, are configurable via the `OrphanedExecutionReaper` config section.
+- Added `OrphanedExecutionReaper` background service. It invokes the handler directly inside a DI scope rather than through the auditing dispatcher, since a system sweep has no acting user; sweep failures are logged and retried rather than taking the service down.
+- Reaping deliberately does not queue a retry — the cause is an unhealthy agent, so the next scheduled tick or a fresh manual run is the recovery path. A late completion report after reap is handled by the existing `CompleteExecutionHandler` (find-by-id then set status), so the real outcome still lands.
+- Reaped executions remain in history as `Failed` with the orphaned reason, so they are visible in the UI.
+- Tests cover stuck-past-default-ceiling, within-default-ceiling, within timeout+grace, past timeout+grace, work-item mirroring, no-retry-queued, and the empty-running case.
+
+Remaining gaps:
+
+- No distinct `Orphaned` execution status or dedicated operator alert yet — reaped runs surface as ordinary `Failed` with an explanatory message rather than a first-class signal.
+
+---
+
+## P1 — Logging And Observability
+
+### Failed Execution Alerts
+
+**Status:** Done
+
+Notify operators when integrations fail. Shipped:
+
+- Alerts configured at the **tenant** level (the default) with a **per-integration** override (`Inherit` / `Off` / `Custom`).
+- **Email** and **outbound webhook** channels, each independently optional. Email goes through a platform-default ZeptoMail sender (operator-configured) or a tenant's own SMTP server; webhook posts JSON with an optional HMAC signature.
+- Fires only on a **terminal** failure — failed/timed out with no retry remaining — so transient failures that retry stay quiet.
+- Dispatched off the agent's request path by a background service; best-effort, per-channel failure isolation, logged. A **Send test alert** action verifies delivery at both levels. Config changes and test sends are audited; SMTP/webhook secrets are encrypted at rest.
+- Outbound webhook URLs are SSRF-guarded: a connect-time IP check (defeating DNS rebinding) blocks private/loopback/link-local/metadata targets by default, opt-out via `AlertWebhooks:AllowPrivateNetworkTargets` for self-hosted internal endpoints.
+
+Deferred (not blocking): alert scoping by environment, persisting individual alert-attempt records (currently logged), consecutive-failure thresholds, and per-attempt delivery retry.
+
 ---
 
 ## P1 — Integration Package Distribution
+
+### Move Version Pin To Package Level
+
+**Status:** Done
+
+**Decided 2026-06-08, shipped 2026-06-09.** Integrations are now versioned at the **package** level,
+not per-integration: activating a version moves every integration in the package to it together, so a
+package's integrations can never split across versions.
+
+**Implementation — Approach 1 (enforce in commands), chosen over the schema move.** Deploy already
+repointed all of a package's integrations together (`UploadPackage` sets each provisioned
+integration's `PackageId` to the new version), so divergence could only come from the *manual* repoint
+path. We kept `Integration.PackageId` as the physical pin and made the only manual mutation
+package-level — no schema change, hot dispatch path untouched.
+
+What shipped:
+
+- New `ActivatePackageVersionCommand` / `ActivatePackageVersionHandler` (`Features/IntegrationPackages`):
+  repoints every integration on any version of the package name to the target version; skips (and
+  reports) any whose class is absent from the target version.
+- New endpoint `PUT /api/integration-packages/{id}/activate` (RequirePermission `ManageIntegrations`).
+- Removed the per-integration `RepointIntegrationCommand` + `PUT /api/integrations/{id}/package`.
+- Packages page: single one-click **Activate** per version (the per-integration picker is gone);
+  the history page version selector now activates the whole package.
+- `AuditAction.PackageActivated` added.
+
+Trade-off accepted: no independent rollback of a single integration inside a shared package —
+fix-forward with a new package version instead.
+
+If structural enforcement is ever wanted (Approach 2 — `IsActive` flag per package name + dispatch
+resolution change + migration), promote it then. Not needed unless divergence proves a real problem
+in practice.
+
+### Package Rollback
+
+**Status:** Done
+
+Allow reverting an integration to a previous package version.
+
+Acceptance criteria:
+
+- UI/API can select a previous package version.
+- New executions use the selected version.
+- Existing execution history remains tied to the original version.
+- Rollback does not require database edits or manual filesystem changes.
+
+Completed notes:
+
+- Added a dedicated repoint endpoint `PUT /api/integrations/{id}/package` (`RepointIntegrationCommand`) that sets only the active package pin, audited. The target package is scanned and must contain the integration's class (not just exist), so a repoint — including a direct API call — can never pin to an incompatible package and leave the integration unable to load.
+- Fixed a latent bug: `UpdateIntegrationHandler` set `PackageId` unconditionally, and the UI's update omits it, so every edit silently un-pinned the package. The general update no longer carries a package id at all, so it can never change or un-pin the package — that is exclusively the repoint endpoint's job.
+- The integration history page shows the active version and (for `ManageIntegrations`) a picker over the other versions of the same package; selecting one repoints and takes effect on the next run (loaded as the isolated assembly for that version).
+- Execution history is immutable across rollback because execution records snapshot package id/name/version as plain columns (no FK).
+- A new Packages page lists packages grouped by name with per-version in-use/stale status and guarded deletion (see below).
+- Tests cover repoint success/unknown-integration/unknown-package and the update-preserves-pin behavior.
+
+Note: the per-integration repoint endpoint described above was subsequently superseded by package-level
+activation (see "Move Version Pin To Package Level").
+
+### Delete Stale Packages
+
+**Status:** Done
+
+Allow deleting package versions that are no longer in use, without breaking active integrations or history.
+
+Completed notes:
+
+- Added an in-use guard to `DeletePackageHandler`: a package that any integration is currently pinned to cannot be deleted (returns `409 Conflict` naming the integrations). This is required because `Integration.PackageId` is `OnDelete(SetNull)` — deleting an in-use package would otherwise silently un-pin the integration and break it at runtime.
+- Execution history is unaffected by deletion (`ExecutionRecord.PackageId` has no FK; name/version are snapshotted), so past runs stay readable.
+- The Packages page shows each version as **in use** (with the pinning integrations) or **stale**, and only allows deleting stale versions.
+- Tests cover delete-when-unpinned and conflict-when-pinned.
+
+Remaining gap:
+
+- Deleting a package server-side does not remove an agent's already-extracted local copy (orphaned folder under `PackagesPath`); harmless but not cleaned up.
 
 ### Agent Package Sync
 
@@ -564,6 +693,25 @@ Acceptance criteria:
 - Member role has read-only access where appropriate. ✓
 - UI hides unavailable actions for non-admin users. ✓
 - Tests cover authorization failures. ✓
+
+---
+
+## P2 — Environment Management
+
+### First-Class Environment Model
+
+**Status:** Done
+
+Replace free-form environment strings with tenant-managed environments.
+
+Acceptance criteria:
+
+- Tenants can create, edit, and delete environments. ✅ (Names are the canonical key and are immutable — "rename" is intentionally not supported; an explicit "disabled" state was not modeled and is deferred.)
+- Integrations, secrets, tokens, and workflows reference known environments. ✅ (Validated on write against a per-tenant registry, backed by a composite foreign key.)
+- Existing `production`, `staging`, and custom strings migrate cleanly. ✅ (Migration lowercases existing values, seeds the registry from distinct values, and ensures a default `production` per tenant.)
+- UI has an environment selector. ✅ (Dedicated Environments admin page; Secrets, Integrations, and Agent tokens read environments from the shared registry instead of hardcoded lists.)
+
+Implementation notes: environment names are canonicalized to lowercase via a single `EnvironmentKey.Normalize` helper. Live-config tables (secrets, integrations, agent tokens, workflows) carry a `(TenantId, Environment) → environments(TenantId, Name)` FK with `NoAction` (so tenant deletion still cascades while in-use environments can't be deleted); historical tables keep the string without an FK. The default environment cannot be deleted and its default flag cannot be cleared directly, so a valid default always exists; package auto-provisioning and the deploy secret check target that default environment. The runtime agent and the agent secrets endpoint both normalize the environment, so a mixed-case agent config still loads secrets. New permissions: `ViewEnvironments` / `ManageEnvironments`.
 
 ---
 
@@ -665,3 +813,13 @@ Completed notes:
 
 - `PollRepositoryIntegrationTests.ClaimDueScheduledAsync_AcquiresLeaseAndPersistsScheduleState` now pins the integration `CreatedAt` before the test's fixed `now`.
 - This prevents new `* * * * *` schedules from being evaluated as not due when the test runs after noon UTC.
+
+### Secrets Page Environment Selector
+
+**Status:** Done
+
+Delivered as part of the [First-Class Environment Model](#first-class-environment-model). The Secrets
+page now has an environment selector sourced from the shared registry; the secret list and all
+mutations use the selected environment; and the Agent tokens and Integrations pages read their
+environment choices from the same `useEnvironments` source, so the three are consistent. The previous
+hardcoded `const ENVIRONMENT = 'production'` is gone.
