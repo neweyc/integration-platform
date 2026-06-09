@@ -1,12 +1,17 @@
 using RuntimeAgent;
 using RuntimeAgent.Agent;
 using RuntimeAgent.Execution;
+using Shared.Domain;
 
 var builder = Host.CreateApplicationBuilder(args);
 
 var options = builder.Configuration
     .GetSection("Agent")
     .Get<AgentOptions>() ?? throw new InvalidOperationException("Agent configuration is missing.");
+
+// Environments are canonical (lowercase) in the control plane. Normalize here so an agent configured
+// as "Production" matches its token's stored environment and loads secrets correctly.
+options.Environment = EnvironmentKey.Normalize(options.Environment);
 
 builder.Services.AddSingleton(options);
 

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
@@ -88,26 +89,29 @@ public class UploadPackageHandler(
     IAssemblyScanner scanner,
     IIntegrationRepository integrationRepository,
     IEncryptionService encryption,
-    ISecretReadRepository secretRepository)
+    ISecretReadRepository secretRepository,
+    IEnvironmentReadRepository environmentRepository)
     : ICommandHandler<UploadPackageCommand, PackageUploadResult>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
 
-    // Auto-provisioned integrations run in production, so the secret check compares against
-    // production's configured secrets. Kept as one constant so provisioning and the check
-    // can never drift apart.
-    private const string ProvisioningEnvironment = "production";
-
     public async Task<PackageUploadResult> HandleAsync(UploadPackageCommand command, CancellationToken ct = default)
     {
         Validate(command);
+
+        // Auto-provisioned integrations land in the tenant's default environment, and the secret check
+        // compares against that environment's secrets. Resolved from the registry (rather than a hardcoded
+        // "production") so it always points at an environment that actually exists.
+        var provisioningEnvironment = await environmentRepository.GetDefaultNameAsync(command.TenantId, ct)
+            ?? throw new ValidationException(
+                "This tenant has no environments configured. Create an environment before uploading a package.");
 
         if (await repository.VersionExistsAsync(command.TenantId, command.Name, command.Version, ct))
             throw new ConflictException($"Package '{command.Name}' version '{command.Version}' already exists.");
 
         var discovered = scanner.ScanZip(command.Data);
         foreach (var integration in discovered)
-            ValidateDiscoveredIntegration(command.TenantId, integration);
+            ValidateDiscoveredIntegration(command.TenantId, integration, provisioningEnvironment);
 
         var package = new AssemblyPackage
         {
@@ -136,7 +140,7 @@ public class UploadPackageHandler(
                 Name = integration.Name,
                 Slug = integration.Slug,
                 Description = integration.Description,
-                Environment = ProvisioningEnvironment, // Default to production for auto-provisioning
+                Environment = provisioningEnvironment,
                 ClassName = integration.ClassName,
                 TimeoutSeconds = integration.TimeoutSeconds,
                 RetryMaxAttempts = integration.RetryMaxAttempts ?? 0,
@@ -148,7 +152,7 @@ public class UploadPackageHandler(
             provisioning.Add(ToProvisioningResult(upsert, created.Id, tenantSlug));
         }
 
-        var secretCheck = await BuildSecretCheckAsync(command, ct);
+        var secretCheck = await BuildSecretCheckAsync(command, provisioningEnvironment, ct);
 
         return new PackageUploadResult(metadata, provisioning, secretCheck);
     }
@@ -156,7 +160,8 @@ public class UploadPackageHandler(
     // Compares the client-supplied required secret names against the secrets configured in the
     // provisioning environment. Comparison is case-insensitive to match how the CLI scan dedups
     // names and the env-var-style key convention.
-    private async Task<PackageSecretCheck> BuildSecretCheckAsync(UploadPackageCommand command, CancellationToken ct)
+    private async Task<PackageSecretCheck> BuildSecretCheckAsync(
+        UploadPackageCommand command, string provisioningEnvironment, CancellationToken ct)
     {
         var required = (command.RequiredSecrets ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -166,25 +171,26 @@ public class UploadPackageHandler(
             .ToList();
 
         if (required.Count == 0)
-            return new PackageSecretCheck(ProvisioningEnvironment, [], [], []);
+            return new PackageSecretCheck(provisioningEnvironment, [], [], []);
 
-        var configured = await secretRepository.ListAsync(command.TenantId, ProvisioningEnvironment, ct);
+        var configured = await secretRepository.ListAsync(command.TenantId, provisioningEnvironment, ct);
         var configuredKeys = configured.Select(secret => secret.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var satisfied = required.Where(configuredKeys.Contains).ToList();
         var missing = required.Where(name => !configuredKeys.Contains(name)).ToList();
 
-        return new PackageSecretCheck(ProvisioningEnvironment, required, satisfied, missing);
+        return new PackageSecretCheck(provisioningEnvironment, required, satisfied, missing);
     }
 
-    private static void ValidateDiscoveredIntegration(Guid tenantId, DiscoveredIntegration integration)
+    private static void ValidateDiscoveredIntegration(
+        Guid tenantId, DiscoveredIntegration integration, string provisioningEnvironment)
     {
         CreateIntegrationHandler.ValidateCommand(new CreateIntegrationCommand(
             tenantId,
             integration.Name,
             integration.Slug,
             integration.Description,
-            ProvisioningEnvironment,
+            provisioningEnvironment,
             integration.ClassName,
             ToTriggerInputs(integration),
             integration.TimeoutSeconds,

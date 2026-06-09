@@ -1,3 +1,4 @@
+using ControlPlane.Features.Environments;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
@@ -23,7 +24,10 @@ public interface IAgentTokenRepository
     Task<AgentToken> CreateAsync(AgentToken token, CancellationToken ct = default);
 }
 
-public class CreateAgentTokenHandler(IAgentTokenRepository repository, IAgentTokenService tokenService)
+public class CreateAgentTokenHandler(
+    IAgentTokenRepository repository,
+    IAgentTokenService tokenService,
+    IEnvironmentReadRepository environments)
     : ICommandHandler<CreateAgentTokenCommand, CreateAgentTokenResult>
 {
     public async Task<CreateAgentTokenResult> HandleAsync(CreateAgentTokenCommand command, CancellationToken ct = default)
@@ -34,13 +38,17 @@ public class CreateAgentTokenHandler(IAgentTokenRepository repository, IAgentTok
         if (string.IsNullOrWhiteSpace(command.Environment))
             throw new ValidationException("Environment is required.");
 
+        var environment = EnvironmentKey.Normalize(command.Environment);
+        if (!await environments.ExistsAsync(command.TenantId, environment, ct))
+            throw new ValidationException($"Environment '{environment}' does not exist. Create it before issuing a token scoped to it.");
+
         var plaintext = tokenService.Generate();
 
         var token = new AgentToken
         {
             TenantId = command.TenantId,
             Name = command.Name,
-            Environment = command.Environment,
+            Environment = environment,
             TokenHash = tokenService.Hash(plaintext),
         };
 

@@ -6,6 +6,7 @@ namespace ControlPlane.Infrastructure;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<Shared.Domain.Environment> Environments => Set<Shared.Domain.Environment>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Secret> Secrets => Set<Secret>();
     public DbSet<Integration> Integrations => Set<Integration>();
@@ -60,6 +61,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // Per-tenant registry of deployment environments. Its (TenantId, Name) alternate key is the
+        // principal key that the Environment columns on secrets, integrations, agent tokens, and
+        // workflows reference, so an environment cannot be deleted while live configuration still uses it.
+        modelBuilder.Entity<Shared.Domain.Environment>(b =>
+        {
+            b.ToTable("environments");
+            b.HasKey(e => e.Id);
+            b.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            b.Property(e => e.DisplayName).IsRequired().HasMaxLength(100);
+            b.Property(e => e.Description).HasMaxLength(1000);
+
+            // The canonical key referenced by every environment-scoped record.
+            b.HasAlternateKey(e => new { e.TenantId, e.Name });
+            b.HasIndex(e => new { e.TenantId, e.SortOrder });
+
+            b.HasOne(e => e.Tenant)
+             .WithMany()
+             .HasForeignKey(e => e.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Secret>(b =>
         {
             b.ToTable("secrets");
@@ -75,6 +97,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(s => s.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            // Environment must exist in the tenant's registry. NoAction (not Restrict) so a tenant
+            // deletion — which cascades away both the secrets and the environments — still succeeds,
+            // while a direct attempt to delete an in-use environment is rejected.
+            b.HasOne<Shared.Domain.Environment>()
+             .WithMany()
+             .HasForeignKey(s => new { s.TenantId, s.Environment })
+             .HasPrincipalKey(e => new { e.TenantId, e.Name })
+             .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<Integration>(b =>
@@ -104,6 +135,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(i => i.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            // Environment must exist in the tenant's registry (see Secret for the NoAction rationale).
+            b.HasOne<Shared.Domain.Environment>()
+             .WithMany()
+             .HasForeignKey(i => new { i.TenantId, i.Environment })
+             .HasPrincipalKey(e => new { e.TenantId, e.Name })
+             .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<IntegrationTrigger>(b =>
@@ -146,6 +184,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(t => t.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            // Environment must exist in the tenant's registry (see Secret for the NoAction rationale).
+            b.HasOne<Shared.Domain.Environment>()
+             .WithMany()
+             .HasForeignKey(t => new { t.TenantId, t.Environment })
+             .HasPrincipalKey(e => new { e.TenantId, e.Name })
+             .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ExecutionRecord>(b =>
@@ -331,6 +376,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .WithMany()
              .HasForeignKey(w => w.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
+
+            // Environment must exist in the tenant's registry (see Secret for the NoAction rationale).
+            b.HasOne<Shared.Domain.Environment>()
+             .WithMany()
+             .HasForeignKey(w => new { w.TenantId, w.Environment })
+             .HasPrincipalKey(e => new { e.TenantId, e.Name })
+             .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<WorkflowNode>(b =>

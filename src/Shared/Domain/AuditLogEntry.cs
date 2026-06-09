@@ -47,5 +47,8 @@ public enum AuditAction
     InvitationRevoked,
     InvitationResent,
     AlertSettingsUpdated,
-    TestAlertSent
+    TestAlertSent,
+    EnvironmentCreated,
+    EnvironmentUpdated,
+    EnvironmentDeleted
 }

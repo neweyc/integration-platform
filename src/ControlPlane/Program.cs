@@ -5,6 +5,7 @@ using ControlPlane.Features.Alerts;
 using ControlPlane.Features.Alerts.Email;
 using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
@@ -234,6 +235,15 @@ builder.Services.AddScoped<ICommandHandler<UpdateIntegrationAlertSettingsCommand
 builder.Services.AddScoped<ICommandHandler<SendTestAlertCommand, AlertSendOutcome>, SendTestAlertHandler>();
 builder.Services.AddHostedService<AlertDispatchService>();
 
+// Environments feature
+builder.Services.AddScoped<EnvironmentRepository>();
+builder.Services.AddScoped<IEnvironmentReadRepository>(sp => sp.GetRequiredService<EnvironmentRepository>());
+builder.Services.AddScoped<IEnvironmentWriteRepository>(sp => sp.GetRequiredService<EnvironmentRepository>());
+builder.Services.AddScoped<ICommandHandler<ListEnvironmentsCommand, ListEnvironmentsResult>, ListEnvironmentsHandler>();
+builder.Services.AddScoped<ICommandHandler<CreateEnvironmentCommand, EnvironmentDto>, CreateEnvironmentHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateEnvironmentCommand, EnvironmentDto>, UpdateEnvironmentHandler>();
+builder.Services.AddScoped<ICommandHandler<DeleteEnvironmentCommand, bool>, DeleteEnvironmentHandler>();
+
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserReadRepository, UserRepository>();
@@ -296,6 +306,7 @@ app.MapWebhookEndpoints();
 app.MapAuditLogEndpoints();
 app.MapWorkflowEndpoints();
 app.MapAlertEndpoints();
+app.MapEnvironmentEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

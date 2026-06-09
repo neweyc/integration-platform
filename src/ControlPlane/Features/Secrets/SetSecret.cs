@@ -1,3 +1,4 @@
+using ControlPlane.Features.Environments;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
@@ -25,15 +26,22 @@ public interface ISecretRepository
     Task<Secret> UpdateAsync(Secret secret, CancellationToken ct = default);
 }
 
-public class SetSecretHandler(ISecretRepository repository, IEncryptionService encryption)
+public class SetSecretHandler(
+    ISecretRepository repository,
+    IEncryptionService encryption,
+    IEnvironmentReadRepository environments)
     : ICommandHandler<SetSecretCommand, SetSecretResult>
 {
     public async Task<SetSecretResult> HandleAsync(SetSecretCommand command, CancellationToken ct = default)
     {
         ValidateCommand(command);
 
+        var environment = EnvironmentKey.Normalize(command.Environment);
+        if (!await environments.ExistsAsync(command.TenantId, environment, ct))
+            throw new ValidationException($"Environment '{environment}' does not exist. Create it before setting secrets for it.");
+
         var encryptedValue = encryption.Encrypt(command.Value);
-        var existing = await repository.FindAsync(command.TenantId, command.Environment, command.Key, ct);
+        var existing = await repository.FindAsync(command.TenantId, environment, command.Key, ct);
 
         if (existing is not null)
         {
@@ -47,7 +55,7 @@ public class SetSecretHandler(ISecretRepository repository, IEncryptionService e
         var newSecret = new Secret
         {
             TenantId = command.TenantId,
-            Environment = command.Environment,
+            Environment = environment,
             Key = command.Key,
             EncryptedValue = encryptedValue
         };

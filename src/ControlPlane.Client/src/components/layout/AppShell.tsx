@@ -22,6 +22,7 @@ const navItems = [
   { label: 'Workflows', path: '/workflows', permission: 'ViewIntegrations' },
   { label: 'Packages', path: '/packages', permission: 'ViewIntegrations' },
   { label: 'Secrets', path: '/secrets', permission: 'ViewSecrets' },
+  { label: 'Environments', path: '/environments', permission: 'ViewEnvironments' },
   { label: 'Agent tokens', path: '/agent-tokens', permission: 'ManageAgentTokens' },
   { label: 'Access tokens', path: '/access-tokens', permission: 'ViewIntegrations' },
   { label: 'Alerts', path: '/alerts', permission: 'ViewAlerts' },

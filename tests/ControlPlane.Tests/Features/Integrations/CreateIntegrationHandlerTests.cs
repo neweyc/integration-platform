@@ -1,3 +1,4 @@
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Infrastructure;
 using NSubstitute;
@@ -9,12 +10,14 @@ public class CreateIntegrationHandlerTests
 {
     private readonly IIntegrationRepository _repository = Substitute.For<IIntegrationRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
     private readonly CreateIntegrationHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public CreateIntegrationHandlerTests()
     {
-        _handler = new CreateIntegrationHandler(_repository, _encryption);
+        _handler = new CreateIntegrationHandler(_repository, _encryption, _environments);
+        _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
         _repository.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
             .Returns(call =>
             {

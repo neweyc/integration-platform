@@ -1,3 +1,4 @@
+using ControlPlane.Features.Environments;
 using ControlPlane.Infrastructure;
 using Shared.Domain;
 
@@ -11,12 +12,16 @@ public record CreateWorkflowCommand(
     IReadOnlyList<WorkflowNodeInput> Nodes,
     IReadOnlyList<WorkflowEdgeInput> Edges) : ICommand<WorkflowDefinitionResult>;
 
-public class CreateWorkflowHandler(IWorkflowRepository repository)
+public class CreateWorkflowHandler(IWorkflowRepository repository, IEnvironmentReadRepository environments)
     : ICommandHandler<CreateWorkflowCommand, WorkflowDefinitionResult>
 {
     public async Task<WorkflowDefinitionResult> HandleAsync(CreateWorkflowCommand command, CancellationToken ct = default)
     {
         ValidateShape(command);
+
+        var environment = EnvironmentKey.Normalize(command.Environment);
+        if (!await environments.ExistsAsync(command.TenantId, environment, ct))
+            throw new ValidationException($"Environment '{environment}' does not exist. Create it before defining workflows in it.");
 
         if (await repository.SlugExistsAsync(command.TenantId, command.Slug, ct))
             throw new ConflictException($"A workflow with slug '{command.Slug}' already exists.");
@@ -30,8 +35,8 @@ public class CreateWorkflowHandler(IWorkflowRepository repository)
             if (!integrationsById.TryGetValue(node.IntegrationId, out var integration))
                 throw new NotFoundException($"Integration '{node.IntegrationId}' not found.");
 
-            if (integration.Environment != command.Environment)
-                throw new ValidationException($"Integration '{integration.Id}' belongs to environment '{integration.Environment}', not '{command.Environment}'.");
+            if (integration.Environment != environment)
+                throw new ValidationException($"Integration '{integration.Id}' belongs to environment '{integration.Environment}', not '{environment}'.");
         }
 
         var workflow = new WorkflowDefinition
@@ -39,7 +44,7 @@ public class CreateWorkflowHandler(IWorkflowRepository repository)
             TenantId = command.TenantId,
             Name = command.Name.Trim(),
             Slug = command.Slug.Trim(),
-            Environment = command.Environment.Trim(),
+            Environment = environment,
             Status = WorkflowStatus.Enabled
         };
 

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
@@ -100,12 +101,19 @@ public enum TriggerReconcileSource
     Code
 }
 
-public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryptionService encryption)
+public class CreateIntegrationHandler(
+    IIntegrationRepository repository,
+    IEncryptionService encryption,
+    IEnvironmentReadRepository environments)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>
 {
     public async Task<CreateIntegrationResult> HandleAsync(CreateIntegrationCommand command, CancellationToken ct = default)
     {
         ValidateCommand(command);
+
+        var environment = EnvironmentKey.Normalize(command.Environment);
+        if (!await environments.ExistsAsync(command.TenantId, environment, ct))
+            throw new ValidationException($"Environment '{environment}' does not exist. Create it before adding integrations to it.");
 
         if (await repository.SlugExistsAsync(command.TenantId, command.Slug, ct))
             throw new ConflictException($"An integration with slug '{command.Slug}' already exists.");
@@ -123,7 +131,7 @@ public class CreateIntegrationHandler(IIntegrationRepository repository, IEncryp
             Name = command.Name,
             Slug = command.Slug,
             Description = command.Description,
-            Environment = command.Environment,
+            Environment = environment,
             ClassName = command.ClassName,
             TimeoutSeconds = command.TimeoutSeconds,
             RetryMaxAttempts = command.RetryMaxAttempts,

@@ -1,4 +1,5 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Environments;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -9,12 +10,14 @@ public class CreateAgentTokenHandlerTests
 {
     private readonly IAgentTokenRepository _repository = Substitute.For<IAgentTokenRepository>();
     private readonly IAgentTokenService _tokenService = Substitute.For<IAgentTokenService>();
+    private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
     private readonly CreateAgentTokenHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public CreateAgentTokenHandlerTests()
     {
-        _handler = new CreateAgentTokenHandler(_repository, _tokenService);
+        _handler = new CreateAgentTokenHandler(_repository, _tokenService, _environments);
+        _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
         _repository.CreateAsync(Arg.Any<AgentToken>()).Returns(call => call.Arg<AgentToken>());
     }
 

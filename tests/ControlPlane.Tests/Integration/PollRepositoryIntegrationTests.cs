@@ -22,6 +22,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.AddRange(reclaimableIntegration, runningIntegration);
 
             // A work item with an expired claim that can be reclaimed
@@ -95,6 +96,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             await db.SaveChangesAsync();
         }
@@ -156,6 +158,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.AddRange(productionIntegration, stagingIntegration);
             db.WorkItems.AddRange(
                 new WorkItem
@@ -220,6 +223,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.AddRange(runningIntegration, freeIntegration);
             db.ExecutionRecords.Add(new ExecutionRecord
             {
@@ -263,6 +267,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             // Pre-existing active work item (another agent already claimed this period)
             db.WorkItems.Add(new WorkItem
@@ -306,6 +311,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             db.WorkItems.Add(new WorkItem
             {
@@ -361,6 +367,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             execution = new ExecutionRecord
             {
@@ -432,6 +439,7 @@ public class PollRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             await db.SaveChangesAsync();
         }

@@ -1,4 +1,5 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
@@ -15,6 +16,12 @@ public class PackagePinningTests
 {
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
+
+    public PackagePinningTests()
+    {
+        _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+    }
 
     // CreateIntegration with package pin
 
@@ -22,7 +29,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithValidPackagePin_StoresPackageId()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
         var packageId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -41,7 +48,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithUnknownPackage_Throws()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
         var unknownId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -57,7 +64,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithNoPackage_PackageIdIsNull()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
         repo.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())

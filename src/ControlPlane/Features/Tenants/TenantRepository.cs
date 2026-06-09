@@ -13,6 +13,7 @@ public class TenantRepository(AppDbContext db)
     public async Task<Tenant> CreateAsync(Tenant tenant, CancellationToken ct = default)
     {
         db.Tenants.Add(tenant);
+        db.Environments.Add(TenantEnvironments.Default(tenant.Id));
         await db.SaveChangesAsync(ct);
         return tenant;
     }

@@ -641,6 +641,66 @@ Triggers a manual run of an integration. Creates a pending request that the next
 
 ---
 
+## Environments
+
+The per-tenant registry of deployment environments. Environment names are canonicalized to lowercase
+(`^[a-z0-9-]+$`). Every environment-scoped write (secrets, integrations, agent tokens, workflows)
+validates its environment against this registry, so an unknown environment is rejected rather than
+silently created.
+
+### `GET /api/environments`
+
+Lists the tenant's environments, ordered by sort order then name.
+
+**Auth:** JWT — `ViewEnvironments`
+
+**Response**
+```json
+{
+  "environments": [
+    { "name": "production", "displayName": "Production", "description": null, "sortOrder": 0, "isDefault": true }
+  ]
+}
+```
+
+---
+
+### `POST /api/environments`
+
+Creates an environment. The name is canonicalized to lowercase. Returns `409` if it already exists.
+
+**Auth:** JWT — `ManageEnvironments`
+
+**Request**
+```json
+{ "name": "staging", "displayName": "Staging", "description": null, "sortOrder": 1, "isDefault": false }
+```
+
+**Response:** the created environment (same shape as the list items).
+
+---
+
+### `PUT /api/environments/{name}`
+
+Updates an environment's display name, description, sort order, and default flag. The name itself is
+immutable (it is the key other records reference).
+
+**Auth:** JWT — `ManageEnvironments`
+
+---
+
+### `DELETE /api/environments/{name}`
+
+Deletes an environment. Returns `409` if it is the default environment (make another the default
+first), or if any integration, secret, agent token, or workflow still references it (with a message
+listing what to move or remove first).
+
+**Auth:** JWT — `ManageEnvironments`
+
+**Response:** `204 No Content`, `404`, or `409`
+
+---
+
 ## Secrets
 
 ### `GET /api/secrets/{environment}`
@@ -670,7 +730,7 @@ Create or update a secret. Idempotent — safe to call repeatedly.
 
 **Auth:** JWT
 
-Key must match `^[A-Z0-9_]+$`.
+Key must match `^[A-Z0-9_]+$`. The `{environment}` must exist in the [environment registry](#environments); an unknown environment returns `400`.
 
 **Request**
 ```json
@@ -819,11 +879,11 @@ Webhook secrets are preserved when an existing webhook trigger is updated by pac
 
 A package upload records the code-declared cron/enabled as each trigger's defaults but **preserves operator overrides**: if an operator disabled a trigger or set a production cron different from the code default, a redeploy keeps the operator's value and reports the divergence as drift. On each provisioned trigger, `declaredCronExpression` is the cron the code last declared, `cronOverridden` / `enabledOverridden` indicate an active operator override (active value differs from the declared default), and `cronExpression` / `enabled` are the active runtime values. The same `declaredCronExpression` / `cronOverridden` / `enabledOverridden` fields appear on triggers returned by `GET /api/integrations` and `GET /api/integrations/{id}`.
 
-The `secretCheck` object compares the `requiredSecrets` form field against the secrets configured in the provisioning environment (`production`):
+The `secretCheck` object compares the `requiredSecrets` form field against the secrets configured in the provisioning environment (the tenant's [default environment](#environments)):
 
 | Field | Description |
 |-------|-------------|
-| `environment` | Environment whose configured secrets were checked. Always `production` today (the auto-provisioning environment). |
+| `environment` | Environment whose configured secrets were checked — the tenant's default environment, which is also where discovered integrations are auto-provisioned. |
 | `required` | Distinct required secret names received, sorted, case-insensitively de-duplicated. |
 | `satisfied` | Required names that are configured in the environment. |
 | `missing` | Required names that are **not** configured. Integrations needing these will fail at runtime until they are set. |

@@ -25,7 +25,9 @@ public static class RolePermissions
                 Permission.ManagePackages,
                 Permission.ManageAgentTokens,
                 Permission.ViewAlerts,
-                Permission.ManageAlerts
+                Permission.ManageAlerts,
+                Permission.ViewEnvironments,
+                Permission.ManageEnvironments
             },
 
             // Operator: observe and trigger, nothing that changes code or exposes secrets.
@@ -34,7 +36,8 @@ public static class RolePermissions
                 Permission.ViewIntegrations,
                 Permission.ViewExecutions,
                 Permission.TriggerManualRun,
-                Permission.ViewAlerts
+                Permission.ViewAlerts,
+                Permission.ViewEnvironments
             },
 
             // Member (legacy): read-only.

@@ -41,6 +41,7 @@ public class TriggerWorkItemProducerIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             db.IntegrationTriggers.Add(trigger);
             await db.SaveChangesAsync();

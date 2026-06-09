@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { agentTokensApi, type AgentTokenSummary, type AgentHeartbeatSummary } from '@/api/agentTokens'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
+import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 import { cn } from '@/lib/utils'
 
 export function AgentTokensPage() {
@@ -47,6 +49,10 @@ export function AgentTokensPage() {
     refetchInterval: 30_000,
   })
 
+  // A token can only be scoped to an environment that exists in the registry.
+  const { data: envData } = useEnvironments(canManageAgentTokens)
+  const environments = envData?.environments ?? []
+
   const createToken = useMutation({
     mutationFn: () => agentTokensApi.create(form),
     onSuccess: result => {
@@ -63,7 +69,7 @@ export function AgentTokensPage() {
   })
 
   function handleOpenSheet() {
-    setForm({ name: '', environment: '' })
+    setForm({ name: '', environment: defaultEnvironmentName(environments) })
     setFormError(null)
     setNewToken(null)
     setSheetOpen(true)
@@ -162,18 +168,18 @@ export function AgentTokensPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="environment">Environment</Label>
-                <Input
+                <Select
                   id="environment"
-                  placeholder="production"
                   value={form.environment}
-                  onChange={e =>
-                    setForm(prev => ({
-                      ...prev,
-                      environment: e.target.value.toLowerCase().trim(),
-                    }))
-                  }
+                  onChange={e => setForm(prev => ({ ...prev, environment: e.target.value }))}
                   required
-                />
+                >
+                  {environments.map(env => (
+                    <option key={env.name} value={env.name}>
+                      {env.displayName}
+                    </option>
+                  ))}
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   This token will only be able to fetch secrets for this environment.
                 </p>

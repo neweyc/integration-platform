@@ -31,5 +31,9 @@ public enum Permission
 
     // Failure alerting
     ViewAlerts,           // view tenant + per-integration alert configuration
-    ManageAlerts          // edit alert configuration, send test alerts
+    ManageAlerts,         // edit alert configuration, send test alerts
+
+    // Deployment environments
+    ViewEnvironments,     // view the tenant's environment registry
+    ManageEnvironments    // create / rename / delete environments
 }

@@ -34,6 +34,19 @@ The UI is still primarily optimized around the active user's tenant. Cross-tenan
 
 ---
 
+## Environments
+
+Environments (e.g. `production`, `staging`) are a **first-class, per-tenant registry**. Integrations, secrets, agent tokens, and workflows are each scoped to one environment, and an agent token can only read the secrets of its own environment.
+
+- **Canonical names.** Environment names are canonicalized to lowercase and may contain only lowercase letters, numbers, and hyphens. This removes a whole class of silent bugs where `Production` and `production` looked the same but never matched. The runtime agent normalizes its configured environment the same way, so an agent configured as `Production` still loads `production` secrets.
+- **Created explicitly.** Environments are managed on the **Environments** page (or `/api/environments`). A write that references an environment which does not exist is rejected with a clear error rather than silently creating a ghost environment from a typo. Every new tenant starts with a single default `production` environment.
+- **Lifecycle.** An environment cannot be deleted while live configuration (integrations, secrets, agent tokens, or workflows) still references it; the API returns `409` listing what to move or remove first. Historical records (executions, work items, heartbeats) do not pin an environment.
+- **Default.** Exactly one environment per tenant is the default: it is pre-selected when creating integrations and agent tokens and is the target for package auto-provisioning. The default cannot be deleted and its default flag cannot be cleared directly — making another environment the default moves it — so a valid default always exists.
+
+Viewing the registry requires `ViewEnvironments`; creating, editing, or deleting requires `ManageEnvironments`.
+
+---
+
 ## Integrations
 
 An integration is a named, versioned definition of a job. It does not contain code — it is a registry entry that tells the runtime agent what to run, when, and in which environment.
@@ -88,7 +101,7 @@ To update a value, call the set endpoint again with the same key — it is an up
 
 ### Environments
 
-Secrets are namespaced by environment string. There is no fixed list of environments — any string is valid (`production`, `staging`, `dev`, `uat`, etc.). An agent token is scoped to a single environment, so a production agent cannot access staging secrets.
+Secrets are namespaced by environment. The environment must exist in the tenant's [environment registry](#environments) — setting a secret for an unknown environment is rejected. An agent token is scoped to a single environment, so a production agent cannot access staging secrets.
 
 ---
 
@@ -218,9 +231,9 @@ The integration history page shows the active version and lets an operator pick 
 
 | Role | Capabilities |
 |------|-------------|
-| Admin | Full access — manage integrations, secrets, packages, tokens, users, alerts, and billing/admin tenant operations |
-| Developer | Deploy and operate integrations, manage secrets, packages, agent tokens, and failure alerts; cannot manage users or billing |
-| Operator | View integrations, executions, logs, and alert configuration; trigger manual runs; cannot view secrets or deploy code |
+| Admin | Full access — manage integrations, secrets, packages, tokens, environments, users, alerts, and billing/admin tenant operations |
+| Developer | Deploy and operate integrations, manage secrets, packages, agent tokens, environments, and failure alerts; cannot manage users or billing |
+| Operator | View integrations, executions, logs, environments, and alert configuration; trigger manual runs; cannot view secrets or deploy code |
 | Member | Legacy read-only role; can view integrations and execution history |
 
 Server-side role enforcement is active through endpoint permission filters. The UI uses the same role/permission model to hide unavailable navigation items and actions. Disallowed direct API calls still receive `403 Forbidden`.
@@ -231,7 +244,7 @@ Admins can invite tenant users from the Users page. The page lists active users 
 
 ## Audit log
 
-The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, invitations, and alert configuration (including test sends). Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only through the API and the Audit log page.
+The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, environments, personal access tokens, invitations, and alert configuration (including test sends). Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only through the API and the Audit log page.
 
 ---
 

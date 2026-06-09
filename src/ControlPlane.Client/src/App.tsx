@@ -9,6 +9,7 @@ import { IntegrationHistoryPage } from '@/pages/integrationHistory/IntegrationHi
 import { PackagesPage } from '@/pages/packages/PackagesPage'
 import { WorkflowsPage } from '@/pages/workflows/WorkflowsPage'
 import { SecretsPage } from '@/pages/secrets/SecretsPage'
+import { EnvironmentsPage } from '@/pages/environments/EnvironmentsPage'
 import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
 import { UserTokensPage } from '@/pages/userTokens/UserTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="/packages" element={<PackagesPage />} />
               <Route path="/workflows" element={<WorkflowsPage />} />
               <Route path="/secrets" element={<SecretsPage />} />
+              <Route path="/environments" element={<EnvironmentsPage />} />
               <Route path="/agent-tokens" element={<AgentTokensPage />} />
               <Route path="/access-tokens" element={<UserTokensPage />} />
               <Route path="/alerts" element={<AlertsPage />} />

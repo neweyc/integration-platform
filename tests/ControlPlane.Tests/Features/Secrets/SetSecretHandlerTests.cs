@@ -1,3 +1,4 @@
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using NSubstitute;
@@ -9,6 +10,7 @@ public class SetSecretHandlerTests
 {
     private readonly ISecretRepository _repository = Substitute.For<ISecretRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
     private readonly SetSecretHandler _handler;
 
     private readonly Guid _tenantId = Guid.NewGuid();
@@ -16,7 +18,10 @@ public class SetSecretHandlerTests
 
     public SetSecretHandlerTests()
     {
-        _handler = new SetSecretHandler(_repository, _encryption);
+        _handler = new SetSecretHandler(_repository, _encryption, _environments);
+
+        // The environment exists by default; specific tests override this to assert the unknown-env guard.
+        _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
         // Default encryption behavior — just prepend "encrypted:" for easy test assertions
         _encryption.Encrypt(Arg.Any<string>()).Returns(call => $"encrypted:{call.Arg<string>()}");
@@ -84,5 +89,19 @@ public class SetSecretHandlerTests
         var command = new SetSecretCommand(_tenantId, "", "API_KEY", "value");
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+    }
+
+    [Fact]
+    public async Task HandleAsync_UnknownEnvironment_ThrowsValidationException()
+    {
+        // The environment is not in the tenant's registry — the write must be rejected, not silently
+        // create a ghost environment.
+        _environments.ExistsAsync(_tenantId, "staging", Arg.Any<CancellationToken>()).Returns(false);
+        var command = new SetSecretCommand(_tenantId, "staging", "API_KEY", "value");
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+
+        Assert.Contains("does not exist", ex.Message);
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<Secret>());
     }
 }

@@ -12,6 +12,7 @@ public class SetupRepository(AppDbContext db) : ISetupRepository
     public async Task<Tenant> CreateTenantAsync(Tenant tenant, CancellationToken ct = default)
     {
         db.Tenants.Add(tenant);
+        db.Environments.Add(TenantEnvironments.Default(tenant.Id));
         await db.SaveChangesAsync(ct);
         return tenant;
     }

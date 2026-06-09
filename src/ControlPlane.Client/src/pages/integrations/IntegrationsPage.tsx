@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
+import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
 type FormMode = 'create' | 'edit'
 
@@ -83,6 +84,10 @@ export function IntegrationsPage() {
     enabled: canViewIntegrations,
   })
 
+  // Environment options come from the canonical registry rather than a hardcoded list.
+  const { data: envData } = useEnvironments(canViewIntegrations)
+  const environments = envData?.environments ?? []
+
   const createIntegration = useMutation({
     mutationFn: (data: CreateIntegrationRequest) => integrationsApi.create(data),
     onSuccess: () => {
@@ -126,7 +131,7 @@ export function IntegrationsPage() {
   function handleOpenCreate() {
     if (!canManageIntegrations) return
     setFormMode('create')
-    setForm(emptyForm)
+    setForm({ ...emptyForm, environment: defaultEnvironmentName(environments) || emptyForm.environment })
     setFormError(null)
     setEditingId(null)
     setSheetOpen(true)
@@ -332,9 +337,11 @@ export function IntegrationsPage() {
                   }
                   required
                 >
-                  <option value="production">production</option>
-                  <option value="staging">staging</option>
-                  <option value="development">development</option>
+                  {environments.map(env => (
+                    <option key={env.name} value={env.name}>
+                      {env.displayName}
+                    </option>
+                  ))}
                 </Select>
               </div>
             )}

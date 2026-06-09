@@ -620,16 +620,18 @@ Acceptance criteria:
 
 ### First-Class Environment Model
 
-**Status:** Todo
+**Status:** Done
 
 Replace free-form environment strings with tenant-managed environments.
 
 Acceptance criteria:
 
-- Tenants can create, rename, disable, and delete environments.
-- Integrations, secrets, tokens, and agents reference known environments.
-- Existing `production`, `staging`, and custom strings migrate cleanly.
-- UI has an environment selector.
+- Tenants can create, edit, and delete environments. ✅ (Names are the canonical key and are immutable — "rename" is intentionally not supported; an explicit "disabled" state was not modeled and is deferred.)
+- Integrations, secrets, tokens, and workflows reference known environments. ✅ (Validated on write against a per-tenant registry, backed by a composite foreign key.)
+- Existing `production`, `staging`, and custom strings migrate cleanly. ✅ (Migration lowercases existing values, seeds the registry from distinct values, and ensures a default `production` per tenant.)
+- UI has an environment selector. ✅ (Dedicated Environments admin page; Secrets, Integrations, and Agent tokens read environments from the shared registry instead of hardcoded lists.)
+
+Implementation notes: environment names are canonicalized to lowercase via a single `EnvironmentKey.Normalize` helper. Live-config tables (secrets, integrations, agent tokens, workflows) carry a `(TenantId, Environment) → environments(TenantId, Name)` FK with `NoAction` (so tenant deletion still cascades while in-use environments can't be deleted); historical tables keep the string without an FK. New permissions: `ViewEnvironments` / `ManageEnvironments`.
 
 ### Secret Promotion
 

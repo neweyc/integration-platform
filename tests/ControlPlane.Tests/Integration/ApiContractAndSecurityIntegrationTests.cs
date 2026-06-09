@@ -253,6 +253,9 @@ public class ApiContractAndSecurityIntegrationTests
             "/api/agent-tokens",
             new { Name = "Other production agent", Environment = "production" },
             HttpStatusCode.Created);
+        // A token can only be scoped to an environment that exists in the registry.
+        var stagingEnv = await client.PostAsJsonAsync("/api/environments", new { Name = "staging" });
+        Assert.Equal(HttpStatusCode.OK, stagingEnv.StatusCode);
         var stagingToken = await PostJsonAsync<AgentTokenResponse>(
             client,
             "/api/agent-tokens",
@@ -312,6 +315,37 @@ public class ApiContractAndSecurityIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, ownerComplete.StatusCode);
     }
 
+    [Fact]
+    public async Task AgentSecrets_MixedCaseEnvironmentInRoute_StillResolves()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await SetupTenantAsync(client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        var setSecret = await client.PutAsJsonAsync("/api/secrets/production/API_KEY", new { value = "s3cr3t" });
+        Assert.Equal(HttpStatusCode.OK, setSecret.StatusCode);
+
+        var token = await PostJsonAsync<AgentTokenResponse>(
+            client,
+            "/api/agent-tokens",
+            new { Name = "Production agent", Environment = "production" },
+            HttpStatusCode.Created);
+
+        // An agent configured as "Production" sends the mixed-case route. Stored environments are
+        // lowercase, so the server must normalize before matching the token and loading secrets.
+        client.DefaultRequestHeaders.Authorization = null;
+        client.DefaultRequestHeaders.Add("X-Agent-Token", token.Token);
+        using var secrets = await GetJsonDocumentAsync(client, "/api/agent/secrets/Production");
+
+        Assert.Equal("s3cr3t", secrets.RootElement.GetProperty("secrets").GetProperty("API_KEY").GetString());
+    }
+
     private static async Task<SetupResponse> SetupTenantAsync(HttpClient client)
     {
         return await PostJsonAsync<SetupResponse>(
@@ -369,6 +403,7 @@ public class ApiContractAndSecurityIntegrationTests
             Slug = slug
         };
         db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
         db.Users.Add(new User
         {
             TenantId = tenant.Id,

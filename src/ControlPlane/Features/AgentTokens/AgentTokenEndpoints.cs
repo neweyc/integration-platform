@@ -3,6 +3,7 @@ using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Shared.Domain;
 
 namespace ControlPlane.Features.AgentTokens;
 
@@ -64,11 +65,14 @@ public static class AgentTokenEndpoints
             IDispatcher dispatcher,
             CancellationToken ct) =>
         {
-            var agentToken = await ResolveAgentToken(http, environment, tokenService, tokenRepo, ct);
+            // Stored environments are canonical (lowercase); normalize the route value so an agent
+            // configured as "Production" still matches its token and loads "production" secrets.
+            var env = EnvironmentKey.Normalize(environment);
+            var agentToken = await ResolveAgentToken(http, env, tokenService, tokenRepo, ct);
             if (agentToken is null) return Results.Unauthorized();
 
             var result = await dispatcher.SendAsync(
-                new GetSecretBundleCommand(agentToken.TenantId, environment), ct);
+                new GetSecretBundleCommand(agentToken.TenantId, env), ct);
 
             return Results.Ok(result);
         });

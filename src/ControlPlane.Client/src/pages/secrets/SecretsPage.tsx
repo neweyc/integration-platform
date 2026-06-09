@@ -20,10 +20,10 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
+import { Select } from '@/components/ui/select'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
-
-const ENVIRONMENT = 'production'
+import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
 export function SecretsPage() {
   const queryClient = useQueryClient()
@@ -34,16 +34,23 @@ export function SecretsPage() {
   const [form, setForm] = useState({ key: '', value: '' })
   const [formError, setFormError] = useState<string | null>(null)
 
+  // Secrets are per-environment. The selector reads from the canonical registry; until the user picks
+  // one, fall back to the tenant's default environment.
+  const { data: envData } = useEnvironments(canViewSecrets)
+  const environments = envData?.environments ?? []
+  const [selectedEnv, setSelectedEnv] = useState<string | null>(null)
+  const environment = selectedEnv ?? defaultEnvironmentName(environments)
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['secrets', ENVIRONMENT],
-    queryFn: () => secretsApi.list(ENVIRONMENT),
-    enabled: canViewSecrets,
+    queryKey: ['secrets', environment],
+    queryFn: () => secretsApi.list(environment),
+    enabled: canViewSecrets && environment !== '',
   })
 
   const setSecret = useMutation({
-    mutationFn: () => secretsApi.set(ENVIRONMENT, form.key, form.value),
+    mutationFn: () => secretsApi.set(environment, form.key, form.value),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['secrets', ENVIRONMENT] })
+      queryClient.invalidateQueries({ queryKey: ['secrets', environment] })
       setSheetOpen(false)
       setForm({ key: '', value: '' })
     },
@@ -51,8 +58,8 @@ export function SecretsPage() {
   })
 
   const deleteSecret = useMutation({
-    mutationFn: (key: string) => secretsApi.delete(ENVIRONMENT, key),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['secrets', ENVIRONMENT] }),
+    mutationFn: (key: string) => secretsApi.delete(environment, key),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['secrets', environment] }),
   })
 
   function handleOpenSheet() {
@@ -80,7 +87,23 @@ export function SecretsPage() {
             Encrypted key/value pairs. Values are write-only and never returned by the API.
           </p>
         </div>
-        {canManageSecrets && <Button onClick={handleOpenSheet}>New secret</Button>}
+        <div className="flex items-center gap-3">
+          {environments.length > 0 && (
+            <Select
+              aria-label="Environment"
+              className="w-44"
+              value={environment}
+              onChange={e => setSelectedEnv(e.target.value)}
+            >
+              {environments.map(env => (
+                <option key={env.name} value={env.name}>
+                  {env.displayName}
+                </option>
+              ))}
+            </Select>
+          )}
+          {canManageSecrets && <Button onClick={handleOpenSheet}>New secret</Button>}
+        </div>
       </div>
 
       {error && (

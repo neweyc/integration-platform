@@ -38,6 +38,7 @@ public class IntegrationRepositoryIntegrationTests
         await using (var db = database.CreateContext())
         {
             db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
             db.Integrations.Add(integration);
             await db.SaveChangesAsync();
         }
@@ -242,6 +243,7 @@ public class IntegrationRepositoryIntegrationTests
 
         await using var db = database.CreateContext();
         db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production", "staging");
         db.Integrations.Add(integration);
         await db.SaveChangesAsync();
         return tenant;

@@ -16,6 +16,8 @@ export type Permission =
   | 'ViewAuditLog'
   | 'ViewAlerts'
   | 'ManageAlerts'
+  | 'ViewEnvironments'
+  | 'ManageEnvironments'
 
 export interface CurrentUser {
   userId: string
@@ -38,6 +40,8 @@ const allPermissions: Permission[] = [
   'ViewAuditLog',
   'ViewAlerts',
   'ManageAlerts',
+  'ViewEnvironments',
+  'ManageEnvironments',
 ]
 
 export const rolePermissions: Record<UserRole, ReadonlySet<Permission>> = {
@@ -53,8 +57,10 @@ export const rolePermissions: Record<UserRole, ReadonlySet<Permission>> = {
     'ManageAgentTokens',
     'ViewAlerts',
     'ManageAlerts',
+    'ViewEnvironments',
+    'ManageEnvironments',
   ]),
-  Operator: new Set(['ViewIntegrations', 'ViewExecutions', 'TriggerManualRun', 'ViewAlerts']),
+  Operator: new Set(['ViewIntegrations', 'ViewExecutions', 'TriggerManualRun', 'ViewAlerts', 'ViewEnvironments']),
   Member: new Set(['ViewIntegrations', 'ViewExecutions']),
 }
 

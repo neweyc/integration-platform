@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
@@ -16,12 +17,16 @@ public class UploadPackageHandlerTests
     private readonly IIntegrationRepository _integrationRepository = Substitute.For<IIntegrationRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly ISecretReadRepository _secretRepository = Substitute.For<ISecretReadRepository>();
+    private readonly IEnvironmentReadRepository _environmentRepository = Substitute.For<IEnvironmentReadRepository>();
     private readonly UploadPackageHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public UploadPackageHandlerTests()
     {
-        _handler = new UploadPackageHandler(_repository, _scanner, _integrationRepository, _encryption, _secretRepository);
+        _handler = new UploadPackageHandler(
+            _repository, _scanner, _integrationRepository, _encryption, _secretRepository, _environmentRepository);
+        // Auto-provisioning targets the tenant's default environment.
+        _environmentRepository.GetDefaultNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns("production");
         _repository.CreateAsync(Arg.Any<AssemblyPackage>()).Returns(call => call.Arg<AssemblyPackage>());
         _secretRepository.ListAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new List<Secret>());
