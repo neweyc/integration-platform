@@ -91,9 +91,10 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
 
         var (discovered, warnings) = LoadAssemblies(dlls, dllByName);
 
-        // Alc.Unload() is asynchronous — the file mappings are only released once the GC
-        // collects the ALC and its assemblies. Without this, callers that delete the publish
-        // directory immediately after scanning hit "access to path ... is denied" on Windows.
+        // Reclaim the collectible ALC and the in-memory assembly images it loaded. This is no longer
+        // load-bearing for file locks — assemblies are loaded from byte arrays (see LoadIntoContext),
+        // so no file in the scanned directory is ever mapped or locked, and the caller can delete the
+        // publish directory safely regardless of GC timing. It just frees memory promptly.
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -118,10 +119,38 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
         var discovered = new List<ScannedIntegration>();
         var warnings = new List<string>();
         var alc = new AssemblyLoadContext("CliScanContext", isCollectible: true);
+
+        // Loaded assemblies keyed by simple name. Unlike LoadFromAssemblyPath, LoadFromStream is not
+        // idempotent — loading the same identity twice throws — so we cache and reuse. Both the scan
+        // loop and the dependency resolver go through this, so an assembly is only ever loaded once.
+        var loaded = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+
+        // Loads an assembly from its bytes rather than its path. LoadFromAssemblyPath memory-maps the
+        // file and holds an OS lock on it until the ALC is collected, which made deletes of the publish
+        // directory fail with "access to path '<assembly>.dll' is denied" whenever an assembly slow to
+        // collect (e.g. Azure.Core, pulled in transitively by a connector) had been mapped. Reading the
+        // bytes first copies the image into managed memory and closes the file immediately, so no file
+        // in the scanned directory is ever locked.
+        Assembly LoadIntoContext(string path)
+        {
+            using var stream = new MemoryStream(File.ReadAllBytes(path));
+            var assembly = alc.LoadFromStream(stream);
+            var name = assembly.GetName().Name;
+            if (name is not null)
+                loaded[name] = assembly;
+            return assembly;
+        }
+
         alc.Resolving += (_, assemblyName) =>
-            assemblyName.Name is not null && dllByName.TryGetValue(assemblyName.Name, out var dependencyPath)
-                ? alc.LoadFromAssemblyPath(dependencyPath)
+        {
+            if (assemblyName.Name is null)
+                return null;
+            if (loaded.TryGetValue(assemblyName.Name, out var cached))
+                return cached;
+            return dllByName.TryGetValue(assemblyName.Name, out var dependencyPath)
+                ? LoadIntoContext(dependencyPath)
                 : null;
+        };
 
         try
         {
@@ -129,7 +158,10 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             {
                 try
                 {
-                    var assembly = alc.LoadFromAssemblyPath(dllPath);
+                    // A dependency resolved while scanning an earlier assembly may already be loaded;
+                    // reuse it rather than re-loading from stream (which would throw on the duplicate).
+                    var name = Path.GetFileNameWithoutExtension(dllPath);
+                    var assembly = loaded.TryGetValue(name, out var existing) ? existing : LoadIntoContext(dllPath);
                     discovered.AddRange(ScanAssembly(assembly));
                 }
                 catch (BadImageFormatException)

@@ -108,6 +108,29 @@ public class ScanCommandTests
         Assert.Contains(result.Errors, e => e.Contains("'not-a-cron' is not a valid cron expression"));
     }
 
+    // Regression: assemblies are loaded from bytes (not memory-mapped from their path) so the scanned
+    // directory is never locked and can be deleted afterwards. Because stream loading is not idempotent
+    // — unlike LoadFromAssemblyPath — a dependency that is both a file in the directory and resolved
+    // while scanning another assembly must be loaded only once; a broken dedup would surface as an
+    // "already loaded" warning. Here Serto.Sdk is on disk and is also resolved for the IIntegration type.
+    [Fact]
+    public void ScanDirectory_WithDependencyAlsoOnDisk_DiscoversIntegrationAndDoesNotDoubleLoad()
+    {
+        using var directory = new TemporaryDirectory();
+        foreach (var source in new[] { typeof(BaseOnlyIntegration).Assembly.Location, typeof(IIntegration).Assembly.Location })
+            File.Copy(source, Path.Combine(directory.Path, Path.GetFileName(source)));
+
+        var result = ScanCommand.ScanDirectory(directory.Path);
+
+        Assert.Contains(result.Integrations, i => i.Slug == "cli-base-only");
+        Assert.DoesNotContain(result.Warnings, w => w.Contains("already loaded", StringComparison.OrdinalIgnoreCase));
+
+        // No lock is held on the scanned files, so deleting the directory now must not throw
+        // (TemporaryDirectory.Dispose does this too; asserting here makes the intent explicit).
+        Directory.Delete(directory.Path, recursive: true);
+        Assert.False(Directory.Exists(directory.Path));
+    }
+
     [Fact]
     public void DiscoverRequiredSecrets_FindsConnectorAndContextSecretReferences()
     {

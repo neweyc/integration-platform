@@ -114,8 +114,6 @@ builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrat
 builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();
 builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
-builder.Services.AddScoped<IIntegrationRepointRepository, IntegrationRepository>();
-builder.Services.AddScoped<ICommandHandler<RepointIntegrationCommand, bool>, RepointIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
 builder.Services.AddScoped<IAuditLogReadRepository, AuditLogReadRepository>();
 builder.Services.AddScoped<ICommandHandler<ListAuditLogCommand, ListAuditLogResult>, ListAuditLogHandler>();
@@ -149,7 +147,9 @@ builder.Services.AddScoped<PackageRepository>();
 builder.Services.AddScoped<IPackageRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageReadRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageDeleteRepository>(sp => sp.GetRequiredService<PackageRepository>());
+builder.Services.AddScoped<IPackageActivationRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<ICommandHandler<UploadPackageCommand, PackageUploadResult>, UploadPackageHandler>();
+builder.Services.AddScoped<ICommandHandler<ActivatePackageVersionCommand, ActivatePackageVersionResult>, ActivatePackageVersionHandler>();
 builder.Services.AddScoped<ICommandHandler<ListPackagesCommand, ListPackagesResult>, ListPackagesHandler>();
 builder.Services.AddScoped<ICommandHandler<GetPackageCommand, PackageMetadata?>, GetPackageHandler>();
 builder.Services.AddScoped<ICommandHandler<DownloadPackageCommand, DownloadPackageResult?>, DownloadPackageHandler>();

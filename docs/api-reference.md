@@ -597,24 +597,9 @@ Returns structured logs recorded for a single execution, oldest first.
 
 Set `timeoutSeconds` to `null` or omit it to run without a timeout. Timed-out executions are recorded with status `TimedOut`.
 
-The general update does not accept a package id — the active version can only be changed through the repoint endpoint below, so an edit never alters or un-pins the package.
+The general update does not accept a package id — the active version is a package-level property and is changed through the activate endpoint (see `PUT /api/integration-packages/{id}/activate`), so an edit never alters or un-pins the package.
 
 **Response:** Updated integration object
-
----
-
-### `PUT /api/integrations/{id}/package`
-
-Sets the integration's active package version (rollback / roll-forward). Takes effect on the next run; the agent loads the selected version's isolated assembly. Execution history is unaffected — past records keep the version they ran. The target package is scanned and must contain the integration's class, so it cannot be pinned to an incompatible package.
-
-**Auth:** JWT (`ManageIntegrations`)
-
-**Request**
-```json
-{ "packageId": "3f2504e0-4f89-41d3-9a0c-0305e82c3301" }
-```
-
-**Response:** `204 No Content`; `404` if the integration or package is not found; `400` if the package does not contain the integration's class.
 
 ---
 
@@ -865,11 +850,31 @@ Downloads the original zip archive.
 
 ---
 
+### `PUT /api/integration-packages/{id}/activate`
+
+Activates this package version for its **whole package**. Integrations are versioned at the package level: every integration currently running any version of the same package name is repointed to this version together, so a package's integrations can never split across versions (rollback / roll-forward applies to all of them at once). Takes effect on the next run; the agent loads the selected version's isolated assembly. Execution history is unaffected — past records keep the version they ran.
+
+An integration whose class is **absent** from the target version (renamed/removed) is left on its current version and reported in `skipped` rather than being broken.
+
+**Auth:** JWT (`ManageIntegrations`) — it mutates integration bindings, not just package storage.
+
+**Response:** `200 OK`; `404` if the package is not found.
+```json
+{
+  "packageName": "MyCompany.Integrations",
+  "version": "2026.06.09.142210",
+  "activated": ["Sync Orders", "Export Invoices"],
+  "skipped": []
+}
+```
+
+---
+
 ### `DELETE /api/integration-packages/{id}`
 
 Deletes a stored package. This does not remove DLLs from any runtime agent.
 
-A package that is the active version of one or more integrations cannot be deleted — repoint those integrations to another version first. Deleting it would otherwise silently un-pin them. Execution history is unaffected by deletion (records snapshot the package name/version).
+A package that is the active version of one or more integrations cannot be deleted — activate another version first (which moves those integrations off it). Deleting it would otherwise silently un-pin them. Execution history is unaffected by deletion (records snapshot the package name/version).
 
 **Auth:** JWT (`ManagePackages`)
 

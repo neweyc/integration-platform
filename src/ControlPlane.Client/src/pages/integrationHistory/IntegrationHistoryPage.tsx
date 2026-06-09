@@ -175,8 +175,9 @@ export function IntegrationHistoryPage() {
 }
 
 // Shows the integration's active package version and, for users who can manage integrations, lets
-// them roll it back/forward to another version of the same package. Repointing takes effect on the
-// next run (the agent loads the selected version's isolated assembly).
+// them roll the package back/forward to another version. Integrations are versioned per package, so
+// activating a version moves every integration in the package — not just this one — and takes effect
+// on the next run (the agent loads the selected version's isolated assembly).
 function ActiveVersionSelector({ integration }: { integration: Integration }) {
   const queryClient = useQueryClient()
   const user = getCurrentUser()
@@ -188,8 +189,8 @@ function ActiveVersionSelector({ integration }: { integration: Integration }) {
     queryFn: packagesApi.list,
   })
 
-  const repoint = useMutation({
-    mutationFn: (packageId: string) => integrationsApi.repoint(integration.id, packageId),
+  const activate = useMutation({
+    mutationFn: (packageId: string) => packagesApi.activate(packageId),
     onSuccess: () => {
       setError(null)
       queryClient.invalidateQueries({ queryKey: ['integration', integration.id] })
@@ -219,9 +220,14 @@ function ActiveVersionSelector({ integration }: { integration: Integration }) {
   function handleChange(packageId: string) {
     if (packageId === integration.packageId) return
     const target = versions.find(v => v.id === packageId)
-    if (!window.confirm(`Make ${target?.version ?? 'this version'} the active version? It takes effect on the next run.`))
+    if (
+      !window.confirm(
+        `Make ${target?.version ?? 'this version'} the active version for this package? ` +
+          `Every integration in the package moves to it, effective on the next run.`
+      )
+    )
       return
-    repoint.mutate(packageId)
+    activate.mutate(packageId)
   }
 
   return (
@@ -232,7 +238,7 @@ function ActiveVersionSelector({ integration }: { integration: Integration }) {
           className="h-7 w-auto text-xs"
           value={integration.packageId}
           onChange={e => handleChange(e.target.value)}
-          disabled={repoint.isPending}
+          disabled={activate.isPending}
         >
           {versions.map(v => (
             <option key={v.id} value={v.id}>
@@ -246,7 +252,7 @@ function ActiveVersionSelector({ integration }: { integration: Integration }) {
           {current?.version ?? 'unknown'}
         </Badge>
       )}
-      {repoint.isPending && <span className="text-xs text-muted-foreground">Repointing…</span>}
+      {activate.isPending && <span className="text-xs text-muted-foreground">Activating…</span>}
       {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   )

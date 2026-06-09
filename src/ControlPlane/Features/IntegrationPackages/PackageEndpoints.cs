@@ -75,6 +75,18 @@ public static class PackageEndpoints
                 : Results.File(result.Data, result.ContentType, result.FileName);
         }).RequirePermission(Permission.ManagePackages);
 
+        // Activates this version for its whole package: all integrations in the package move to it.
+        // Mutates integration bindings, so it requires ManageIntegrations (not ManagePackages).
+        group.MapPut("/{id:guid}/activate", async (
+            Guid id,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(new ActivatePackageVersionCommand(currentUser.TenantId, id), ct);
+            return Results.Ok(result);
+        }).RequirePermission(Permission.ManageIntegrations);
+
         group.MapDelete("/{id:guid}", async (
             Guid id,
             IDispatcher dispatcher,

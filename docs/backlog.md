@@ -13,33 +13,35 @@ Status key:
 
 ---
 
-## Move Version Pin To Package Level (Decided — Todo)
+## Move Version Pin To Package Level — Done
 
-**Decision (2026-06-08):** Version integrations at the **package** level, not per-integration.
+**Decided 2026-06-08, shipped 2026-06-09.** Integrations are now versioned at the **package** level,
+not per-integration: activating a version moves every integration in the package to it together, so a
+package's integrations can never split across versions.
 
-Today the active-version pin lives on the integration (`Integration.PackageId`), so two integrations
-shipped in the same package/assembly can sit on different versions. That combination was never built
-or tested together (everything in a package comes out of one `dotnet build`), so the per-integration
-pin is a latent footgun rather than useful flexibility, and it forces the "Activate for which
-integration?" picker on the Packages page.
+**Implementation — Approach 1 (enforce in commands), chosen over the schema move.** Deploy already
+repointed all of a package's integrations together (`UploadPackage` sets each provisioned
+integration's `PackageId` to the new version), so divergence could only come from the *manual* repoint
+path. We kept `Integration.PackageId` as the physical pin and made the only manual mutation
+package-level — no schema change, hot dispatch path untouched.
 
-Target model: an active version is tracked per **package name**; all integrations belonging to that
-package resolve to the active version. Activating a version moves every integration in it together,
-atomically. One-click activate everywhere; the multi-integration picker becomes dead code to delete.
+What shipped:
 
-Trade-off accepted: you lose independent rollback of a single integration inside a shared package.
-That is acceptable — fix-forward with a new package version instead of stranding siblings on a
-half-reverted build.
+- New `ActivatePackageVersionCommand` / `ActivatePackageVersionHandler` (`Features/IntegrationPackages`):
+  repoints every integration on any version of the package name to the target version; skips (and
+  reports) any whose class is absent from the target version.
+- New endpoint `PUT /api/integration-packages/{id}/activate` (RequirePermission `ManageIntegrations`).
+- Removed the per-integration `RepointIntegrationCommand` + `PUT /api/integrations/{id}/package`.
+- Packages page: single one-click **Activate** per version (the per-integration picker is gone);
+  the history page version selector now activates the whole package.
+- `AuditAction.PackageActivated` added.
 
-Scope when picked up:
+Trade-off accepted: no independent rollback of a single integration inside a shared package —
+fix-forward with a new package version instead.
 
-- Move the pin off `Integration` onto a per-package-name "active version" concept (schema + migration).
-- Update repoint/activate to operate per package name; update the runtime resolution path.
-- Simplify the Packages page (drop the `ActivateControl` picker → single Activate per version).
-- Update `writing-integrations.md` and `functional-operations.md`.
-
-Note: the recently shipped per-integration Activate/picker UI still works today; it is superseded by
-this, not blocking it.
+If structural enforcement is ever wanted (Approach 2 — `IsActive` flag per package name + dispatch
+resolution change + migration), promote it then. Not needed unless divergence proves a real problem
+in practice.
 
 ## Product Direction
 

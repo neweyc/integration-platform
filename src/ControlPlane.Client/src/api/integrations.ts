@@ -152,8 +152,6 @@ export const integrationsApi = {
     api.get<ListExecutionLogsResponse>(`/integrations/${integrationId}/executions/${executionId}/logs`),
   create: (data: CreateIntegrationRequest) => api.post<Integration>('/integrations', data),
   update: (id: string, data: UpdateIntegrationRequest) => api.put<Integration>(`/integrations/${id}`, data),
-  repoint: (id: string, packageId: string) =>
-    api.put<void>(`/integrations/${id}/package`, { packageId }),
   delete: (id: string) => api.delete<void>(`/integrations/${id}`),
   runManual: (id: string) => api.post<ManualRunResult>(`/integrations/${id}/run`, {}),
   triggerAdapters: () => api.get<ListTriggerAdaptersResponse>('/trigger-adapters'),

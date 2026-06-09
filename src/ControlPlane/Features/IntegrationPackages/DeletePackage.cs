@@ -32,7 +32,7 @@ public class DeletePackageHandler(IPackageDeleteRepository repository)
         if (pinnedTo.Count > 0)
             throw new ConflictException(
                 $"This package is the active version for {pinnedTo.Count} integration(s): " +
-                $"{string.Join(", ", pinnedTo)}. Repoint them to another version before deleting it.");
+                $"{string.Join(", ", pinnedTo)}. Activate another version before deleting it.");
 
         return await repository.DeleteAsync(command.TenantId, command.PackageId, ct);
     }

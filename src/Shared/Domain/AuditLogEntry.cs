@@ -40,6 +40,7 @@ public enum AuditAction
     UserTokenCreated,
     UserTokenRevoked,
     PackageUploaded,
+    PackageActivated,
     PackageDeleted,
     UserInvited,
     InvitationAccepted,

@@ -222,3 +222,15 @@ MyIntegration/
   ├── MyIntegration.cs       # Your logic with [ScheduledIntegration]
   └── .gitignore
 ```
+
+### One integration per project (recommended)
+
+Integrations are versioned at the **package** level: a package is one project's `dotnet build`, and
+all of the integration classes inside it share a single active version — activating a version moves
+every integration in that package together. You *can* put several integration classes in one project
+(e.g. a shared-helpers package), and the platform supports it, but then those integrations can only
+ever be rolled forward/back as a group, and the Packages page surfaces that grouping.
+
+If you want each integration to version and roll back independently, **keep one integration class per
+project** so each gets its own package. This is the simplest and recommended layout; reach for a
+multi-integration package only when the integrations genuinely belong to one deployable unit.

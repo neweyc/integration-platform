@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
-import { packagesApi, type PackageMetadata } from '@/api/packages'
+import {
+  packagesApi,
+  type PackageMetadata,
+  type ActivatePackageVersionResult,
+} from '@/api/packages'
 import { integrationsApi, type Integration } from '@/api/integrations'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,8 +35,8 @@ export function PackagesPage() {
     enabled: canView,
   })
 
-  // Integrations tell us which package version each one is pinned to. We need this both to mark a
-  // version "in use" and to know which integration(s) an "Activate" would repoint.
+  // Integrations tell us which version each one runs, so we can mark a version active vs stale and
+  // count how many integrations a package activation would move.
   const {
     data: integrationData,
     isLoading: integrationsLoading,
@@ -43,7 +47,7 @@ export function PackagesPage() {
     enabled: canView,
   })
 
-  // Until integrations have loaded we can't tell in-use from stale, so we must not present a package
+  // Until integrations have loaded we can't tell active from stale, so we must not present a package
   // as stale (or enable its delete) on incomplete data — the server guard is authoritative, but the
   // UI should not invite an action that will 409.
   const pinsResolved = !integrationsLoading && !integrationsError
@@ -53,10 +57,10 @@ export function PackagesPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['packages'] }),
   })
 
-  const repoint = useMutation({
-    mutationFn: ({ integrationId, packageId }: { integrationId: string; packageId: string }) =>
-      integrationsApi.repoint(integrationId, packageId),
-    onSuccess: () => {
+  const activate = useMutation({
+    mutationFn: (id: string) => packagesApi.activate(id),
+    onSuccess: result => {
+      setActivateResult(result)
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
       queryClient.invalidateQueries({ queryKey: ['packages'] })
     },
@@ -65,11 +69,12 @@ export function PackagesPage() {
   const [filter, setFilter] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [activateResult, setActivateResult] = useState<ActivatePackageVersionResult | null>(null)
 
   const packages = packageData?.packages ?? []
   const integrations = integrationData?.integrations ?? []
 
-  // packageId -> integrations pinned to that exact version.
+  // packageId -> integrations running that exact version.
   const pinnedBy = useMemo(() => {
     const map = new Map<string, Integration[]>()
     for (const integration of integrations) {
@@ -81,18 +86,17 @@ export function PackagesPage() {
 
   const groups = useMemo(() => groupByName(packages), [packages])
 
-  // Integrations that use *some* version of a given package name. These are the candidates an
-  // "Activate" can repoint — including for a stale version that nothing is currently pinned to.
-  const candidatesByName = useMemo(() => {
+  // packageName -> how many integrations run some version of it. Activating a version moves all of them.
+  const integrationCountByName = useMemo(() => {
     const packageIdToName = new Map(packages.map(p => [p.id, p.name]))
-    const map = new Map<string, Integration[]>()
+    const counts = new Map<string, number>()
     for (const integration of integrations) {
       if (!integration.packageId) continue
       const name = packageIdToName.get(integration.packageId)
       if (!name) continue
-      map.set(name, [...(map.get(name) ?? []), integration])
+      counts.set(name, (counts.get(name) ?? 0) + 1)
     }
-    return map
+    return counts
   }, [packages, integrations])
 
   const visibleGroups = useMemo(() => {
@@ -124,14 +128,23 @@ export function PackagesPage() {
   }
 
   function handleDelete(pkg: PackageMetadata, inUse: boolean) {
-    // Never delete on incomplete pin data, or when the version is pinned.
+    // Never delete on incomplete pin data, or when the version is in use.
     if (!pinsResolved || inUse) return
     if (!window.confirm(`Delete ${pkg.name} ${pkg.version}? This cannot be undone.`)) return
     deletePackage.mutate(pkg.id)
   }
 
-  function handleActivate(integrationId: string, pkg: PackageMetadata) {
-    repoint.mutate({ integrationId, packageId: pkg.id })
+  function handleActivate(pkg: PackageMetadata, integrationCount: number) {
+    setActivateResult(null)
+    const plural = integrationCount === 1 ? 'integration' : 'integrations'
+    if (
+      !window.confirm(
+        `Make ${pkg.version} the active version for ${pkg.name}? ` +
+          `All ${integrationCount} ${plural} in this package will run it on their next run.`
+      )
+    )
+      return
+    activate.mutate(pkg.id)
   }
 
   return (
@@ -139,8 +152,8 @@ export function PackagesPage() {
       <div>
         <h2 className="text-xl font-semibold">Packages</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Uploaded integration packages, grouped by name. Expand a package to see every version,
-          activate a version for an integration, or delete versions that are no longer in use.
+          Uploaded integration packages, grouped by name. Integrations are versioned per package:
+          activating a version moves every integration in the package to it together.
         </p>
       </div>
 
@@ -161,10 +174,22 @@ export function PackagesPage() {
           {deletePackage.error instanceof Error ? deletePackage.error.message : 'Failed to delete package.'}
         </p>
       )}
-      {repoint.error && (
+      {activate.error && (
         <p className="text-sm text-destructive">
-          {repoint.error instanceof Error ? repoint.error.message : 'Failed to activate version.'}
+          {activate.error instanceof Error ? activate.error.message : 'Failed to activate version.'}
         </p>
+      )}
+      {activateResult && (
+        <div className="text-sm rounded-md border px-3 py-2 bg-muted/40">
+          Activated <span className="font-mono">{activateResult.version}</span> of {activateResult.packageName} for{' '}
+          {activateResult.activated.length} integration{activateResult.activated.length === 1 ? '' : 's'}.
+          {activateResult.skipped.length > 0 && (
+            <span className="text-destructive">
+              {' '}
+              Skipped {activateResult.skipped.join(', ')} — this version does not contain their class.
+            </span>
+          )}
+        </div>
       )}
       {downloadError && <p className="text-sm text-destructive">{downloadError}</p>}
 
@@ -177,7 +202,7 @@ export function PackagesPage() {
       ) : (
         <div className="border rounded-lg divide-y">
           {visibleGroups.map(group => {
-            const candidates = candidatesByName.get(group.name) ?? []
+            const integrationCount = integrationCountByName.get(group.name) ?? 0
             const activeVersions = group.versions.filter(v => (pinnedBy.get(v.id)?.length ?? 0) > 0)
             const isOpen = expanded.has(group.name)
             return (
@@ -226,6 +251,8 @@ export function PackagesPage() {
                         {group.versions.map(pkg => {
                           const users = pinnedBy.get(pkg.id) ?? []
                           const inUse = users.length > 0
+                          // Nothing to activate when every integration in the package already runs this version.
+                          const activeEverywhere = integrationCount > 0 && users.length === integrationCount
                           return (
                             <TableRow key={pkg.id}>
                               <TableCell className="font-mono text-sm">{pkg.version}</TableCell>
@@ -249,13 +276,21 @@ export function PackagesPage() {
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {canActivate && pinsResolved && (
-                                    <ActivateControl
-                                      pkg={pkg}
-                                      candidates={candidates}
-                                      pinnedIntegrationIds={new Set(users.map(u => u.id))}
-                                      pending={repoint.isPending}
-                                      onActivate={handleActivate}
-                                    />
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={activeEverywhere || integrationCount === 0 || activate.isPending}
+                                      title={
+                                        integrationCount === 0
+                                          ? 'No integrations use this package yet.'
+                                          : activeEverywhere
+                                            ? 'Already the active version.'
+                                            : `Activate for all ${integrationCount} integration(s) in this package.`
+                                      }
+                                      onClick={() => handleActivate(pkg, integrationCount)}
+                                    >
+                                      Activate
+                                    </Button>
                                   )}
                                   {/* Download and delete require ManagePackages on the backend. */}
                                   {canManagePackages && (
@@ -277,7 +312,7 @@ export function PackagesPage() {
                                           !pinsResolved
                                             ? 'Checking which integrations use this version…'
                                             : inUse
-                                              ? `Pinned by: ${users.map(u => u.name).join(', ')}`
+                                              ? `In use by: ${users.map(u => u.name).join(', ')}`
                                               : undefined
                                         }
                                         onClick={() => handleDelete(pkg, inUse)}
@@ -300,63 +335,6 @@ export function PackagesPage() {
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-interface ActivateControlProps {
-  pkg: PackageMetadata
-  candidates: Integration[]
-  pinnedIntegrationIds: Set<string>
-  pending: boolean
-  onActivate: (integrationId: string, pkg: PackageMetadata) => void
-}
-
-// Activating a version means repointing an integration to it. With a single candidate integration
-// this is one click; with several, the user picks which integration to repoint. Integrations already
-// pinned to this exact version are excluded — there is nothing to activate for them.
-function ActivateControl({ pkg, candidates, pinnedIntegrationIds, pending, onActivate }: ActivateControlProps) {
-  const [picking, setPicking] = useState(false)
-  const targets = candidates.filter(c => !pinnedIntegrationIds.has(c.id))
-
-  if (targets.length === 0) return null
-
-  if (targets.length === 1) {
-    return (
-      <Button variant="outline" size="sm" disabled={pending} onClick={() => onActivate(targets[0].id, pkg)}>
-        Activate
-      </Button>
-    )
-  }
-
-  if (!picking) {
-    return (
-      <Button variant="outline" size="sm" disabled={pending} onClick={() => setPicking(true)}>
-        Activate…
-      </Button>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-1 flex-wrap justify-end">
-      <span className="text-xs text-muted-foreground">For:</span>
-      {targets.map(target => (
-        <Button
-          key={target.id}
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() => {
-            setPicking(false)
-            onActivate(target.id, pkg)
-          }}
-        >
-          {target.name}
-        </Button>
-      ))}
-      <Button variant="ghost" size="sm" onClick={() => setPicking(false)}>
-        Cancel
-      </Button>
     </div>
   )
 }
