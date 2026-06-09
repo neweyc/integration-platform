@@ -6,8 +6,19 @@ using Shared.Domain;
 namespace ControlPlane.Features.Integrations;
 
 public class IntegrationRepository(AppDbContext db)
-    : IIntegrationRepository, IIntegrationReadRepository, IIntegrationUpdateRepository, IIntegrationDeleteRepository, IIntegrationValidationRepository
+    : IIntegrationRepository, IIntegrationReadRepository, IIntegrationUpdateRepository, IIntegrationDeleteRepository, IIntegrationValidationRepository, IIntegrationRepointRepository
 {
+    // GetByIdAsync returns a tracked entity, so persisting a repoint only needs SaveChanges — change
+    // tracking writes the modified PackageId and leaves the included triggers untouched.
+    public async Task SaveAsync(Integration integration, CancellationToken ct = default) =>
+        await db.SaveChangesAsync(ct);
+
+    // Loads the full package (including Data) so a repoint can scan it for the integration's class.
+    public Task<AssemblyPackage?> GetPackageAsync(Guid tenantId, Guid packageId, CancellationToken ct = default) =>
+        db.AssemblyPackages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == packageId, ct);
+
     public Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default) =>
         db.Integrations.AnyAsync(i => i.TenantId == tenantId && i.Slug == slug, ct);
 

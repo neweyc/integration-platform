@@ -414,7 +414,7 @@ Acceptance criteria:
 
 ### Package Rollback
 
-**Status:** Todo
+**Status:** Done
 
 Allow reverting an integration to a previous package version.
 
@@ -424,6 +424,32 @@ Acceptance criteria:
 - New executions use the selected version.
 - Existing execution history remains tied to the original version.
 - Rollback does not require database edits or manual filesystem changes.
+
+Completed notes:
+
+- Added a dedicated repoint endpoint `PUT /api/integrations/{id}/package` (`RepointIntegrationCommand`) that sets only the active package pin, audited. The target package is scanned and must contain the integration's class (not just exist), so a repoint — including a direct API call — can never pin to an incompatible package and leave the integration unable to load.
+- Fixed a latent bug: `UpdateIntegrationHandler` set `PackageId` unconditionally, and the UI's update omits it, so every edit silently un-pinned the package. The general update no longer carries a package id at all, so it can never change or un-pin the package — that is exclusively the repoint endpoint's job.
+- The integration history page shows the active version and (for `ManageIntegrations`) a picker over the other versions of the same package; selecting one repoints and takes effect on the next run (loaded as the isolated assembly for that version).
+- Execution history is immutable across rollback because execution records snapshot package id/name/version as plain columns (no FK).
+- A new Packages page lists packages grouped by name with per-version in-use/stale status and guarded deletion (see below).
+- Tests cover repoint success/unknown-integration/unknown-package and the update-preserves-pin behavior.
+
+### Delete Stale Packages
+
+**Status:** Done
+
+Allow deleting package versions that are no longer in use, without breaking active integrations or history.
+
+Completed notes:
+
+- Added an in-use guard to `DeletePackageHandler`: a package that any integration is currently pinned to cannot be deleted (returns `409 Conflict` naming the integrations). This is required because `Integration.PackageId` is `OnDelete(SetNull)` — deleting an in-use package would otherwise silently un-pin the integration and break it at runtime.
+- Execution history is unaffected by deletion (`ExecutionRecord.PackageId` has no FK; name/version are snapshotted), so past runs stay readable.
+- The Packages page shows each version as **in use** (with the pinning integrations) or **stale**, and only allows deleting stale versions.
+- Tests cover delete-when-unpinned and conflict-when-pinned.
+
+Remaining gap:
+
+- Deleting a package server-side does not remove an agent's already-extracted local copy (orphaned folder under `PackagesPath`); harmless but not cleaned up.
 
 ### Assembly Isolation And Unload
 

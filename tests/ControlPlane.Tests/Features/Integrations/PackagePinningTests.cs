@@ -73,12 +73,14 @@ public class PackagePinningTests
     // UpdateIntegration repoints to a different package
 
     [Fact]
-    public async Task UpdateIntegration_RepointsToNewPackage_StoresNewPackageId()
+    public async Task UpdateIntegration_DoesNotChangePackagePin()
     {
+        // A general edit (name/status/triggers) cannot change the active package version — the command
+        // no longer carries a package id, so the only way to change the pin is the repoint endpoint.
+        // This guards against the latent bug where the UI's update silently un-pinned the package.
         var repo = Substitute.For<IIntegrationUpdateRepository>();
         var handler = new UpdateIntegrationHandler(repo, _encryption);
-        var oldPackageId = Guid.NewGuid();
-        var newPackageId = Guid.NewGuid();
+        var pinnedPackageId = Guid.NewGuid();
 
         var integration = new Integration
         {
@@ -88,36 +90,7 @@ public class PackagePinningTests
             Slug = "sync-orders",
             Environment = "production",
             ClassName = "MyCompany.SyncOrders",
-            PackageId = oldPackageId
-        };
-
-        repo.GetByIdAsync(_tenantId, integration.Id).Returns(integration);
-        repo.PackageExistsAsync(_tenantId, newPackageId).Returns(true);
-        repo.UpdateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
-            .Returns(call => call.Arg<Integration>());
-
-        var result = await handler.HandleAsync(new UpdateIntegrationCommand(
-            _tenantId, integration.Id, "Sync Orders", null,
-            IntegrationStatus.Enabled, [], PackageId: newPackageId));
-
-        Assert.Equal(newPackageId, result.PackageId);
-    }
-
-    [Fact]
-    public async Task UpdateIntegration_ClearsPackagePin_PackageIdBecomesNull()
-    {
-        var repo = Substitute.For<IIntegrationUpdateRepository>();
-        var handler = new UpdateIntegrationHandler(repo, _encryption);
-
-        var integration = new Integration
-        {
-            Id = Guid.NewGuid(),
-            TenantId = _tenantId,
-            Name = "Sync Orders",
-            Slug = "sync-orders",
-            Environment = "production",
-            ClassName = "MyCompany.SyncOrders",
-            PackageId = Guid.NewGuid()
+            PackageId = pinnedPackageId
         };
 
         repo.GetByIdAsync(_tenantId, integration.Id).Returns(integration);
@@ -126,9 +99,9 @@ public class PackagePinningTests
 
         var result = await handler.HandleAsync(new UpdateIntegrationCommand(
             _tenantId, integration.Id, "Sync Orders", null,
-            IntegrationStatus.Enabled, [], PackageId: null));
+            IntegrationStatus.Enabled, []));
 
-        Assert.Null(result.PackageId);
+        Assert.Equal(pinnedPackageId, result.PackageId);
     }
 
     // StartExecution snapshots package info

@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import {
   integrationsApi,
+  type Integration,
   type ExecutionSummary,
   type ExecutionLogItem,
   type TriggerEvent,
 } from '@/api/integrations'
+import { packagesApi } from '@/api/packages'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
@@ -88,6 +91,7 @@ export function IntegrationHistoryPage() {
         <p className="text-sm text-muted-foreground">
           Trigger events and runtime executions, newest first. Select a run to view its logs.
         </p>
+        {integration && <ActiveVersionSelector integration={integration} />}
       </div>
 
       {executionsError && (
@@ -166,6 +170,84 @@ export function IntegrationHistoryPage() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Shows the integration's active package version and, for users who can manage integrations, lets
+// them roll it back/forward to another version of the same package. Repointing takes effect on the
+// next run (the agent loads the selected version's isolated assembly).
+function ActiveVersionSelector({ integration }: { integration: Integration }) {
+  const queryClient = useQueryClient()
+  const user = getCurrentUser()
+  const canManage = hasPermission('ManageIntegrations', user)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: packageData } = useQuery({
+    queryKey: ['packages'],
+    queryFn: packagesApi.list,
+  })
+
+  const repoint = useMutation({
+    mutationFn: (packageId: string) => integrationsApi.repoint(integration.id, packageId),
+    onSuccess: () => {
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['integration', integration.id] })
+      queryClient.invalidateQueries({ queryKey: ['integrations'] })
+    },
+    onError: (err: Error) => setError(err.message),
+  })
+
+  if (!integration.packageId) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Active version: <span className="font-medium">local agent path</span> (no package pinned)
+      </p>
+    )
+  }
+
+  const packages = packageData?.packages ?? []
+  const current = packages.find(p => p.id === integration.packageId)
+
+  // Other versions of the same package, newest first.
+  const versions = current
+    ? packages
+        .filter(p => p.name === current.name)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : []
+
+  function handleChange(packageId: string) {
+    if (packageId === integration.packageId) return
+    const target = versions.find(v => v.id === packageId)
+    if (!window.confirm(`Make ${target?.version ?? 'this version'} the active version? It takes effect on the next run.`))
+      return
+    repoint.mutate(packageId)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      <span className="text-xs text-muted-foreground">Active version</span>
+      {canManage && versions.length > 0 ? (
+        <Select
+          className="h-7 w-auto text-xs"
+          value={integration.packageId}
+          onChange={e => handleChange(e.target.value)}
+          disabled={repoint.isPending}
+        >
+          {versions.map(v => (
+            <option key={v.id} value={v.id}>
+              {v.version}
+              {v.id === integration.packageId ? ' (current)' : ''}
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <Badge variant="outline" className="font-mono">
+          {current?.version ?? 'unknown'}
+        </Badge>
+      )}
+      {repoint.isPending && <span className="text-xs text-muted-foreground">Repointing…</span>}
+      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   )
 }

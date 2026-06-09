@@ -101,10 +101,21 @@ public static class IntegrationEndpoints
                     request.Triggers,
                     request.TimeoutSeconds,
                     request.RetryMaxAttempts,
-                    request.RetryBackoffSeconds,
-                    request.PackageId), ct);
+                    request.RetryBackoffSeconds), ct);
 
             return Results.Ok(result);
+        }).RequirePermission(Permission.ManageIntegrations);
+
+        group.MapPut("/{id:guid}/package", async (
+            Guid id,
+            [FromBody] RepointIntegrationRequest request,
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            await dispatcher.SendAsync(
+                new RepointIntegrationCommand(currentUser.TenantId, id, request.PackageId), ct);
+            return Results.NoContent();
         }).RequirePermission(Permission.ManageIntegrations);
 
         group.MapDelete("/{id:guid}", async (
@@ -152,5 +163,6 @@ public record UpdateIntegrationRequest(
     IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
-    int? RetryBackoffSeconds = null,
-    Guid? PackageId = null);
+    int? RetryBackoffSeconds = null);
+
+public record RepointIntegrationRequest(Guid PackageId);

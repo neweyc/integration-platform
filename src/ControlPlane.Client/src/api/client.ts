@@ -54,3 +54,38 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
+
+// Downloads a protected file. A plain anchor/navigation can't carry the bearer token, so fetch with
+// auth, then save the response as a blob via a temporary object URL.
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${BASE_URL}${path}`, { headers })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail || body?.title || `Download failed (${response.status})`)
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileNameFromDisposition(response.headers.get('content-disposition')) ?? fallbackName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function fileNameFromDisposition(header: string | null): string | null {
+  if (!header) return null
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header)
+  return match ? decodeURIComponent(match[1]) : null
+}

@@ -114,6 +114,8 @@ builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrat
 builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();
 builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
+builder.Services.AddScoped<IIntegrationRepointRepository, IntegrationRepository>();
+builder.Services.AddScoped<ICommandHandler<RepointIntegrationCommand, bool>, RepointIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();
 builder.Services.AddScoped<IAuditLogReadRepository, AuditLogReadRepository>();
 builder.Services.AddScoped<ICommandHandler<ListAuditLogCommand, ListAuditLogResult>, ListAuditLogHandler>();

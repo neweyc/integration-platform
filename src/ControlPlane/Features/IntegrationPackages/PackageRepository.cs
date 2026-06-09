@@ -42,6 +42,16 @@ public class PackageRepository(AppDbContext db)
             .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.Id == packageId, ct);
     }
 
+    public async Task<IReadOnlyList<string>> ListPinnedIntegrationNamesAsync(
+        Guid tenantId, Guid packageId, CancellationToken ct = default)
+    {
+        return await db.Integrations
+            .AsNoTracking()
+            .Where(i => i.TenantId == tenantId && i.PackageId == packageId)
+            .Select(i => i.Name)
+            .ToListAsync(ct);
+    }
+
     public async Task<bool> DeleteAsync(Guid tenantId, Guid packageId, CancellationToken ct = default)
     {
         var package = await db.AssemblyPackages

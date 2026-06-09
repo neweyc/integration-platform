@@ -597,7 +597,24 @@ Returns structured logs recorded for a single execution, oldest first.
 
 Set `timeoutSeconds` to `null` or omit it to run without a timeout. Timed-out executions are recorded with status `TimedOut`.
 
+The general update does not accept a package id — the active version can only be changed through the repoint endpoint below, so an edit never alters or un-pins the package.
+
 **Response:** Updated integration object
+
+---
+
+### `PUT /api/integrations/{id}/package`
+
+Sets the integration's active package version (rollback / roll-forward). Takes effect on the next run; the agent loads the selected version's isolated assembly. Execution history is unaffected — past records keep the version they ran. The target package is scanned and must contain the integration's class, so it cannot be pinned to an incompatible package.
+
+**Auth:** JWT (`ManageIntegrations`)
+
+**Request**
+```json
+{ "packageId": "3f2504e0-4f89-41d3-9a0c-0305e82c3301" }
+```
+
+**Response:** `204 No Content`; `404` if the integration or package is not found; `400` if the package does not contain the integration's class.
 
 ---
 
@@ -852,9 +869,11 @@ Downloads the original zip archive.
 
 Deletes a stored package. This does not remove DLLs from any runtime agent.
 
-**Auth:** JWT
+A package that is the active version of one or more integrations cannot be deleted — repoint those integrations to another version first. Deleting it would otherwise silently un-pin them. Execution history is unaffected by deletion (records snapshot the package name/version).
 
-**Response:** `204 No Content` or `404`
+**Auth:** JWT (`ManagePackages`)
+
+**Response:** `204 No Content`, `404` if not found, or `409 Conflict` if the package is in use (the message names the integrations pinned to it).
 
 ---
 

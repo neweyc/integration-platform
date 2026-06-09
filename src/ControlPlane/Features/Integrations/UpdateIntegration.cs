@@ -13,8 +13,7 @@ public record UpdateIntegrationCommand(
     IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
-    int? RetryBackoffSeconds = null,
-    Guid? PackageId = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+    int? RetryBackoffSeconds = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.IntegrationUpdated, "Integration", IntegrationId.ToString(), $"Updated integration '{Name}'");
@@ -40,17 +39,15 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository, I
 
         ValidateCommand(command);
 
-        if (command.PackageId.HasValue
-            && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))
-            throw new NotFoundException($"Package '{command.PackageId}' not found.");
-
         integration.Name = command.Name;
         integration.Description = command.Description;
         integration.Status = command.Status;
         integration.TimeoutSeconds = command.TimeoutSeconds;
         integration.RetryMaxAttempts = command.RetryMaxAttempts;
         integration.RetryBackoffSeconds = command.RetryBackoffSeconds;
-        integration.PackageId = command.PackageId;
+        // The active package version is intentionally not touched here. It can only be changed through
+        // the dedicated repoint endpoint, so a general edit (name, status, triggers) can never alter
+        // or un-pin the package.
         integration.UpdatedAt = DateTime.UtcNow;
 
         var triggers = CreateIntegrationHandler.BuildTriggers(command.TenantId, command.Triggers, encryption);

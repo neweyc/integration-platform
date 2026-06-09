@@ -4,7 +4,7 @@
 
 **Serto**
 
-AI-native, code-first workflow automation for scheduled jobs, data movement, API calls, webhooks, retries, and observability.
+Code-first workflow automation for scheduled jobs, data movement, API calls, webhooks, retries, and observability.
 
 **Tagline:** Governed production workflows from code.
 
@@ -32,7 +32,7 @@ Three changes make this the right moment:
 - **Integration demand is exploding.** SaaS sprawl, data movement, APIs, webhooks, and automation needs keep growing.
 - **Legacy middleware is misaligned.** Many Control-M/Boomi-style workloads are really scheduled jobs, API calls, transformations, retries, and visibility.
 
-The missing layer is not another low-code canvas. It is a platform that turns real code, including AI-generated code, into safe production automation.
+The missing layer is not another low-code canvas. It is a platform that turns real code into safe production automation. AI-assisted authoring makes that future more urgent, but production governance remains the hard part.
 
 ---
 
@@ -46,12 +46,14 @@ Developers write integrations as normal C# code:
 - Connectors handle HTTP, SQL, and future file/object/notification work.
 - Packages are uploaded and version-pinned.
 - Assembly scanning auto-provisions integrations and trigger records.
+- Published NuGet packages and the `serto` CLI make the local authoring loop installable on a clean machine.
 
 Operators manage production safely:
 
 - Schedules, webhooks, manual runs, workflows, retries, logs, audit, RBAC, and secrets live in the control plane.
 - Runtime agents execute close to customer systems.
 - Execution history records exactly what package version ran.
+- Published Docker images support realistic deployment: hosted control plane, external PostgreSQL, and agents on separate private-network hosts.
 
 ---
 
@@ -60,9 +62,8 @@ Operators manage production safely:
 Ideal developer flow:
 
 ```bash
+dotnet tool install --global Serto.Cli
 serto init order-sync
-ip ai new "Every hour, sync pending SQL orders to the ERP API and alert Slack on failures"
-serto test
 serto scan
 serto package
 serto deploy
@@ -75,9 +76,12 @@ The control plane then shows:
 - package version
 - required secrets
 - next scheduled run
+- agent status
 - execution logs
+- filtered/searchable log history
 - trigger timeline
 - retries and failures
+- the exact package version used for every execution
 
 ---
 
@@ -136,14 +140,22 @@ Built and validated:
 - Multi-trigger integration model
 - Package upload, sync, and version-pinned execution
 - Assembly scanning and auto-provisioning
+- Published NuGet packages for SDK/connectors/testing
+- CLI global-tool packaging
+- Published Docker deployment model for control plane and agents
 - Workflow DAG foundation
 - Retry policies and execution timeouts
+- Orphaned running-execution reaper
+- Package isolation so new package versions execute without agent restart
+- Package version visibility in execution history
 - Trigger event observability
-- RBAC, audit logs, invitations, PATs
-- CLI foundation and sample integrations
+- Agent heartbeat/status visibility
+- RBAC, audit logs, invitations, PATs, user-token UI
+- CLI foundation, deploy previews, package scans, and sample integrations
+- Log filtering and execution history UI
 - HTTP and SQL connector foundation
 
-The project is past prototype architecture and moving toward private beta readiness.
+The project is past prototype architecture and is suitable for private beta and paid design-partner pilots around scheduled/API/database workflows.
 
 ---
 
@@ -151,20 +163,23 @@ The project is past prototype architecture and moving toward private beta readin
 
 Highest-leverage next milestones:
 
-1. **Developer authoring loop**
-   - `serto scan`, `serto package`, deploy preview, local webhook replay, secret manifest.
+1. **Package rollback and active version selection**
+   - Operators can choose the active package version per integration/environment and roll back without rebuilding.
 
-2. **Trigger declarations and runtime overrides**
-   - Code declares intent/defaults; control plane owns production authority and drift decisions.
+2. **Operational readiness**
+   - Health/readiness endpoints, failed execution alerts, retention, log volume controls, and cleaner operator signals.
 
-3. **AI-assisted authoring**
-   - Generate integrations, tests, sample payloads, required secrets, and fixes from execution logs.
+3. **Developer authoring loop polish**
+   - Environment-aware deploys, stronger `serto test`, local webhook harness, and first-class templates.
 
 4. **Connector depth**
    - HTTP pagination/rate limits, SQL batching/transactions, file/SFTP, object storage, notifications.
 
-5. **Operational readiness**
-   - Metrics, alerts, retention, agent routing, package rollback, SSO.
+5. **AI-assisted authoring**
+   - Generate integrations, tests, sample payloads, required secrets, and fixes from execution logs once the production loop is boringly reliable.
+
+6. **Enterprise controls**
+   - Agent routing, SSO, token rotation, environment promotion, and compliance reporting.
 
 ---
 
@@ -172,10 +187,10 @@ Highest-leverage next milestones:
 
 Recommended pricing model:
 
-- **Starter:** individual/team experimentation
-- **Team:** production workflows, hosted control plane, multiple agents
-- **Business:** audit/RBAC, package history, retention, higher limits
-- **Enterprise:** SSO, support/SLA, dedicated hosting, compliance controls
+- **Open source / self-hosted:** free control plane, agent, CLI, SDK, and core connectors.
+- **Managed Team:** hosted control plane, remote agents, backups, alerts, and email support.
+- **Business:** audit/RBAC, package history, retention, higher limits, rollback controls, and priority support.
+- **Enterprise:** SSO, dedicated hosting, support/SLA, compliance controls, and professional services.
 
 Pricing should lean toward predictable subscription tiers based on:
 
@@ -186,7 +201,7 @@ Pricing should lean toward predictable subscription tiers based on:
 - governance features
 - support level
 
-Execution-based pricing should be generous or secondary to avoid bill anxiety.
+Execution-based pricing should be generous or secondary to avoid bill anxiety. Early revenue should come from paid pilots and managed hosting/support rather than narrow feature gating.
 
 ---
 
@@ -217,7 +232,7 @@ Do not raise purely on vision if avoidable.
 Best sequence:
 
 1. **Bootstrap productization now**
-   - Finish dev UX, AI authoring foundation, and connector depth.
+   - Finish rollback, health checks, alerts, retention, deploy environment correctness, and connector depth.
 
 2. **Customer discovery immediately**
    - 20-30 calls with teams running integration automation today.
@@ -251,9 +266,10 @@ Serto is built for that world.
 
 Near-term ask:
 
-- Design partners with real scheduled/API/database/webhook workflows.
+- 3-5 design partners with real scheduled/API/database/webhook workflows.
+- Paid pilot customers willing to replace one production workflow and measure reliability, deployment speed, and observability.
 - Technical angels or advisors with dev tools, iPaaS, data platform, or enterprise automation experience.
-- Pilot customers willing to replace one production workflow and measure the result.
+- .NET-heavy teams with cron/script/iPaaS pain.
 
 Funding ask, when traction is proven:
 
