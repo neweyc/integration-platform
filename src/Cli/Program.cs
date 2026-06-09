@@ -14,6 +14,12 @@ app.Configure(config =>
     config.AddCommand<DeployCommand>("deploy")
         .WithDescription("Deploy the current project to the Control Plane");
 
+    config.AddCommand<LoginCommand>("login")
+        .WithDescription("Save an API token for a control plane so deploys don't prompt for it");
+
+    config.AddCommand<LogoutCommand>("logout")
+        .WithDescription("Remove a saved API token");
+
     config.AddCommand<ScanCommand>("scan")
         .WithDescription("Preview integrations and triggers discovered from the current project");
 

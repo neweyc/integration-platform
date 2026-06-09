@@ -83,11 +83,36 @@ Available commands:
 | `serto init [name]` | Scaffold a new integration project |
 | `serto scan` | Preview integrations/triggers/required-secrets discovered from the current project |
 | `serto package` | Build, validate, SHA-256, and archive the project (no upload) |
+| `serto login` | Save an API token for a control plane so `serto deploy` stops prompting |
+| `serto logout` | Remove a saved API token (`--all` clears every saved control plane) |
 | `serto deploy` | Run the scan preview, then upload and auto-provision in the control plane |
 | `serto test` | Run an integration locally |
 | `serto dev` | Watch source files and re-run tests on save |
 | `serto webhook replay` | Sign and POST a sample webhook payload to a running control plane |
 | `serto --version` | Print the installed CLI version |
+
+### Authenticating the CLI
+
+`serto deploy` needs a personal access token (create one in the UI under **Access tokens**). Rather than
+passing it every time, run `serto login` once per control plane:
+
+```bash
+serto login --url https://your-control-plane.example.com
+# paste your pat_… token when prompted (input is hidden)
+```
+
+The token is verified against the control plane and then saved to `~/.serto/credentials.json`, keyed by
+control-plane URL. On macOS/Linux the file is written with owner-only permissions (`chmod 600`); the token
+is a revocable, tenant-scoped credential. `serto logout` removes it (`--all` clears every saved control
+plane).
+
+`serto deploy` resolves the token in this order, so saved credentials are a convenience that flags and CI
+environment variables always override:
+
+1. `--token` flag
+2. `SERTO_API_TOKEN` / `IP_API_TOKEN` environment variables (use these in CI)
+3. Saved credentials from `serto login`
+4. Interactive prompt
 
 To get a real `serto` command instead of `dotnet run --project src/Cli --`, install the CLI as a .NET global tool after it has been published to NuGet:
 

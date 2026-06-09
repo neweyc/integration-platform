@@ -71,11 +71,20 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                 return 1;
             }
 
+            // Precedence: explicit flag → env vars (CI) → saved login credentials → interactive prompt.
             var token = ResolveToken(
-                            settings.Token,
-                            Environment.GetEnvironmentVariable("SERTO_API_TOKEN"),
-                            Environment.GetEnvironmentVariable("IP_API_TOKEN"))
-                        ?? AnsiConsole.Ask<string>("Enter your [green]API token[/]:");
+                settings.Token,
+                Environment.GetEnvironmentVariable("SERTO_API_TOKEN"),
+                Environment.GetEnvironmentVariable("IP_API_TOKEN"));
+
+            if (token is null)
+            {
+                token = new CredentialStore().GetToken(settings.ControlPlaneUrl);
+                if (token is not null)
+                    AnsiConsole.MarkupLine($"[grey]Using saved credentials for {Markup.Escape(settings.ControlPlaneUrl)}.[/]");
+            }
+
+            token ??= AnsiConsole.Ask<string>("Enter your [green]API token[/]:");
 
             PackageUploadResponse? uploadResult = null;
             await AnsiConsole.Status()
