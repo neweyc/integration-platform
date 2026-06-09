@@ -13,6 +13,34 @@ Status key:
 
 ---
 
+## Move Version Pin To Package Level (Decided — Todo)
+
+**Decision (2026-06-08):** Version integrations at the **package** level, not per-integration.
+
+Today the active-version pin lives on the integration (`Integration.PackageId`), so two integrations
+shipped in the same package/assembly can sit on different versions. That combination was never built
+or tested together (everything in a package comes out of one `dotnet build`), so the per-integration
+pin is a latent footgun rather than useful flexibility, and it forces the "Activate for which
+integration?" picker on the Packages page.
+
+Target model: an active version is tracked per **package name**; all integrations belonging to that
+package resolve to the active version. Activating a version moves every integration in it together,
+atomically. One-click activate everywhere; the multi-integration picker becomes dead code to delete.
+
+Trade-off accepted: you lose independent rollback of a single integration inside a shared package.
+That is acceptable — fix-forward with a new package version instead of stranding siblings on a
+half-reverted build.
+
+Scope when picked up:
+
+- Move the pin off `Integration` onto a per-package-name "active version" concept (schema + migration).
+- Update repoint/activate to operate per package name; update the runtime resolution path.
+- Simplify the Packages page (drop the `ActivateControl` picker → single Activate per version).
+- Update `writing-integrations.md` and `functional-operations.md`.
+
+Note: the recently shipped per-integration Activate/picker UI still works today; it is superseded by
+this, not blocking it.
+
 ## Product Direction
 
 Build a code-first workflow automation and integration platform that can replace the common 60-70% of Control-M/Boomi usage: scheduled jobs, data movement, API calls, transformations, retries, observability, and environment-safe deployment.
@@ -450,6 +478,11 @@ Completed notes:
 Remaining gap:
 
 - Deleting a package server-side does not remove an agent's already-extracted local copy (orphaned folder under `PackagesPath`); harmless but not cleaned up.
+
+Possible follow-ups (deferred):
+
+- Move "in use" detection server-side: have `GET /api/integration-packages` return the integrations pinned to each version, instead of the Packages page joining the integrations list client-side. Removes the brief loading-state ambiguity and lets the active-version picker stop loading integrations separately.
+- The active-version selector currently lives on the integration history page only. May be moved or also surfaced elsewhere (e.g. the Packages page or the integration edit sheet) later.
 
 ### Assembly Isolation And Unload
 
