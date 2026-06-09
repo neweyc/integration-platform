@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Xml.Linq;
@@ -148,7 +149,27 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         var version = document.Descendants("Version").FirstOrDefault()?.Value;
         if (!string.IsNullOrWhiteSpace(version)) return version.Trim();
 
-        return "0.1.0-dev." + now.UtcDateTime.ToString("yyyyMMddHHmmss");
+        var projectDirectory = Path.GetDirectoryName(Path.GetFullPath(csprojPath))!;
+        return BuildAutoVersion(now, GitInfo.Detect(projectDirectory));
+    }
+
+    // Builds the auto-generated package version when the project declares none: a readable, sortable
+    // calendar timestamp, optionally enriched with the git short SHA (and a -dirty marker) when the
+    // project sits in a git working tree. Git is never required — without a repo the timestamp alone
+    // is used. Internal git info is passed in so the formatting is tested without depending on whether
+    // the test host happens to be a git repository.
+    public static string BuildAutoVersion(DateTimeOffset now, GitInfo? git)
+    {
+        var version = now.UtcDateTime.ToString("yyyy.MM.dd.HHmmss");
+
+        if (git is not null && !string.IsNullOrEmpty(git.ShortSha))
+        {
+            version += "-" + git.ShortSha;
+            if (git.IsDirty)
+                version += "-dirty";
+        }
+
+        return version;
     }
 
     public static string CreatePackageArchiveFileName(string packageName, string packageVersion)
@@ -279,6 +300,60 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         }
 
         return trigger.Enabled ? "enabled" : "disabled";
+    }
+}
+
+// Optional git enrichment for auto-generated package versions. Detection never throws and never
+// requires git: it returns null when the directory is not in a working tree, git is not installed,
+// or HEAD cannot be resolved (e.g. a repo with no commits yet).
+public sealed record GitInfo(string ShortSha, bool IsDirty)
+{
+    public static GitInfo? Detect(string directory)
+    {
+        var sha = RunGit(directory, "rev-parse --short HEAD");
+        if (string.IsNullOrWhiteSpace(sha))
+            return null;
+
+        // Limit the dirty check to the project directory so unrelated changes elsewhere in a monorepo
+        // do not flag this package as dirty. Any reported change (tracked or untracked) counts.
+        var status = RunGit(directory, "status --porcelain .");
+        return new GitInfo(sha.Trim(), !string.IsNullOrWhiteSpace(status));
+    }
+
+    private static string? RunGit(string workingDirectory, string arguments)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+
+            if (process is null)
+                return null;
+
+            // Read stdout asynchronously so a large status listing cannot fill the pipe buffer and
+            // deadlock against WaitForExit, which is bounded so a hung git can never block a deploy.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(5000))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                return null;
+            }
+
+            return process.ExitCode == 0 ? stdoutTask.GetAwaiter().GetResult() : null;
+        }
+        catch
+        {
+            // git not installed, not a repo, or any other failure — fall back to a timestamp-only version.
+            return null;
+        }
     }
 }
 

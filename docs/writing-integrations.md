@@ -111,6 +111,25 @@ serto package --name MyCompany.Integrations --version 1.0.0
 
 The package command runs the same scan preview, writes a `.zip` archive, and prints its SHA-256 hash.
 
+### Package version resolution
+
+The version stamped on a package (and shown per-execution in history) is resolved in this order:
+
+1. An explicit `--version` on `serto package`/`serto deploy`.
+2. `<PackageVersion>` in the project file.
+3. `<Version>` in the project file.
+4. An auto-generated **calendar version** when none of the above is set.
+
+The auto version is a readable, sortable UTC timestamp, `yyyy.MM.dd.HHmmss` (e.g. `2026.06.08.143052`). When the project sits in a git working tree, it is enriched with the commit's short SHA, and a `-dirty` suffix when there are uncommitted changes under the project directory:
+
+```
+2026.06.08.143052            # not a git repo (or git unavailable)
+2026.06.08.143052-a1b2c3d    # clean tree at commit a1b2c3d
+2026.06.08.143052-a1b2c3d-dirty   # uncommitted changes present
+```
+
+Git is never required — outside a repository the timestamp alone is used, and git failures never block a build. For repeatable, meaningful versions in CI, pass an explicit `--version` (or set `<Version>`).
+
 ---
 
 ## Deployment (Zero-Touch Provisioning)

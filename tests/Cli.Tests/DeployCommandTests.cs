@@ -78,8 +78,10 @@ public class DeployCommandTests
     }
 
     [Fact]
-    public void ResolvePackageVersion_FallsBackToTimestampedDevelopmentVersion()
+    public void ResolvePackageVersion_FallsBackToCalendarVersion()
     {
+        // The temp project lives outside any git working tree, so the fallback is the calendar
+        // timestamp alone with no git enrichment.
         using var project = TemporaryProject("""
 <Project Sdk="Microsoft.NET.Sdk">
 </Project>
@@ -87,7 +89,29 @@ public class DeployCommandTests
 
         var version = DeployCommand.ResolvePackageVersion(project.Path, null, FixedNow);
 
-        Assert.Equal("0.1.0-dev.20260603123456", version);
+        Assert.Equal("2026.06.03.123456", version);
+    }
+
+    [Fact]
+    public void BuildAutoVersion_NoGit_IsTimestampOnly()
+    {
+        Assert.Equal("2026.06.03.123456", DeployCommand.BuildAutoVersion(FixedNow, null));
+    }
+
+    [Fact]
+    public void BuildAutoVersion_CleanGitTree_AppendsShortSha()
+    {
+        var version = DeployCommand.BuildAutoVersion(FixedNow, new GitInfo("a1b2c3d", IsDirty: false));
+
+        Assert.Equal("2026.06.03.123456-a1b2c3d", version);
+    }
+
+    [Fact]
+    public void BuildAutoVersion_DirtyGitTree_AppendsShaAndDirtyMarker()
+    {
+        var version = DeployCommand.BuildAutoVersion(FixedNow, new GitInfo("a1b2c3d", IsDirty: true));
+
+        Assert.Equal("2026.06.03.123456-a1b2c3d-dirty", version);
     }
 
     [Fact]
