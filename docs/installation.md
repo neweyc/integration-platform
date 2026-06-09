@@ -87,12 +87,13 @@ Available commands:
 | `serto test` | Run an integration locally |
 | `serto dev` | Watch source files and re-run tests on save |
 | `serto webhook replay` | Sign and POST a sample webhook payload to a running control plane |
+| `serto --version` | Print the installed CLI version |
 
 To get a real `serto` command instead of `dotnet run --project src/Cli --`, install the CLI as a .NET global tool after it has been published to NuGet:
 
 ```bash
-dotnet tool install --global Serto.Cli --version 1.0.3
-serto --help
+dotnet tool install --global Serto.Cli   # add --version X.Y.Z to pin a specific release
+serto --version
 ```
 
 For local development before publishing the tool package, publish it and put it on your `PATH`:

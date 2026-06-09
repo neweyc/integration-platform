@@ -1,10 +1,13 @@
 using Spectre.Console.Cli;
+using Cli;
 using Cli.Commands;
 
 var app = new CommandApp();
 app.Configure(config =>
 {
     config.SetApplicationName("serto");
+    // Enables `serto --version`, printing the build-stamped CLI version.
+    config.SetApplicationVersion(CliVersion.Current);
     config.AddCommand<InitCommand>("init")
         .WithDescription("Scaffold a new integration project");
 

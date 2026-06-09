@@ -8,7 +8,9 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>serto</ToolCommandName>
     <PackageId>Serto.Cli</PackageId>
-    <Version>1.0.3</Version>
+    <!-- Local/dev default only. Released versions are supplied by the publish pipeline via
+         -p:Version (from the git tag), which overrides this. Do not hardcode a real version here. -->
+    <Version>0.0.0-dev</Version>
     <Authors>Craytech</Authors>
     <Company>Craytech</Company>
     <Description>Command-line tools for scaffolding, testing, scanning, packaging, and deploying Serto integrations.</Description>
