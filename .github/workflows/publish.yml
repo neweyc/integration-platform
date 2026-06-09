@@ -35,7 +35,11 @@ jobs:
         run: dotnet restore Serto.slnx
 
       - name: Build
-        run: dotnet build Serto.slnx --configuration Release --no-restore -warnaserror /nr:false
+        # Stamp the release version into the assemblies here, not just at pack time. The pack steps
+        # below use --no-build, so they set only the package version; without -p:Version on the build
+        # the compiled DLLs keep the csproj placeholder (0.0.0-dev) and `serto --version` would report
+        # it instead of the real release.
+        run: dotnet build Serto.slnx --configuration Release --no-restore -warnaserror /nr:false -p:Version=${{ steps.version.outputs.version }}
 
       - name: Pack Serto.Sdk
         run: >
