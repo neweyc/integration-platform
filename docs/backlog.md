@@ -427,7 +427,7 @@ Acceptance criteria:
 
 ### Assembly Isolation And Unload
 
-**Status:** Todo
+**Status:** In Progress
 
 Improve runtime assembly loading safety.
 
@@ -437,6 +437,20 @@ Acceptance criteria:
 - Old package versions can be unloaded when no executions are using them.
 - Dependency conflicts between packages are handled predictably.
 - Tests cover two packages with different dependency versions.
+
+Completed notes:
+
+- Each downloaded package directory now loads into its own non-collectible `AssemblyLoadContext` (`IntegrationLoader.LoadPackage`). Two package versions that share the same assembly identity (the default `AssemblyVersion` `1.0.0.0`, rarely bumped per build) coexist in one process, so repointing an integration to a new package takes effect without an agent restart. Previously the runtime deduped by identity and the first-loaded version won, so a repoint silently kept running the original code.
+- The `Sdk` contract assembly and `Microsoft.Extensions.Logging.Abstractions` are shared with the default context so `IIntegration`/`IIntegrationContext`/`ILogger` identities match across the agent/integration boundary; everything else (the integration assembly, connectors, third-party libraries) loads privately per package.
+- The agent's local `IntegrationsPath` continues to load into the default context (single, unversioned set) — only versioned package directories are isolated.
+- Two related load bugs were fixed alongside isolation: a missing (not-yet-synced) package directory no longer poisons the load-path cache, and a pinned integration whose package is unavailable returns null (skip + retry) instead of falling back to a stale version from the global pool. The agent also syncs a package on demand when a poll references one it does not have on disk, rather than waiting for the periodic interval.
+- Tests cover same-class-from-two-directories producing distinct coexisting `Type` identities, the missing-then-created path, and the no-stale-fallback behavior.
+
+Remaining gaps:
+
+- Package contexts are non-collectible, so old versions are not unloaded and accumulate over a long-running agent's lifetime as integrations are repeatedly redeployed. Collectible contexts plus unload-when-idle (no in-flight executions on the old version) are still to do.
+- Dependency-version conflict behavior across packages is isolated by construction but not yet explicitly tested.
+- The shared-contract match relies on the SDK assembly being named `Sdk`; giving it an explicit, less generic assembly name would make the sharing rule more robust.
 
 ---
 

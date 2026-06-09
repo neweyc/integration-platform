@@ -96,6 +96,9 @@ public class Worker(
         _lastPackageSync = DateTime.UtcNow;
     }
 
+    private bool PackageIsOnDisk(Guid packageId) =>
+        Directory.Exists(Path.Combine(options.PackagesPath, packageId.ToString()));
+
     private async Task SendHeartbeatAsync(CancellationToken stoppingToken)
     {
         try
@@ -129,6 +132,12 @@ public class Worker(
 
             if (integrations.Count == 0)
                 return;
+
+            // If any claimed integration is pinned to a package we don't have on disk yet, sync now
+            // instead of waiting for the periodic interval. Otherwise a freshly repointed integration
+            // would be skipped (its package directory is missing) until the next scheduled sync.
+            if (integrations.Any(i => i.PackageId.HasValue && !PackageIsOnDisk(i.PackageId.Value)))
+                await SyncPackagesAsync(stoppingToken);
 
             // Fetch secrets once and share across all executions this cycle
             var secrets = await controlPlane.GetSecretsAsync(stoppingToken);

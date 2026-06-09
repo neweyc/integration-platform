@@ -48,7 +48,7 @@ public class PackageSyncer(
             var storedHash = (await File.ReadAllTextAsync(hashFile, ct)).Trim();
             if (storedHash == pkg.Sha256Hash)
             {
-                loader.LoadFromDirectory(packageDir);
+                loader.LoadPackage(packageDir);
                 return;
             }
         }
@@ -99,6 +99,6 @@ public class PackageSyncer(
         }
 
         logger.LogInformation("Package {Name} v{Version} installed at {Dir}", pkg.Name, pkg.Version, packageDir);
-        loader.LoadFromDirectory(packageDir);
+        loader.LoadPackage(packageDir);
     }
 }
