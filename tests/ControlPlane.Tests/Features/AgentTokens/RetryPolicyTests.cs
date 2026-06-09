@@ -1,4 +1,5 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Alerts;
 using ControlPlane.Features.Triggers;
 using ControlPlane.Features.Workflows;
 using NSubstitute;
@@ -13,11 +14,12 @@ public class RetryPolicyTests
     private readonly IIntegrationValidationRepository _integrationRepository = Substitute.For<IIntegrationValidationRepository>();
     private readonly IWorkflowProgressionService _workflowProgression = Substitute.For<IWorkflowProgressionService>();
     private readonly ITriggerEventRecorder _triggerEvents = Substitute.For<ITriggerEventRecorder>();
+    private readonly IAlertDispatchQueue _alertQueue = Substitute.For<IAlertDispatchQueue>();
     private readonly CompleteExecutionHandler _handler;
 
     public RetryPolicyTests()
     {
-        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository, _workflowProgression, _triggerEvents);
+        _handler = new CompleteExecutionHandler(_executionRepository, _workItemRepository, _integrationRepository, _workflowProgression, _triggerEvents, _alertQueue);
     }
 
     [Fact]
@@ -86,6 +88,76 @@ public class RetryPolicyTests
             && e.WorkItemId.HasValue
             && e.MetadataJson != null
             && e.MetadataJson.Contains("\"attemptNumber\":2")));
+
+        // A retry is queued, so this failure is not terminal — no alert should fire yet.
+        _alertQueue.DidNotReceive().Enqueue(Arg.Any<FailedExecutionAlert>());
+    }
+
+    [Fact]
+    public async Task CompleteExecution_TerminalFailure_EnqueuesAlert()
+    {
+        var tenantId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
+        var executionId = Guid.NewGuid();
+        var agentTokenId = Guid.NewGuid();
+
+        _executionRepository.FindAsync(tenantId, executionId).Returns(new ExecutionRecord
+        {
+            Id = executionId,
+            TenantId = tenantId,
+            IntegrationId = integrationId,
+            Environment = "production",
+            Status = ExecutionStatus.Running,
+            AttemptNumber = 1
+        });
+        _integrationRepository.GetByIdAsync(tenantId, integrationId).Returns(new Integration
+        {
+            Id = integrationId,
+            TenantId = tenantId,
+            Name = "Sync Orders",
+            RetryMaxAttempts = 0 // no retries — this failure is terminal
+        });
+
+        await _handler.HandleAsync(new CompleteExecutionCommand(
+            tenantId, "production", executionId, agentTokenId, Succeeded: false, ErrorMessage: "boom"));
+
+        _alertQueue.Received(1).Enqueue(Arg.Is<FailedExecutionAlert>(a =>
+            a.TenantId == tenantId
+            && a.IntegrationId == integrationId
+            && a.IntegrationName == "Sync Orders"
+            && a.Environment == "production"
+            && a.ExecutionId == executionId
+            && a.Status == ExecutionStatus.Failed
+            && a.ErrorMessage == "boom"));
+    }
+
+    [Fact]
+    public async Task CompleteExecution_Success_DoesNotEnqueueAlert()
+    {
+        var tenantId = Guid.NewGuid();
+        var integrationId = Guid.NewGuid();
+        var executionId = Guid.NewGuid();
+        var agentTokenId = Guid.NewGuid();
+
+        _executionRepository.FindAsync(tenantId, executionId).Returns(new ExecutionRecord
+        {
+            Id = executionId,
+            TenantId = tenantId,
+            IntegrationId = integrationId,
+            Environment = "production",
+            Status = ExecutionStatus.Running,
+            AttemptNumber = 1
+        });
+        _integrationRepository.GetByIdAsync(tenantId, integrationId).Returns(new Integration
+        {
+            Id = integrationId,
+            TenantId = tenantId
+        });
+
+        await _handler.HandleAsync(new CompleteExecutionCommand(
+            tenantId, "production", executionId, agentTokenId, Succeeded: true, ErrorMessage: null));
+
+        _alertQueue.DidNotReceive().Enqueue(Arg.Any<FailedExecutionAlert>());
     }
 
     [Fact]

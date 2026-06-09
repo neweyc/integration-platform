@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccessDenied } from '@/components/layout/AccessDenied'
+import { IntegrationAlertSettingsCard } from './IntegrationAlertSettingsCard'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 
 // A single row in the merged history timeline. Executions are the primary rows; trigger events that
@@ -93,6 +94,12 @@ export function IntegrationHistoryPage() {
         </p>
         {integration && <ActiveVersionSelector integration={integration} />}
       </div>
+
+      {integration && (
+        <div className="max-w-2xl">
+          <IntegrationAlertSettingsCard integrationId={integration.id} />
+        </div>
+      )}
 
       {executionsError && (
         <p className="text-sm text-destructive">

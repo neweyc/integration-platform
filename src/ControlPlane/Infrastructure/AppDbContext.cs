@@ -28,6 +28,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<TenantAlertSettings> TenantAlertSettings => Set<TenantAlertSettings>();
+    public DbSet<IntegrationAlertSettings> IntegrationAlertSettings => Set<IntegrationAlertSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -529,6 +531,52 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(t => t.User)
              .WithMany()
              .HasForeignKey(t => t.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TenantAlertSettings>(b =>
+        {
+            b.ToTable("tenant_alert_settings");
+            b.HasKey(s => s.Id);
+
+            // One alert-settings row per tenant.
+            b.HasIndex(s => s.TenantId).IsUnique();
+
+            b.Property(s => s.EmailRecipients).HasMaxLength(2000);
+            b.Property(s => s.SmtpHost).HasMaxLength(255);
+            b.Property(s => s.SmtpPort).HasDefaultValue(587);
+            b.Property(s => s.SmtpUseStartTls).HasDefaultValue(true);
+            b.Property(s => s.SmtpUsername).HasMaxLength(255);
+            b.Property(s => s.SmtpFromAddress).HasMaxLength(255);
+            b.Property(s => s.SmtpFromName).HasMaxLength(255);
+            b.Property(s => s.WebhookUrl).HasMaxLength(2000);
+
+            b.HasOne(s => s.Tenant)
+             .WithMany()
+             .HasForeignKey(s => s.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IntegrationAlertSettings>(b =>
+        {
+            b.ToTable("integration_alert_settings");
+            b.HasKey(s => s.Id);
+
+            // One alert-override row per integration.
+            b.HasIndex(s => s.IntegrationId).IsUnique();
+
+            b.Property(s => s.Mode).HasConversion<string>().HasMaxLength(20);
+            b.Property(s => s.EmailRecipients).HasMaxLength(2000);
+            b.Property(s => s.WebhookUrl).HasMaxLength(2000);
+
+            b.HasOne(s => s.Integration)
+             .WithMany()
+             .HasForeignKey(s => s.IntegrationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(s => s.Tenant)
+             .WithMany()
+             .HasForeignKey(s => s.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
     }

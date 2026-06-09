@@ -71,8 +71,9 @@ export function PackagesPage() {
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [activateResult, setActivateResult] = useState<ActivatePackageVersionResult | null>(null)
 
-  const packages = packageData?.packages ?? []
-  const integrations = integrationData?.integrations ?? []
+  // Memoized so the empty-array fallback keeps a stable identity and doesn't re-trigger the useMemos below.
+  const packages = useMemo(() => packageData?.packages ?? [], [packageData])
+  const integrations = useMemo(() => integrationData?.integrations ?? [], [integrationData])
 
   // packageId -> integrations running that exact version.
   const pinnedBy = useMemo(() => {

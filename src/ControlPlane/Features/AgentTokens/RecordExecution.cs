@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ControlPlane.Infrastructure;
+using ControlPlane.Features.Alerts;
 using ControlPlane.Features.Triggers;
 using ControlPlane.Features.Workflows;
 using Shared.Domain;
@@ -150,7 +151,8 @@ public class CompleteExecutionHandler(
     IWorkItemRepository workItemRepository,
     IIntegrationValidationRepository integrationRepository,
     IWorkflowProgressionService workflowProgression,
-    ITriggerEventRecorder triggerEvents)
+    ITriggerEventRecorder triggerEvents,
+    IAlertDispatchQueue alertQueue)
     : ICommandHandler<CompleteExecutionCommand, bool>
 {
     public async Task<bool> HandleAsync(CompleteExecutionCommand command, CancellationToken ct = default)
@@ -244,6 +246,24 @@ public class CompleteExecutionHandler(
 
         if (workItem is not null && (command.Succeeded || !retryQueued))
             await workflowProgression.AdvanceAsync(record, workItem, command.Succeeded, ct);
+
+        // Alert only on a terminal failure with no retry queued, so transient failures that auto-recover
+        // stay quiet. Hand off to the background dispatcher — never block the agent's completion call.
+        if (!command.Succeeded && !retryQueued)
+        {
+            alertQueue.Enqueue(new FailedExecutionAlert(
+                TenantId: record.TenantId,
+                IntegrationId: record.IntegrationId,
+                IntegrationName: integration?.Name ?? "(integration)",
+                Environment: record.Environment,
+                ExecutionId: record.Id,
+                Status: record.Status,
+                ErrorMessage: record.ErrorMessage,
+                AttemptNumber: record.AttemptNumber,
+                PackageName: record.PackageName,
+                PackageVersion: record.PackageVersion,
+                FailedAt: record.CompletedAt ?? DateTime.UtcNow));
+        }
 
         return true;
     }

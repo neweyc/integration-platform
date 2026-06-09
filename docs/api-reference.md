@@ -1293,6 +1293,151 @@ Records one structured log event for an execution. The token must belong to the 
 
 ---
 
+## Failure alerts
+
+Notify recipients when an integration fails and no retry remains (a *terminal* failure). Two channels, each independently optional: **email** and an **outbound webhook**. Settings exist at the tenant level (the default for every integration) and can be overridden per integration.
+
+**Email provider.** Email is sent through the platform-default mailer (ZeptoMail, configured by the operator — see [installation](installation.md#configuration-reference)) unless a tenant configures its own SMTP server, in which case email is sent from there. The SMTP server is always tenant-level; per-integration overrides only change recipients and the webhook destination.
+
+Secrets (the SMTP password and the webhook signing secret) are encrypted at rest and never returned. In request bodies, secret fields follow the convention **omit = leave unchanged, empty string = clear, value = set**.
+
+Webhook URLs are restricted to public `http(s)` endpoints by default: targets resolving to private, loopback, link-local, or cloud-metadata addresses are rejected (SSRF protection), both at save time and at connect time. Operators can lift this for internal endpoints via `AlertWebhooks:AllowPrivateNetworkTargets` (see [installation](installation.md#configuration-reference)).
+
+Permissions: `ViewAlerts` to read, `ManageAlerts` to change or test.
+
+### `GET /api/alerts/settings`
+
+Returns the tenant-default alert settings. Secrets are returned as `…Set` booleans only.
+
+**Auth:** JWT — requires `ViewAlerts`
+
+**Response**
+```json
+{
+  "emailEnabled": true,
+  "emailRecipients": "ops@acme.com, oncall@acme.com",
+  "smtpHost": null,
+  "smtpPort": 587,
+  "smtpUseStartTls": true,
+  "smtpUsername": null,
+  "smtpPasswordSet": false,
+  "smtpFromAddress": null,
+  "smtpFromName": null,
+  "webhookEnabled": true,
+  "webhookUrl": "https://hooks.slack.com/services/…",
+  "webhookSecretSet": false,
+  "zeptoConfigured": true,
+  "zeptoFromAddress": "alerts@serto.io"
+}
+```
+
+---
+
+### `PUT /api/alerts/settings`
+
+Create or update the tenant-default alert settings.
+
+**Auth:** JWT — requires `ManageAlerts`
+
+**Request body** — `smtpPassword` and `webhookSecret` follow the omit/empty/value convention above.
+```json
+{
+  "emailEnabled": true,
+  "emailRecipients": "ops@acme.com, oncall@acme.com",
+  "smtpHost": "smtp.acme.com",
+  "smtpPort": 587,
+  "smtpUseStartTls": true,
+  "smtpUsername": "mailer",
+  "smtpPassword": "•••",
+  "smtpFromAddress": "alerts@acme.com",
+  "smtpFromName": "Acme Alerts",
+  "webhookEnabled": true,
+  "webhookUrl": "https://hooks.slack.com/services/…",
+  "webhookSecret": "•••"
+}
+```
+
+**Response:** the updated settings (same shape as `GET`).
+
+---
+
+### `POST /api/alerts/settings/test`
+
+Send a sample alert through the current tenant-default configuration so you can confirm delivery (especially SMTP).
+
+**Auth:** JWT — requires `ManageAlerts`
+
+**Response**
+```json
+{
+  "emailAttempted": true,
+  "emailSucceeded": true,
+  "emailError": null,
+  "webhookAttempted": true,
+  "webhookSucceeded": false,
+  "webhookError": "Response status code does not indicate success: 404 (Not Found)."
+}
+```
+
+Returns `400` if no channel is configured to send to.
+
+---
+
+### `GET /api/alerts/integrations/{integrationId}/settings`
+
+Returns the per-integration override.
+
+**Auth:** JWT — requires `ViewAlerts`
+
+**Response**
+```json
+{
+  "integrationId": "uuid",
+  "mode": "Inherit",
+  "emailEnabled": false,
+  "emailRecipients": null,
+  "webhookEnabled": false,
+  "webhookUrl": null,
+  "webhookSecretSet": false
+}
+```
+
+`mode` is one of `Inherit` (use tenant defaults), `Off` (suppress alerts for this integration), or `Custom` (use the destinations below). When no override has been saved, the effective mode is `Inherit`.
+
+---
+
+### `PUT /api/alerts/integrations/{integrationId}/settings`
+
+Create or update the per-integration override. Email (when `Custom`) still relays through the tenant's email sender; only recipients and the webhook destination are integration-specific.
+
+**Auth:** JWT — requires `ManageAlerts`
+
+**Request body**
+```json
+{
+  "mode": "Custom",
+  "emailEnabled": true,
+  "emailRecipients": "team@acme.com",
+  "webhookEnabled": false,
+  "webhookUrl": null,
+  "webhookSecret": null
+}
+```
+
+**Response:** the updated override (same shape as `GET`).
+
+---
+
+### `POST /api/alerts/integrations/{integrationId}/settings/test`
+
+Send a sample alert through this integration's effective configuration (honoring its override).
+
+**Auth:** JWT — requires `ManageAlerts`
+
+**Response:** same shape as the tenant test above.
+
+---
+
 ## Audit log
 
 Audit entries record tenant-scoped security and configuration changes. Summaries are value-free: secret values, webhook secrets, and plaintext tokens are never returned.

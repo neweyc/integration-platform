@@ -27,5 +27,9 @@ public enum Permission
     // Tenant administration
     ManageUsers,          // invitations
     ManageBilling,
-    ViewAuditLog
+    ViewAuditLog,
+
+    // Failure alerting
+    ViewAlerts,           // view tenant + per-integration alert configuration
+    ManageAlerts          // edit alert configuration, send test alerts
 }

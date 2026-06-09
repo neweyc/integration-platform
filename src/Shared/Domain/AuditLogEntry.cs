@@ -45,5 +45,7 @@ public enum AuditAction
     UserInvited,
     InvitationAccepted,
     InvitationRevoked,
-    InvitationResent
+    InvitationResent,
+    AlertSettingsUpdated,
+    TestAlertSent
 }

@@ -233,8 +233,17 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Jwt:Audience` | `Jwt__Audience` | Token audience |
 | `Jwt:ExpiryHours` | `Jwt__ExpiryHours` | Access-token lifetime in hours |
 | `Encryption:MasterKey` | `Encryption__MasterKey` | Master key used to derive the secret-encryption key |
+| `Zepto:Token` | `Zepto__Token` | ZeptoMail "Send Mail" token for the platform-default email sender used by failure alerts. Leave blank to disable the email default. |
+| `Zepto:FromAddress` | `Zepto__FromAddress` | Verified sender address platform-sent alert emails come from. Required for the email default to work. |
+| `Zepto:FromName` | `Zepto__FromName` | Display name on platform-sent alert emails (defaults to `Serto Alerts`). |
+| `Zepto:BaseUrl` | `Zepto__BaseUrl` | ZeptoMail API endpoint. Override for the EU data center. Defaults to `https://api.zeptomail.com/v1.1/email`. |
+| `AlertWebhooks:AllowPrivateNetworkTargets` | `AlertWebhooks__AllowPrivateNetworkTargets` | When `false` (default), alert webhook URLs that resolve to private/loopback/link-local/metadata addresses are blocked (SSRF protection). Set `true` only on self-hosted deployments that deliberately post alerts to internal endpoints. |
 
 The shipped `appsettings.json` contains `CHANGE-THIS-...` placeholders for `Jwt:Secret` and `Encryption:MasterKey`; always override them in any non-development environment.
+
+### Failure-alert email (ZeptoMail)
+
+Failure alerts can notify by email and/or an outbound webhook. The webhook channel needs no server-side configuration — a tenant just enters a URL. Email is sent through **ZeptoMail** (Zoho's transactional email) by default, configured once by the operator via the `Zepto:*` settings above; tenants then only enable email and list recipients. A tenant that needs alerts to come from its own domain can instead configure its own SMTP server in the UI (**Alerts** page), which takes precedence over the platform default for that tenant. If neither ZeptoMail nor a tenant SMTP server is configured, email alerts are simply not sent (the webhook channel still works). In Docker, set `SERTO_ZEPTO_TOKEN` and `SERTO_ZEPTO_FROM_ADDRESS` in your `.env`.
 
 ### Frontend production build
 

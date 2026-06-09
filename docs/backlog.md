@@ -425,18 +425,16 @@ Acceptance criteria:
 - Shows current agent status.
 - Can filter by environment.
 
-### Failed Execution Alerts
+### Failed Execution Alerts — Done
 
-**Status:** Todo
+Notify operators when integrations fail. Shipped:
 
-Notify operators when integrations fail.
+- Alerts configured at the **tenant** level (the default) with a **per-integration** override (`Inherit` / `Off` / `Custom`).
+- **Email** and **outbound webhook** channels, each independently optional. Email goes through a platform-default ZeptoMail sender (operator-configured) or a tenant's own SMTP server; webhook posts JSON with an optional HMAC signature.
+- Fires only on a **terminal** failure — failed/timed out with no retry remaining — so transient failures that retry stay quiet.
+- Dispatched off the agent's request path by a background service; best-effort, per-channel failure isolation, logged. A **Send test alert** action verifies delivery at both levels. Config changes and test sends are audited; SMTP/webhook secrets are encrypted at rest.
 
-Acceptance criteria:
-
-- Alert destination can be configured per tenant or environment.
-- Email or webhook delivery is supported.
-- Retry exhaustion can trigger a distinct alert.
-- Alert attempts are recorded.
+Deferred (not blocking): alert scoping by environment, persisting individual alert-attempt records (currently logged), consecutive-failure thresholds, and per-attempt delivery retry.
 
 ---
 

@@ -31,6 +31,10 @@ services:
       Jwt__ExpiryHours: "24"
       Jwt__Secret: ${JWT_SECRET}
       Encryption__MasterKey: ${ENCRYPTION_MASTER_KEY}
+      # Optional platform-default email sender for failure alerts (ZeptoMail).
+      Zepto__Token: ${SERTO_ZEPTO_TOKEN:-}
+      Zepto__FromAddress: ${SERTO_ZEPTO_FROM_ADDRESS:-}
+      Zepto__FromName: ${SERTO_ZEPTO_FROM_NAME:-Serto Alerts}
     depends_on:
       postgres:
         condition: service_healthy

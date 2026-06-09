@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Alerts;
+using ControlPlane.Features.Alerts.Email;
 using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.IntegrationPackages;
@@ -200,6 +202,38 @@ builder.Services.AddScoped<IOrphanedExecutionRepository, OrphanedExecutionReposi
 builder.Services.AddScoped<ICommandHandler<ReapOrphanedExecutionsCommand, ReapOrphanedExecutionsResult>, ReapOrphanedExecutionsHandler>();
 builder.Services.AddHostedService<OrphanedExecutionReaper>();
 
+// Failed-integration alerts
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("Zepto").Get<ZeptoOptions>() ?? new ZeptoOptions());
+var alertWebhookOptions =
+    builder.Configuration.GetSection("AlertWebhooks").Get<AlertWebhookOptions>() ?? new AlertWebhookOptions();
+builder.Services.AddSingleton(alertWebhookOptions);
+builder.Services.AddHttpClient(); // ZeptoMail sender uses the default IHttpClientFactory client
+// The webhook sender uses a dedicated, SSRF-guarded client unless the operator allows private targets.
+var webhookHttpClient = builder.Services.AddHttpClient(WebhookAlertSender.HttpClientName);
+if (!alertWebhookOptions.AllowPrivateNetworkTargets)
+{
+    webhookHttpClient.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        ConnectCallback = OutboundWebhookGuard.CreateGuardedConnectCallback()
+    });
+}
+builder.Services.AddSingleton<AlertDispatchQueue>();
+builder.Services.AddSingleton<IAlertDispatchQueue>(sp => sp.GetRequiredService<AlertDispatchQueue>());
+builder.Services.AddSingleton<IEmailSender, ZeptoEmailSender>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<IWebhookAlertSender, WebhookAlertSender>();
+builder.Services.AddScoped<AlertSettingsRepository>();
+builder.Services.AddScoped<IAlertSettingsReadRepository>(sp => sp.GetRequiredService<AlertSettingsRepository>());
+builder.Services.AddScoped<IAlertSettingsWriteRepository>(sp => sp.GetRequiredService<AlertSettingsRepository>());
+builder.Services.AddScoped<IAlertNotifier, AlertNotifier>();
+builder.Services.AddScoped<ICommandHandler<GetTenantAlertSettingsCommand, TenantAlertSettingsDto>, GetTenantAlertSettingsHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateTenantAlertSettingsCommand, TenantAlertSettingsDto>, UpdateTenantAlertSettingsHandler>();
+builder.Services.AddScoped<ICommandHandler<GetIntegrationAlertSettingsCommand, IntegrationAlertSettingsDto>, GetIntegrationAlertSettingsHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateIntegrationAlertSettingsCommand, IntegrationAlertSettingsDto>, UpdateIntegrationAlertSettingsHandler>();
+builder.Services.AddScoped<ICommandHandler<SendTestAlertCommand, AlertSendOutcome>, SendTestAlertHandler>();
+builder.Services.AddHostedService<AlertDispatchService>();
+
 // Auth feature
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserReadRepository, UserRepository>();
@@ -261,6 +295,7 @@ app.MapAgentTokenEndpoints();
 app.MapWebhookEndpoints();
 app.MapAuditLogEndpoints();
 app.MapWorkflowEndpoints();
+app.MapAlertEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

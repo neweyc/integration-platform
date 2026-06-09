@@ -148,7 +148,7 @@ The agent injects these as environment variables (or via a typed context object)
 7. Integration logs written through context.Logger are sent to the control plane
 8. Agent reports final status: Succeeded / Failed
 9. Control plane records the execution result and logs
-10. (future) Alerts triggered if execution fails
+10. On a terminal failure (no retry remaining), a failure alert is dispatched (see Failure alerts)
 ```
 
 Scheduling state is stored in `integration_schedule_states` with `last_dispatched_at` and `next_run_at`. New scheduled integrations calculate their first run from the integration creation time. Existing scheduled integrations use the persisted `next_run_at`, so agent restarts do not cause all jobs to run immediately.
@@ -160,6 +160,30 @@ If an agent crashes or loses its connection *after* opening an execution record 
 ### Execution history view
 
 Each integration has a full-page history at `/integrations/:id/history` (reached via the **History** action on the Integrations page). It shows a single merged timeline, newest first, combining runtime executions with trigger events. Executions are the primary, selectable rows; trigger events that did not produce a run — `Rejected`, `Deduplicated`, or a `ConvertedToWork` whose work item has not yet executed (shown as **Queued**) — appear as distinct lighter rows, so a webhook that was rejected or work that is stuck waiting for an agent is still visible. Selecting a run shows its logs alongside, with level filtering, message search, and live tailing for in-progress runs. The selected run is reflected in the URL, so a link to a specific execution can be shared.
+
+---
+
+## Failure alerts
+
+Operators can be notified when an integration fails. To keep alerts meaningful, one fires only on a **terminal** failure — an execution that failed (or timed out) and has **no retry remaining**. Transient failures that the retry policy will recover from stay quiet.
+
+**Channels (each optional).** Two delivery channels, configured independently so a tenant can use both, one, or neither:
+
+- **Email** — sent to a list of recipients. By default email goes through the platform mailer (ZeptoMail), so tenants need no email infrastructure. A tenant that wants alerts from its own domain can configure its own SMTP server, which then takes precedence for that tenant. See the [installation guide](installation.md#failure-alert-email-zeptomail) for operator configuration.
+- **Outbound webhook** — an HTTP `POST` of a JSON payload to a URL. Works with Slack, Teams, Discord, and PagerDuty incoming webhooks. An optional signing secret adds an `X-Serto-Signature: sha256=…` HMAC header so the receiver can verify authenticity. To prevent SSRF, webhook targets that resolve to private, loopback, link-local, or cloud-metadata addresses are blocked by default — validated both when settings are saved and again at connect time (so DNS rebinding cannot bypass it). Self-hosted operators that deliberately post to internal endpoints can allow this via `AlertWebhooks:AllowPrivateNetworkTargets`.
+
+SMTP servers must use TLS — STARTTLS (typically port 587) or implicit TLS/SSL-on-connect (typically port 465). Plaintext SMTP (port 25, no TLS) is not supported.
+
+**Configuration scope.** Settings live at two levels:
+
+- **Tenant defaults** (the **Alerts** page) — the destinations every integration uses, plus the SMTP server (always tenant-level).
+- **Per-integration override** (on the integration's history page) — `Inherit` the tenant defaults, turn alerts `Off` for that integration, or set `Custom` destinations. A custom override still sends email through the tenant's email sender; only recipients and the webhook destination are integration-specific.
+
+A **Send test alert** button at each level delivers a sample through the current configuration so SMTP/webhook setup can be verified immediately.
+
+**Delivery semantics.** Alerting is decoupled from execution recording: the failure is queued and delivered by a background dispatcher in its own scope, so a slow or unreachable mail/webhook endpoint never delays or fails the agent's completion call. Delivery is best-effort — each channel is attempted independently (one failing does not block the other), failures are logged, and there is no automatic retry of the alert itself. Alerts queued when the control plane restarts are not redelivered; the execution remains durably recorded as `Failed` regardless. SMTP passwords and webhook signing secrets are encrypted at rest and never returned by the API.
+
+Permissions: `ViewAlerts` to view configuration, `ManageAlerts` to change it or send a test. Admins and Developers get both; Operators can view.
 
 ---
 
@@ -194,9 +218,9 @@ The integration history page shows the active version and lets an operator pick 
 
 | Role | Capabilities |
 |------|-------------|
-| Admin | Full access — manage integrations, secrets, packages, tokens, users, and billing/admin tenant operations |
-| Developer | Deploy and operate integrations, manage secrets, packages, and agent tokens; cannot manage users or billing |
-| Operator | View integrations, executions, and logs; trigger manual runs; cannot view secrets or deploy code |
+| Admin | Full access — manage integrations, secrets, packages, tokens, users, alerts, and billing/admin tenant operations |
+| Developer | Deploy and operate integrations, manage secrets, packages, agent tokens, and failure alerts; cannot manage users or billing |
+| Operator | View integrations, executions, logs, and alert configuration; trigger manual runs; cannot view secrets or deploy code |
 | Member | Legacy read-only role; can view integrations and execution history |
 
 Server-side role enforcement is active through endpoint permission filters. The UI uses the same role/permission model to hide unavailable navigation items and actions. Disallowed direct API calls still receive `403 Forbidden`.
@@ -207,7 +231,7 @@ Admins can invite tenant users from the Users page. The page lists active users 
 
 ## Audit log
 
-The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, and invitations. Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only through the API and the Audit log page.
+The control plane records tenant-scoped audit entries for security- and configuration-relevant changes, including secrets, integrations, packages, agent tokens, personal access tokens, invitations, and alert configuration (including test sends). Entries include actor, action, target type/id, timestamp, and a value-free summary. Secret values and plaintext tokens are never stored in audit entries. Audit log reads are admin-only through the API and the Audit log page.
 
 ---
 
