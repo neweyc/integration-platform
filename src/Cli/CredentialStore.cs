@@ -5,10 +5,13 @@ namespace Cli;
 
 /// <summary>
 /// Persists the user's API token between commands so they don't have to re-enter it on every deploy.
-/// Tokens are stored per control-plane URL in <c>~/.serto/credentials.json</c>. The file is written with
-/// owner-only permissions on Unix (the same approach the GitHub, AWS, and npm CLIs use): the token is a
-/// revocable, tenant-scoped credential, so the practical protection is keeping it unreadable by other
-/// local users rather than encrypting it at rest.
+/// Tokens are stored per control-plane URL in <c>~/.serto/credentials.json</c>, along with the URL of the
+/// most recent login as the default. <c>serto deploy</c> uses that default when no <c>--url</c> is given,
+/// so logging in once is enough.
+///
+/// The file is written with owner-only permissions on Unix (the same approach the GitHub, AWS, and npm
+/// CLIs use): the token is a revocable, tenant-scoped credential, so the practical protection is keeping it
+/// unreadable by other local users rather than encrypting it at rest.
 /// </summary>
 public sealed class CredentialStore
 {
@@ -16,7 +19,8 @@ public sealed class CredentialStore
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        WriteIndented = true
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     private readonly string _filePath;
@@ -37,27 +41,38 @@ public sealed class CredentialStore
 
     public string? GetToken(string controlPlaneUrl)
     {
-        var credentials = Load();
-        return credentials.TryGetValue(Normalize(controlPlaneUrl), out var entry)
+        var file = Load();
+        return file.Credentials.TryGetValue(Normalize(controlPlaneUrl), out var entry)
                && !string.IsNullOrWhiteSpace(entry.Token)
             ? entry.Token
             : null;
     }
 
+    /// <summary>The URL of the most recent login, used by deploy when no <c>--url</c> is supplied.</summary>
+    public string? GetDefaultUrl() => Load().DefaultUrl;
+
     public void Save(string controlPlaneUrl, string token)
     {
-        var credentials = Load();
-        credentials[Normalize(controlPlaneUrl)] = new Entry(token.Trim());
-        Write(credentials);
+        var file = Load();
+        var normalized = Normalize(controlPlaneUrl);
+        file.Credentials[normalized] = new Entry(token.Trim());
+        // The control plane just logged into becomes the default deploy target.
+        file.DefaultUrl = normalized;
+        Write(file);
     }
 
     public bool Remove(string controlPlaneUrl)
     {
-        var credentials = Load();
-        if (!credentials.Remove(Normalize(controlPlaneUrl)))
+        var file = Load();
+        var normalized = Normalize(controlPlaneUrl);
+        if (!file.Credentials.Remove(normalized))
             return false;
 
-        Write(credentials);
+        // If we removed the default, repoint it at whatever remains (or clear it).
+        if (file.DefaultUrl == normalized)
+            file.DefaultUrl = file.Credentials.Keys.FirstOrDefault();
+
+        Write(file);
         return true;
     }
 
@@ -67,32 +82,47 @@ public sealed class CredentialStore
             File.Delete(_filePath);
     }
 
-    public IReadOnlyCollection<string> ListUrls() => Load().Keys.ToList();
+    public IReadOnlyCollection<string> ListUrls() => Load().Credentials.Keys.ToList();
 
     // URLs are matched case-insensitively and ignoring a trailing slash, so "http://Localhost:5000/"
     // and "http://localhost:5000" resolve to the same saved token.
     internal static string Normalize(string controlPlaneUrl) =>
         controlPlaneUrl.Trim().TrimEnd('/').ToLowerInvariant();
 
-    private Dictionary<string, Entry> Load()
+    private CredentialFile Load()
     {
         if (!File.Exists(_filePath))
-            return new Dictionary<string, Entry>(StringComparer.Ordinal);
+            return new CredentialFile();
 
         try
         {
             var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<Dictionary<string, Entry>>(json, JsonOptions)
-                   ?? new Dictionary<string, Entry>(StringComparer.Ordinal);
+
+            // The current format is an object with a "credentials" property; an earlier format was a flat
+            // { url: { token } } map. Detect which one this is so an existing login survives the upgrade and
+            // the new (possibly empty) format is never misread as a legacy map.
+            using var document = JsonDocument.Parse(json);
+            var isCurrentFormat = document.RootElement.ValueKind == JsonValueKind.Object
+                && (document.RootElement.TryGetProperty("credentials", out _)
+                    || document.RootElement.TryGetProperty("defaultUrl", out _));
+
+            if (isCurrentFormat)
+                return JsonSerializer.Deserialize<CredentialFile>(json, JsonOptions) ?? new CredentialFile();
+
+            var legacy = JsonSerializer.Deserialize<Dictionary<string, Entry>>(json, JsonOptions);
+            if (legacy is { Count: > 0 })
+                return new CredentialFile { Credentials = legacy, DefaultUrl = legacy.Keys.First() };
+
+            return new CredentialFile();
         }
         catch
         {
             // A corrupt or unreadable file should not crash a deploy — treat it as no saved credentials.
-            return new Dictionary<string, Entry>(StringComparer.Ordinal);
+            return new CredentialFile();
         }
     }
 
-    private void Write(Dictionary<string, Entry> credentials)
+    private void Write(CredentialFile file)
     {
         var directory = Path.GetDirectoryName(_filePath)!;
         Directory.CreateDirectory(directory);
@@ -100,12 +130,18 @@ public sealed class CredentialStore
             File.SetUnixFileMode(directory,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
-        var json = JsonSerializer.Serialize(credentials, JsonOptions);
+        var json = JsonSerializer.Serialize(file, JsonOptions);
         File.WriteAllText(_filePath, json);
 
         // Lock the file down to the owner immediately after writing.
         if (!OperatingSystem.IsWindows())
             File.SetUnixFileMode(_filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    }
+
+    private sealed class CredentialFile
+    {
+        public string? DefaultUrl { get; set; }
+        public Dictionary<string, Entry> Credentials { get; set; } = new(StringComparer.Ordinal);
     }
 
     public sealed record Entry(

@@ -106,12 +106,17 @@ control-plane URL. On macOS/Linux the file is written with owner-only permission
 is a revocable, tenant-scoped credential. `serto logout` removes it (`--all` clears every saved control
 plane).
 
-`serto deploy` resolves the token in this order, so saved credentials are a convenience that flags and CI
+The control plane you logged into most recently becomes the **default**, so `serto deploy` targets it
+automatically — you don't need to repeat `--url`. (Pass `--url` to deploy to a different saved control
+plane; `serto login` again to switch the default.)
+
+`serto deploy` resolves the **URL** as: explicit `--url` → your last `serto login` → `http://localhost:5000`.
+It resolves the **token** in this order, so saved credentials are a convenience that flags and CI
 environment variables always override:
 
 1. `--token` flag
 2. `SERTO_API_TOKEN` / `IP_API_TOKEN` environment variables (use these in CI)
-3. Saved credentials from `serto login`
+3. Saved credentials for the resolved URL
 4. Interactive prompt
 
 To get a real `serto` command instead of `dotnet run --project src/Cli --`, install the CLI as a .NET global tool after it has been published to NuGet:

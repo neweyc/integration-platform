@@ -103,6 +103,56 @@ public class CredentialStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_SetsDefaultUrl()
+    {
+        var store = new CredentialStore(_path);
+        store.Save("https://cp.acme.com", "pat_prod");
+
+        Assert.Equal("https://cp.acme.com", store.GetDefaultUrl());
+    }
+
+    [Fact]
+    public void MostRecentLogin_BecomesDefault()
+    {
+        var store = new CredentialStore(_path);
+        store.Save("http://localhost:5000", "pat_local");
+        store.Save("https://cp.acme.com", "pat_prod");
+
+        Assert.Equal("https://cp.acme.com", store.GetDefaultUrl());
+    }
+
+    [Fact]
+    public void RemovingDefault_RepointsToRemaining()
+    {
+        var store = new CredentialStore(_path);
+        store.Save("http://localhost:5000", "pat_local");
+        store.Save("https://cp.acme.com", "pat_prod"); // default
+
+        store.Remove("https://cp.acme.com");
+
+        Assert.Equal("http://localhost:5000", store.GetDefaultUrl());
+    }
+
+    [Fact]
+    public void RemovingLastCredential_ClearsDefault()
+    {
+        var store = new CredentialStore(_path);
+        store.Save("https://cp.acme.com", "pat_prod");
+
+        store.Remove("https://cp.acme.com");
+
+        Assert.Null(store.GetDefaultUrl());
+    }
+
+    [Fact]
+    public void GetDefaultUrl_NoCredentials_ReturnsNull()
+    {
+        var store = new CredentialStore(_path);
+
+        Assert.Null(store.GetDefaultUrl());
+    }
+
+    [Fact]
     public void Get_MissingFile_ReturnsNull()
     {
         var store = new CredentialStore(Path.Combine(_tempDir, "does-not-exist.json"));

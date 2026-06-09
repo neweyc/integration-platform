@@ -18,9 +18,8 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         public string Environment { get; init; } = "production";
 
         [CommandOption("-u|--url")]
-        [Description("The Control Plane URL")]
-        [DefaultValue("http://localhost:5000")]
-        public string ControlPlaneUrl { get; init; } = "http://localhost:5000";
+        [Description("The Control Plane URL. Defaults to your last `serto login`, else http://localhost:5000.")]
+        public string? ControlPlaneUrl { get; init; }
 
         [CommandOption("-t|--token")]
         [Description("The API token")]
@@ -71,6 +70,10 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                 return 1;
             }
 
+            // Target URL: explicit --url, else the control plane from the last `serto login`, else localhost.
+            var store = new CredentialStore();
+            var controlPlaneUrl = settings.ControlPlaneUrl ?? store.GetDefaultUrl() ?? "http://localhost:5000";
+
             // Precedence: explicit flag → env vars (CI) → saved login credentials → interactive prompt.
             var token = ResolveToken(
                 settings.Token,
@@ -79,9 +82,9 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
 
             if (token is null)
             {
-                token = new CredentialStore().GetToken(settings.ControlPlaneUrl);
+                token = store.GetToken(controlPlaneUrl);
                 if (token is not null)
-                    AnsiConsole.MarkupLine($"[grey]Using saved credentials for {Markup.Escape(settings.ControlPlaneUrl)}.[/]");
+                    AnsiConsole.MarkupLine($"[grey]Using saved credentials for {Markup.Escape(controlPlaneUrl)}.[/]");
             }
 
             token ??= AnsiConsole.Ask<string>("Enter your [green]API token[/]:");
@@ -91,7 +94,7 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                 .StartAsync("Uploading to Control Plane...", async ctx =>
                 {
                     using var client = new HttpClient();
-                    client.BaseAddress = new Uri(settings.ControlPlaneUrl);
+                    client.BaseAddress = new Uri(controlPlaneUrl);
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                     using var content = new MultipartFormDataContent();

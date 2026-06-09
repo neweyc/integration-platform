@@ -13,9 +13,8 @@ public sealed class LogoutCommand : AsyncCommand<LogoutCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [CommandOption("-u|--url")]
-        [Description("The Control Plane URL to clear")]
-        [DefaultValue("http://localhost:5000")]
-        public string ControlPlaneUrl { get; init; } = "http://localhost:5000";
+        [Description("The Control Plane URL to clear. Defaults to your last `serto login`.")]
+        public string? ControlPlaneUrl { get; init; }
 
         [CommandOption("--all")]
         [Description("Clear all saved credentials")]
@@ -33,10 +32,12 @@ public sealed class LogoutCommand : AsyncCommand<LogoutCommand.Settings>
             return Task.FromResult(0);
         }
 
-        if (store.Remove(settings.ControlPlaneUrl))
-            AnsiConsole.MarkupLine($"[green]Logged out of {Markup.Escape(settings.ControlPlaneUrl)}.[/]");
+        var url = settings.ControlPlaneUrl ?? store.GetDefaultUrl() ?? "http://localhost:5000";
+
+        if (store.Remove(url))
+            AnsiConsole.MarkupLine($"[green]Logged out of {Markup.Escape(url)}.[/]");
         else
-            AnsiConsole.MarkupLine($"[yellow]No saved credentials for {Markup.Escape(settings.ControlPlaneUrl)}.[/]");
+            AnsiConsole.MarkupLine($"[yellow]No saved credentials for {Markup.Escape(url)}.[/]");
 
         return Task.FromResult(0);
     }
