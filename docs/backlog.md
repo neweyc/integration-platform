@@ -684,8 +684,9 @@ the prerequisite for a cloud offering under "credentials never leave our network
 
 Acceptance criteria:
 
-- An `ISecretBackend` abstraction; today's encrypted-in-DB store becomes the **embedded** backend (no
-  behavior change, default for simple self-hosted).
+- ✅ An `ISecretBackend` abstraction; today's encrypted-in-DB store becomes the **embedded** backend (no
+  behavior change, default for simple self-hosted). *(Shipped — the set/delete/resolve-bundle handlers
+  delegate to it.)*
 - An **external-vault** backend: the control plane stores `{ environment, key } → reference` only; secret
   values live in an on-prem vault container (first-party or an OpenBao/HashiCorp Vault/KMS integration),
   and the **agent resolves references against the vault at run time** rather than receiving a decrypted

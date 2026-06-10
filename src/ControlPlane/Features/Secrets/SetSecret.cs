@@ -27,8 +27,7 @@ public interface ISecretRepository
 }
 
 public class SetSecretHandler(
-    ISecretRepository repository,
-    IEncryptionService encryption,
+    ISecretBackend backend,
     IEnvironmentReadRepository environments)
     : ICommandHandler<SetSecretCommand, SetSecretResult>
 {
@@ -40,28 +39,8 @@ public class SetSecretHandler(
         if (!await environments.ExistsAsync(command.TenantId, environment, ct))
             throw new ValidationException($"Environment '{environment}' does not exist. Create it before setting secrets for it.");
 
-        var encryptedValue = encryption.Encrypt(command.Value);
-        var existing = await repository.FindAsync(command.TenantId, environment, command.Key, ct);
-
-        if (existing is not null)
-        {
-            // Update the existing secret's value
-            existing.EncryptedValue = encryptedValue;
-            existing.UpdatedAt = DateTime.UtcNow;
-            var updated = await repository.UpdateAsync(existing, ct);
-            return new SetSecretResult(updated.Id, updated.Environment, updated.Key, updated.UpdatedAt);
-        }
-
-        var newSecret = new Secret
-        {
-            TenantId = command.TenantId,
-            Environment = environment,
-            Key = command.Key,
-            EncryptedValue = encryptedValue
-        };
-
-        var created = await repository.CreateAsync(newSecret, ct);
-        return new SetSecretResult(created.Id, created.Environment, created.Key, created.UpdatedAt);
+        var outcome = await backend.SetAsync(command.TenantId, environment, command.Key, command.Value, ct);
+        return new SetSecretResult(outcome.Id, environment, command.Key, outcome.UpdatedAt);
     }
 
     private static void ValidateCommand(SetSecretCommand command)

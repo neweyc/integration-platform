@@ -10,17 +10,12 @@ public record GetSecretBundleCommand(Guid TenantId, string Environment) : IComma
 
 public record GetSecretBundleResult(IReadOnlyDictionary<string, string> Secrets);
 
-public class GetSecretBundleHandler(ISecretReadRepository repository, IEncryptionService encryption)
+public class GetSecretBundleHandler(ISecretBackend backend)
     : ICommandHandler<GetSecretBundleCommand, GetSecretBundleResult>
 {
     public async Task<GetSecretBundleResult> HandleAsync(GetSecretBundleCommand command, CancellationToken ct = default)
     {
-        var secrets = await repository.ListAsync(command.TenantId, command.Environment, ct);
-
-        var decryptedSecrets = secrets.ToDictionary(
-            keySelector: s => s.Key,
-            elementSelector: s => encryption.Decrypt(s.EncryptedValue));
-
-        return new GetSecretBundleResult(decryptedSecrets);
+        var secrets = await backend.GetBundleAsync(command.TenantId, command.Environment, ct);
+        return new GetSecretBundleResult(secrets);
     }
 }

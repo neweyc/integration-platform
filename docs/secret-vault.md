@@ -80,7 +80,9 @@ vault reference) rather than a store of values.
 
 ## Rollout
 
-1. `ISecretBackend` abstraction; today's DB store becomes the **embedded** backend (no behavior change).
+1. ✅ **Done** — `ISecretBackend` abstraction; today's DB store is now the `EmbeddedSecretBackend` (no
+   behavior change). The set/delete/resolve-bundle handlers delegate to it; key/metadata listing stays
+   on the secret repository.
 2. **External-vault** backend: reference storage in the control plane + agent-side resolution.
 3. Vault container (first-party or integration) added to the compose/agent stack.
 4. Secrets UI binding-management mode; migration tooling.

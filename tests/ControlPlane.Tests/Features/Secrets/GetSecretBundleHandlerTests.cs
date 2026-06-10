@@ -1,35 +1,29 @@
 using ControlPlane.Features.Secrets;
-using ControlPlane.Infrastructure;
 using NSubstitute;
-using Shared.Domain;
 
 namespace ControlPlane.Tests.Features.Secrets;
 
 public class GetSecretBundleHandlerTests
 {
-    private readonly ISecretReadRepository _repository = Substitute.For<ISecretReadRepository>();
-    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly ISecretBackend _backend = Substitute.For<ISecretBackend>();
     private readonly GetSecretBundleHandler _handler;
 
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public GetSecretBundleHandlerTests()
     {
-        _handler = new GetSecretBundleHandler(_repository, _encryption);
+        _handler = new GetSecretBundleHandler(_backend);
     }
 
     [Fact]
-    public async Task HandleAsync_ReturnsDecryptedKeyValuePairs()
+    public async Task HandleAsync_ReturnsBackendBundle()
     {
-        var secrets = new List<Secret>
-        {
-            new() { Key = "API_KEY", EncryptedValue = "enc:abc" },
-            new() { Key = "DB_PASSWORD", EncryptedValue = "enc:xyz" }
-        };
-
-        _repository.ListAsync(_tenantId, "production").Returns(secrets);
-        _encryption.Decrypt("enc:abc").Returns("real-api-key");
-        _encryption.Decrypt("enc:xyz").Returns("real-db-password");
+        _backend.GetBundleAsync(_tenantId, "production", Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>
+            {
+                ["API_KEY"] = "real-api-key",
+                ["DB_PASSWORD"] = "real-db-password"
+            });
 
         var result = await _handler.HandleAsync(new GetSecretBundleCommand(_tenantId, "production"));
 
@@ -40,7 +34,8 @@ public class GetSecretBundleHandlerTests
     [Fact]
     public async Task HandleAsync_NoSecrets_ReturnsEmptyDictionary()
     {
-        _repository.ListAsync(_tenantId, "staging").Returns(new List<Secret>());
+        _backend.GetBundleAsync(_tenantId, "staging", Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>());
 
         var result = await _handler.HandleAsync(new GetSecretBundleCommand(_tenantId, "staging"));
 

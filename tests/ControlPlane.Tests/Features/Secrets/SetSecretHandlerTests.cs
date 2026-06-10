@@ -2,14 +2,12 @@ using ControlPlane.Features.Environments;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using NSubstitute;
-using Shared.Domain;
 
 namespace ControlPlane.Tests.Features.Secrets;
 
 public class SetSecretHandlerTests
 {
-    private readonly ISecretRepository _repository = Substitute.For<ISecretRepository>();
-    private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
+    private readonly ISecretBackend _backend = Substitute.For<ISecretBackend>();
     private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
     private readonly SetSecretHandler _handler;
 
@@ -18,55 +16,26 @@ public class SetSecretHandlerTests
 
     public SetSecretHandlerTests()
     {
-        _handler = new SetSecretHandler(_repository, _encryption, _environments);
+        _handler = new SetSecretHandler(_backend, _environments);
 
         // The environment exists by default; specific tests override this to assert the unknown-env guard.
         _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        // Default encryption behavior — just prepend "encrypted:" for easy test assertions
-        _encryption.Encrypt(Arg.Any<string>()).Returns(call => $"encrypted:{call.Arg<string>()}");
+        _backend.SetAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SecretSetOutcome(Guid.NewGuid(), DateTime.UtcNow));
     }
 
     [Fact]
-    public async Task HandleAsync_NewSecret_CreatesAndReturnsResult()
+    public async Task HandleAsync_ValidSecret_StoresViaBackendAndReturnsResult()
     {
         var command = new SetSecretCommand(_tenantId, Environment, "API_KEY", "my-secret-value");
-
-        _repository.FindAsync(_tenantId, Environment, "API_KEY").Returns((Secret?)null);
-        _repository.CreateAsync(Arg.Any<Secret>()).Returns(call => call.Arg<Secret>());
 
         var result = await _handler.HandleAsync(command);
 
         Assert.Equal(Environment, result.Environment);
         Assert.Equal("API_KEY", result.Key);
-
-        // Value must be encrypted before saving
-        await _repository.Received(1).CreateAsync(Arg.Is<Secret>(s =>
-            s.EncryptedValue == "encrypted:my-secret-value"));
-    }
-
-    [Fact]
-    public async Task HandleAsync_ExistingSecret_UpdatesValue()
-    {
-        var existing = new Secret
-        {
-            Id = Guid.NewGuid(),
-            TenantId = _tenantId,
-            Environment = Environment,
-            Key = "API_KEY",
-            EncryptedValue = "encrypted:old-value"
-        };
-
-        var command = new SetSecretCommand(_tenantId, Environment, "API_KEY", "new-value");
-
-        _repository.FindAsync(_tenantId, Environment, "API_KEY").Returns(existing);
-        _repository.UpdateAsync(Arg.Any<Secret>()).Returns(call => call.Arg<Secret>());
-
-        await _handler.HandleAsync(command);
-
-        await _repository.Received(1).UpdateAsync(Arg.Is<Secret>(s =>
-            s.EncryptedValue == "encrypted:new-value"));
-        await _repository.DidNotReceive().CreateAsync(Arg.Any<Secret>());
+        await _backend.Received(1).SetAsync(
+            _tenantId, Environment, "API_KEY", "my-secret-value", Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -92,7 +61,7 @@ public class SetSecretHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_UnknownEnvironment_ThrowsValidationException()
+    public async Task HandleAsync_UnknownEnvironment_ThrowsAndDoesNotStore()
     {
         // The environment is not in the tenant's registry — the write must be rejected, not silently
         // create a ghost environment.
@@ -102,6 +71,7 @@ public class SetSecretHandlerTests
         var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
 
         Assert.Contains("does not exist", ex.Message);
-        await _repository.DidNotReceive().CreateAsync(Arg.Any<Secret>());
+        await _backend.DidNotReceive().SetAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }
