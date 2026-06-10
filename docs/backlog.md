@@ -283,6 +283,37 @@ Remaining limitations:
 - SDK/package compatibility requirements are not modeled yet.
 - UI does not yet show unsupported or stale-version warnings.
 
+### Agent Capability Tags
+
+**Status:** Todo
+
+Route work to agents by capability, not just environment, so integrations that need a specific
+host (hardware access, a VPN, a GPU, a licensed driver) only run where they can. Design doc:
+[docs/agent-capability-tags.md](agent-capability-tags.md).
+
+Scope is **tags only** — multi-environment agents and treating tags as a trust/security boundary
+are explicit non-goals (each needs its own design; tags here are routing-only and self-reported).
+
+Acceptance criteria:
+
+- Integrations declare required capabilities in code via a `[RequiresAgentCapabilities(...)]` SDK
+  attribute, discovered by the scanner and stored on the integration.
+- Required tags follow the declared-default + override pattern (operator override preserved across
+  redeploys, drift reported) like trigger cron/enabled.
+- Agents advertise offered tags (`AgentOptions.Tags`), sent on poll and reported on heartbeat.
+- The claim path only routes a work item to an agent when `integration.RequiredTags ⊆ agent.Tags`
+  (subset/AND); no required tags ⇒ any agent (today's behavior preserved).
+- "Unroutable" work — pending items no live agent in the environment can satisfy — is surfaced in
+  the UI and as a failure-alert candidate, never a silent stall.
+- Backward compatible: existing agents/integrations/tokens unchanged after migration.
+
+Notes:
+
+- Forward-compatible with a later multi-environment-agent change (eligibility already reads
+  `env ∈ agent.environments`).
+- If a capability ever needs to be *trusted*, tags must move from self-reported to server-assigned
+  on the agent token — folds into the "Authz Revisit" pass.
+
 ### Execution Token Scoping
 
 **Status:** Todo
