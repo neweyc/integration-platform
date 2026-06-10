@@ -72,7 +72,7 @@ Runs on **`http://localhost:5173`** and proxies API calls to the control plane. 
 
 ### 4. Create the first tenant and admin
 
-Open `http://localhost:5173`. You'll be redirected to **`/setup`** to create the first tenant and admin user. After that you can sign in and use the UI.
+Open `http://localhost:5173`. You'll be redirected to **`/setup`** to create the first tenant and admin user. After that you can sign in and use the UI. The Integrations page shows a **Getting started** checklist (connect an agent, deploy an integration, see a successful run) that disappears once you've completed the first run.
 
 ---
 

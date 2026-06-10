@@ -11,6 +11,7 @@ using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Invitations;
+using ControlPlane.Features.Onboarding;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
@@ -267,6 +268,10 @@ builder.Services.AddScoped<ICommandHandler<LogoutCommand, bool>, LogoutHandler>(
 builder.Services.AddScoped<ICommandHandler<ForgotPasswordCommand, bool>, ForgotPasswordHandler>();
 builder.Services.AddScoped<ICommandHandler<ResetPasswordCommand, bool>, ResetPasswordHandler>();
 
+// Onboarding feature
+builder.Services.AddScoped<IOnboardingRepository, OnboardingRepository>();
+builder.Services.AddScoped<ICommandHandler<GetOnboardingStatusCommand, OnboardingStatusResult>, GetOnboardingStatusHandler>();
+
 // User token feature
 builder.Services.AddScoped<IUserTokenService, UserTokenService>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
@@ -331,6 +336,7 @@ app.MapAuditLogEndpoints();
 app.MapWorkflowEndpoints();
 app.MapAlertEndpoints();
 app.MapEnvironmentEndpoints();
+app.MapOnboardingEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

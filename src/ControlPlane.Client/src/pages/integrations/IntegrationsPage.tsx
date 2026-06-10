@@ -33,6 +33,7 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
+import { GettingStartedChecklist } from '@/components/onboarding/GettingStartedChecklist'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
@@ -233,6 +234,8 @@ export function IntegrationsPage() {
         </div>
         {canManageIntegrations && <Button onClick={handleOpenCreate}>New integration</Button>}
       </div>
+
+      <GettingStartedChecklist />
 
       {error && (
         <p className="text-sm text-destructive">
