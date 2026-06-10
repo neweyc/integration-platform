@@ -74,11 +74,46 @@ For "unlicensed commercial use is a liability" to be true, the enforcing compone
 - **Optional time-limited full-scale trial license** for formal evaluations: the real product at real
   scale for ~30 days, then it lapses to Community caps (not a dead app).
 
+## License token (Ed25519, shipped 2026-06-10)
+
+The signing scheme is **Ed25519** (open question 2, resolved). A license is a self-contained token of two
+URL-safe-base64 segments joined by a dot:
+
+```
+<payload>.<signature>     payload = base64url(UTF-8 JSON of { Licensee, Plan, IssuedAt, Expiry, MaxTenants? })
+                          signature = base64url(Ed25519 signature over the payload segment bytes)
+```
+
+The signature covers the exact payload segment transmitted, so there is no JSON-canonicalization concern.
+The format + crypto live in the `Licensing` project (`LicenseToken`, `Ed25519Keys`), referenced by the
+control plane (verify) and the vendor tool (sign) — deliberately **not** by the MIT SDK/CLI/agent, so
+BouncyCastle stays off the customer-facing path.
+
+**Control plane (verify + apply).** `LicenseService` loads the token from `License:Key` (inline) or
+`License:FilePath` once at startup, verifies it against the embedded public key (`LicensePublicKey`), and
+exposes `EffectivePlanFor(tenantPlan)` — evaluated **live** so expiry/grace degrade without a restart:
+
+- *Unlicensed* (no token) → Community caps. *Invalid* (bad signature) → Community caps + a loud error log.
+- *Valid* / *Grace* (within `License:GraceDays`, default 14, past expiry) → lifted to the licensed plan.
+- *Expired* (beyond grace) → degrades to Community. On cloud (Stripe configured) the license is ignored.
+
+`GET /api/license` reports the current edition/state/expiry (full UI is step 3).
+
+**Vendor tool.** `tools/LicenseTool` (`serto-license`, vendor-internal, not shipped):
+
+```
+serto-license keygen --out ./keys                 # Ed25519 keypair; embed the public key in LicensePublicKey
+serto-license issue  --key ./keys/license-signing.key \
+                     --licensee "Acme Corp" --plan Business --expires 2027-01-01 [--max-tenants 1]
+```
+
+> The public key currently embedded in `LicensePublicKey` is a **development placeholder**. Before
+> distributing a real build, run `keygen`, keep the private key secret, and replace the constant.
+
 ## Open questions
 
 1. ~~Integration cap number~~ — **resolved: 10** (2026-06-10).
-2. License format & signing — signed JSON (Ed25519 or RSA); vendor key management; a small issuance CLI.
-   *Open; gates step 2.*
+2. ~~License format & signing~~ — **resolved: Ed25519**, self-contained token, `Licensing` project (2026-06-10).
 3. Per-instance vs per-tenant on the rare multi-tenant on-prem deployment — default **instance-level**.
 4. Which capabilities are *feature-gated* (truly enterprise-only, e.g. SSO) vs *cap-gated*. Prefer caps +
    support as the primary gate so trials stay representative; feature-gate sparingly.
@@ -88,7 +123,11 @@ For "unlicensed commercial use is a liability" to be true, the enforcing compone
 1. ✅ **Done (2026-06-10)** — `MaxIntegrationsFor(plan)` on `BillingPlanCatalog` (Community = 10); enforced
    on `CreateIntegration` and package-upload provisioning (net-new only). Self-hosted execution cap relaxed
    (`QuotaService` meters only when Stripe is configured).
-2. License file format + signing + startup validation → sets the deployment's Plan; ship the public key.
-   *(Unblocked by the control-plane license ratification; signing scheme still to choose — open question 2.)*
-3. Surface edition/expiry/caps in the UI; graceful expiry (grace period → degrade).
-4. Update `monetization.md` tiers; build the vendor-side key-issuance tool.
+2. ✅ **Done (2026-06-10)** — Ed25519 signed license token: `Licensing` project (format + sign/verify),
+   `LicenseService` (startup load + live `EffectivePlanFor` with grace/degrade), threaded into the cap
+   enforcers, `GET /api/license`, and the `serto-license` issuance tool. Public key embedded
+   (`LicensePublicKey`, currently a dev placeholder).
+3. Surface edition/expiry/caps in the UI; graceful expiry (grace period → degrade). *(Backend + API ready;
+   React UI remains.)*
+4. Update `monetization.md` tiers (done); build out the vendor-side key-issuance workflow. **Also: update
+   the repo `LICENSE` files to reflect the MIT-SDK / commercial-control-plane split.**

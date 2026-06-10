@@ -12,6 +12,7 @@ using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Invitations;
+using ControlPlane.Features.Licensing;
 using ControlPlane.Features.Onboarding;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
@@ -25,6 +26,7 @@ using ControlPlane.Infrastructure.Auditing;
 using ControlPlane.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -304,6 +306,15 @@ builder.Services.AddScoped<ICommandHandler<CreateCheckoutSessionCommand, Billing
 builder.Services.AddScoped<ICommandHandler<CreatePortalSessionCommand, BillingUrlResult>, CreatePortalSessionHandler>();
 builder.Services.AddScoped<ICommandHandler<HandleStripeWebhookCommand, bool>, HandleStripeWebhookHandler>();
 
+// Commercial licensing (self-hosted). A signed Ed25519 license token lifts the deployment to its paid
+// plan — the on-prem analog of the Stripe webhook. Loaded and verified once at startup against the
+// embedded public key; the active plan is evaluated live so expiry/grace degrade without a restart.
+// Inert (Community) when no token is configured. See docs/licensing.md.
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("License").Get<LicenseOptions>() ?? new LicenseOptions());
+builder.Services.TryAddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ILicenseService, LicenseService>();
+
 // User token feature
 builder.Services.AddScoped<IUserTokenService, UserTokenService>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
@@ -370,6 +381,7 @@ app.MapAlertEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapOnboardingEndpoints();
 app.MapBillingEndpoints();
+app.MapLicenseEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

@@ -1,4 +1,5 @@
 using ControlPlane.Features.Billing;
+using ControlPlane.Features.Licensing;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
@@ -23,7 +24,8 @@ public record CreateEnvironmentCommand(
 public class CreateEnvironmentHandler(
     IEnvironmentWriteRepository repository,
     ITenantReadRepository tenants,
-    BillingPlanCatalog planCatalog)
+    BillingPlanCatalog planCatalog,
+    ILicenseService license)
     : ICommandHandler<CreateEnvironmentCommand, EnvironmentDto>
 {
     public async Task<EnvironmentDto> HandleAsync(CreateEnvironmentCommand command, CancellationToken ct = default)
@@ -43,10 +45,11 @@ public class CreateEnvironmentHandler(
         // blocks new environments beyond the cap — a downgraded tenant keeps the ones it already has.
         var tenant = await tenants.GetByIdAsync(command.TenantId, ct)
             ?? throw new NotFoundException("Tenant not found.");
-        var maxEnvironments = planCatalog.MaxEnvironmentsFor(tenant.Plan);
+        var plan = license.EffectivePlanFor(tenant.Plan);
+        var maxEnvironments = planCatalog.MaxEnvironmentsFor(plan);
         if (await repository.CountAsync(command.TenantId, ct) >= maxEnvironments)
             throw new ValidationException(
-                $"The {tenant.Plan} plan is limited to {maxEnvironments} environments. Upgrade to add more.");
+                $"The {plan} plan is limited to {maxEnvironments} environments. Upgrade to add more.");
 
         var environment = new Environment
         {

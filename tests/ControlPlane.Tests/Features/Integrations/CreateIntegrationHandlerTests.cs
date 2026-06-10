@@ -1,8 +1,10 @@
 using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Licensing;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
+using ControlPlane.Tests.Features.Licensing;
 using NSubstitute;
 using Shared.Domain;
 
@@ -15,12 +17,13 @@ public class CreateIntegrationHandlerTests
     private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
     private readonly ITenantReadRepository _tenants = Substitute.For<ITenantReadRepository>();
     private readonly BillingPlanCatalog _planCatalog = new(new StripeOptions());
+    private readonly ILicenseService _license = new PassThroughLicenseService();
     private readonly CreateIntegrationHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public CreateIntegrationHandlerTests()
     {
-        _handler = new CreateIntegrationHandler(_repository, _encryption, _environments, _tenants, _planCatalog);
+        _handler = new CreateIntegrationHandler(_repository, _encryption, _environments, _tenants, _planCatalog, _license);
         _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
         _tenants.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
             .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
@@ -152,6 +155,21 @@ public class CreateIntegrationHandlerTests
         _repository.CountAsync(_tenantId).Returns(9);
 
         var result = await _handler.HandleAsync(Command());
+
+        Assert.Equal("sync-orders", result.Slug);
+    }
+
+    [Fact]
+    public async Task HandleAsync_CommercialLicenseLiftsTheCap()
+    {
+        // A Free tenant at the Community cap (10) would normally be blocked, but a Business license lifts
+        // it to an unlimited cap.
+        _repository.CountAsync(_tenantId).Returns(10);
+        var handler = new CreateIntegrationHandler(
+            _repository, _encryption, _environments, _tenants, _planCatalog,
+            new FixedPlanLicenseService(BillingPlan.Business));
+
+        var result = await handler.HandleAsync(Command());
 
         Assert.Equal("sync-orders", result.Slug);
     }

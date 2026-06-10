@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Shared\Shared.csproj" />
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
+    <ProjectReference Include="..\Licensing\Licensing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -5,6 +5,7 @@ using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
+using ControlPlane.Tests.Features.Licensing;
 using NSubstitute;
 using Shared.Domain;
 
@@ -35,7 +36,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithValidPackagePin_StoresPackageId()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog, new PassThroughLicenseService());
         var packageId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -54,7 +55,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithUnknownPackage_Throws()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog, new PassThroughLicenseService());
         var unknownId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -70,7 +71,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithNoPackage_PackageIdIsNull()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog, new PassThroughLicenseService());
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
         repo.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())

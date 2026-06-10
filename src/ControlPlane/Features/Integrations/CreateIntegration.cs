@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
+using ControlPlane.Features.Licensing;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
@@ -117,7 +118,8 @@ public class CreateIntegrationHandler(
     IEncryptionService encryption,
     IEnvironmentReadRepository environments,
     ITenantReadRepository tenants,
-    BillingPlanCatalog planCatalog)
+    BillingPlanCatalog planCatalog,
+    ILicenseService license)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>
 {
     public async Task<CreateIntegrationResult> HandleAsync(CreateIntegrationCommand command, CancellationToken ct = default)
@@ -136,10 +138,11 @@ public class CreateIntegrationHandler(
         // it already has. See docs/licensing.md.
         var tenant = await tenants.GetByIdAsync(command.TenantId, ct)
             ?? throw new NotFoundException("Tenant not found.");
-        var maxIntegrations = planCatalog.MaxIntegrationsFor(tenant.Plan);
+        var plan = license.EffectivePlanFor(tenant.Plan);
+        var maxIntegrations = planCatalog.MaxIntegrationsFor(plan);
         if (await repository.CountAsync(command.TenantId, ct) >= maxIntegrations)
             throw new ValidationException(
-                $"The {tenant.Plan} plan is limited to {maxIntegrations} integrations. Upgrade to add more.");
+                $"The {plan} plan is limited to {maxIntegrations} integrations. Upgrade to add more.");
 
         if (command.PackageId.HasValue
             && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))

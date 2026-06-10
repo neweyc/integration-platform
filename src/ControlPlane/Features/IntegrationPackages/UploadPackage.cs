@@ -4,6 +4,7 @@ using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Licensing;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
@@ -101,7 +102,8 @@ public class UploadPackageHandler(
     ISecretReadRepository secretRepository,
     IEnvironmentReadRepository environmentRepository,
     ITenantReadRepository tenantRepository,
-    BillingPlanCatalog planCatalog)
+    BillingPlanCatalog planCatalog,
+    ILicenseService license)
     : ICommandHandler<UploadPackageCommand, PackageUploadResult>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
@@ -225,7 +227,8 @@ public class UploadPackageHandler(
     {
         var tenant = await tenantRepository.GetByIdAsync(tenantId, ct)
             ?? throw new NotFoundException("Tenant not found.");
-        var maxIntegrations = planCatalog.MaxIntegrationsFor(tenant.Plan);
+        var plan = license.EffectivePlanFor(tenant.Plan);
+        var maxIntegrations = planCatalog.MaxIntegrationsFor(plan);
         if (maxIntegrations == int.MaxValue)
             return;
 
@@ -236,7 +239,7 @@ public class UploadPackageHandler(
         var currentCount = await integrationRepository.CountAsync(tenantId, ct);
         if (currentCount + netNew > maxIntegrations)
             throw new ValidationException(
-                $"The {tenant.Plan} plan is limited to {maxIntegrations} integrations. " +
+                $"The {plan} plan is limited to {maxIntegrations} integrations. " +
                 $"This deploy would add {netNew} new integration(s) on top of {currentCount}. Upgrade to add more.");
     }
 

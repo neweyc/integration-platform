@@ -31,3 +31,7 @@ Thumbs.db
 
 # Claude memory
 .claude/
+
+# Commercial license signing keys (never commit private keys)
+license-signing.key
+license-signing.pub

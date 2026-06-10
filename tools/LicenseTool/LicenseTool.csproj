@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Vendor-internal tool for issuing commercial license keys. NOT shipped to customers and NOT published.
+    Holds no secrets itself — the Ed25519 private key is supplied at runtime (file/arg). See docs/licensing.md.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>serto-license</AssemblyName>
+    <RootNamespace>LicenseTool</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Licensing/Licensing.csproj" />
+  </ItemGroup>
+
+</Project>

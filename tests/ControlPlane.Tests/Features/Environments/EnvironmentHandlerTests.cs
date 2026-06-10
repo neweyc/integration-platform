@@ -2,6 +2,7 @@ using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
+using ControlPlane.Tests.Features.Licensing;
 using NSubstitute;
 using Shared.Domain;
 using Environment = Shared.Domain.Environment;
@@ -22,7 +23,7 @@ public class EnvironmentHandlerTests
             .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
     }
 
-    private CreateEnvironmentHandler CreateHandler => new(_repository, _tenants, _planCatalog);
+    private CreateEnvironmentHandler CreateHandler => new(_repository, _tenants, _planCatalog, new PassThroughLicenseService());
     private UpdateEnvironmentHandler UpdateHandler => new(_repository);
     private DeleteEnvironmentHandler DeleteHandler => new(_repository);
 

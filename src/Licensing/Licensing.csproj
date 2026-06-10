@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Vendor / commercial-side licensing library: the signed-license-key format plus Ed25519 sign/verify.
+    Referenced by the control plane (verify) and the vendor license tool (sign/keygen). Deliberately NOT
+    referenced by the MIT SDK / CLI / runtime agent, so BouncyCastle stays off the customer-facing path.
+    See docs/licensing.md.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shared/Shared.csproj" />
+  </ItemGroup>
+
+</Project>

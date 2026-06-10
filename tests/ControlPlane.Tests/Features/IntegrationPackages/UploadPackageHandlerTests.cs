@@ -7,6 +7,7 @@ using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
+using ControlPlane.Tests.Features.Licensing;
 using NSubstitute;
 using Shared.Domain;
 
@@ -29,7 +30,7 @@ public class UploadPackageHandlerTests
     {
         _handler = new UploadPackageHandler(
             _repository, _scanner, _integrationRepository, _encryption, _secretRepository, _environmentRepository,
-            _tenantRepository, _planCatalog);
+            _tenantRepository, _planCatalog, new PassThroughLicenseService());
         // Auto-provisioning targets the tenant's default environment.
         _environmentRepository.GetDefaultNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns("production");
         _tenantRepository.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
