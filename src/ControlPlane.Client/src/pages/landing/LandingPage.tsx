@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  Boxes,
   CheckCircle2,
   Code2,
   KeyRound,
@@ -9,44 +8,88 @@ import {
   RadioTower,
   ServerCog,
   ShieldCheck,
+  Terminal,
   Workflow,
 } from 'lucide-react'
 import heroImage from '@/assets/hero.png'
 import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { CodeBlock } from '@/components/ui/code-block'
 import { cn } from '@/lib/utils'
 
+// The three things that actually make Serto different — code-first, runs on your own infra, secrets stay put.
 const capabilities = [
   {
     icon: Code2,
-    title: 'Code-first integrations',
-    description: 'Ship C# classes instead of maintaining brittle low-code workflows.',
-  },
-  {
-    icon: KeyRound,
-    title: 'Scoped secrets',
-    description: 'Keep encrypted secrets tenant- and environment-scoped with agent-only retrieval.',
+    title: 'Your code is the manifest',
+    description:
+      'Write integrations as C# classes and decorate them with a trigger. `serto deploy` provisions the schedule and triggers — no click-ops, no proprietary designer.',
   },
   {
     icon: RadioTower,
-    title: 'On-prem execution',
-    description: 'Run agents near private systems while the control plane owns configuration.',
+    title: 'Runs on your infrastructure',
+    description:
+      'Runtime agents execute close to your systems and only need an outbound connection. Self-host the whole platform — nothing has to live in someone else’s cloud.',
+  },
+  {
+    icon: LockKeyhole,
+    title: 'Secrets never leave your network',
+    description:
+      'The agent resolves secrets locally; with the on-prem vault backend the control plane stores only references. Credentials stay inside your perimeter.',
   },
 ]
 
-const workflow = [
+// What you actually get — relays the scope honestly.
+const scope = [
+  {
+    icon: ServerCog,
+    title: 'Control plane',
+    description:
+      'Scheduling, encrypted secrets, package storage, runtime state, execution history with structured logs, plus audit and role-based access.',
+  },
+  {
+    icon: RadioTower,
+    title: 'Runtime agent',
+    description:
+      'A stateless worker that polls for due work, syncs packages (SHA-256 verified), runs integrations in your environments, and reports results.',
+  },
+  {
+    icon: Terminal,
+    title: 'CLI (serto)',
+    description:
+      'Scaffold, scan, test, and deploy integration projects from your terminal or CI. The SDK, connectors, and CLI are MIT-licensed.',
+  },
+]
+
+const runtimeFlow = [
   'Register the integration class',
   'Deploy the compiled package',
-  'Agent runs the scheduled job',
+  'Agent claims and runs the job',
   'Review results and logs',
 ]
+
+const deployCommands = `# 1. Save the compose file + generate your secrets
+#    (one docker-compose.yml — see the full guide)
+cat > .env <<EOF
+POSTGRES_USER=serto
+POSTGRES_PASSWORD=$(openssl rand -base64 24)
+JWT_SECRET=$(openssl rand -base64 32)
+ENCRYPTION_MASTER_KEY=$(openssl rand -base64 32)
+EOF
+
+# 2. Start the control plane + database
+docker compose up -d
+
+# 3. Open http://localhost:8080 and create your admin account`
 
 export function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <HeroSection />
       <CapabilitiesSection />
+      <ScopeSection />
       <OperationsSection />
+      <DeploySection />
       <SecuritySection />
       <FinalSection />
     </main>
@@ -58,11 +101,7 @@ function HeroSection() {
     <section className="relative min-h-[92vh] overflow-hidden border-b bg-[linear-gradient(180deg,oklch(0.985_0_0),oklch(1_0_0))]">
       <div className="absolute inset-y-0 right-0 hidden w-[58%] border-l bg-muted/35 lg:block">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(1_0_0),oklch(0.985_0_0/0.2))]" />
-        <img
-          src={heroImage}
-          alt=""
-          className="absolute right-[14%] top-[18%] h-64 w-64 opacity-90"
-        />
+        <img src={heroImage} alt="" className="absolute right-[14%] top-[18%] h-64 w-64 opacity-90" />
         <div className="absolute bottom-16 right-[12%] w-[38rem] rounded-lg border bg-background/90 p-4 shadow-sm">
           <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.8fr] gap-3 border-b pb-3 text-xs font-medium text-muted-foreground">
             <span>Integration</span>
@@ -84,6 +123,9 @@ function HeroSection() {
           <span>Serto</span>
         </Link>
         <nav className="flex items-center gap-2">
+          <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/install">
+            Self-host
+          </Link>
           <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/login">
             Sign in
           </Link>
@@ -97,40 +139,35 @@ function HeroSection() {
       <div className="relative z-10 mx-auto grid max-w-7xl px-6 pb-12 pt-20 lg:min-h-[calc(92vh-4.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:pt-0">
         <div className="max-w-3xl">
           <Badge variant="outline" className="mb-6">
-            Product name TBD
+            Self-hosted · Integration-as-Code
           </Badge>
           <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-normal text-foreground sm:text-6xl lg:text-7xl">
-            Code-first integration infrastructure
+            Integrations as code, on your own infrastructure
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            A control plane for scheduling, secrets, package storage, runtime agents, execution history, and structured logs.
+            Write integrations as C# classes. Serto schedules them, stores their secrets and packages, and
+            runs them on agents inside your own network — the control plane never has to see your
+            credentials.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link className={cn(buttonVariants({ size: 'lg' }))} to="/app">
-              Open control plane
+            <Link className={cn(buttonVariants({ size: 'lg' }))} to="/install">
+              Deploy on your infrastructure
               <ArrowRight className="size-4" />
             </Link>
-            <Link className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))} to="/setup">
-              First-time setup
+            <Link className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))} to="/app">
+              Open control plane
             </Link>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Free, self-hosted Community edition. Commercial licenses lift the caps.
+          </p>
         </div>
       </div>
     </section>
   )
 }
 
-function HeroTableRow({
-  name,
-  env,
-  run,
-  status,
-}: {
-  name: string
-  env: string
-  run: string
-  status: string
-}) {
+function HeroTableRow({ name, env, run, status }: { name: string; env: string; run: string; status: string }) {
   return (
     <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.8fr] gap-3 border-b py-3 text-sm last:border-b-0">
       <span className="font-medium">{name}</span>
@@ -146,9 +183,10 @@ function CapabilitiesSection() {
     <section className="border-b bg-background py-20">
       <div className="mx-auto max-w-7xl px-6">
         <div className="max-w-2xl">
-          <h2 className="text-3xl font-semibold tracking-normal">Built for operational integrations</h2>
+          <h2 className="text-3xl font-semibold tracking-normal">Why teams choose Serto</h2>
           <p className="mt-4 text-muted-foreground">
-            Keep integration logic in source control while the platform handles the surrounding operational work.
+            The developer experience of a modern platform, without handing your systems or secrets to a
+            third party.
           </p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -165,28 +203,77 @@ function CapabilitiesSection() {
   )
 }
 
-function OperationsSection() {
+function ScopeSection() {
   return (
     <section className="border-b bg-muted/35 py-20">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="max-w-2xl">
+          <Badge variant="secondary">What&apos;s in the box</Badge>
+          <h2 className="mt-5 text-3xl font-semibold tracking-normal">Three parts, one platform</h2>
+          <p className="mt-4 text-muted-foreground">
+            Serto is a control plane, a runtime agent, and a CLI. You author and deploy integrations; the
+            platform handles scheduling, secrets, packaging, and observability around them.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {scope.map(item => (
+            <article key={item.title} className="rounded-lg border bg-background p-6">
+              <item.icon className="size-5 text-muted-foreground" />
+              <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function OperationsSection() {
+  return (
+    <section className="border-b bg-background py-20">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
           <Badge variant="secondary">Runtime workflow</Badge>
           <h2 className="mt-5 text-3xl font-semibold tracking-normal">From C# class to observed execution</h2>
           <p className="mt-4 text-muted-foreground">
-            The control plane stores definitions and state. Runtime agents poll for work, fetch scoped secrets, run integrations, and report results.
+            The control plane stores definitions and state. Runtime agents poll for work, fetch scoped
+            secrets, run integrations, and report results — re-deploys preserve any operator changes.
           </p>
         </div>
         <div className="rounded-lg border bg-background p-4">
-          {workflow.map((step, index) => (
+          {runtimeFlow.map((step, index) => (
             <div key={step} className="flex items-center gap-4 border-b py-4 last:border-b-0">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-medium">
                 {index + 1}
               </span>
               <span className="text-sm font-medium">{step}</span>
-              {index === workflow.length - 1 && <CheckCircle2 className="ml-auto size-5 text-muted-foreground" />}
+              {index === runtimeFlow.length - 1 && <CheckCircle2 className="ml-auto size-5 text-muted-foreground" />}
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
+
+function DeploySection() {
+  return (
+    <section className="border-b bg-muted/35 py-20">
+      <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+        <div>
+          <Badge variant="secondary">Self-hosted in minutes</Badge>
+          <h2 className="mt-5 text-3xl font-semibold tracking-normal">Run it on your own infrastructure</h2>
+          <p className="mt-4 text-muted-foreground">
+            All you need is Docker. One compose file runs the control plane and its database; you generate a
+            couple of secrets and open the app. No account, no cloud dependency.
+          </p>
+          <Link className={cn(buttonVariants({ size: 'lg' }), 'mt-6')} to="/install">
+            Full install guide
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+        <CodeBlock filename="get started" code={deployCommands} />
       </div>
     </section>
   )
@@ -197,24 +284,28 @@ function SecuritySection() {
     <section className="border-b bg-background py-20">
       <div className="mx-auto max-w-7xl px-6">
         <div className="grid gap-4 lg:grid-cols-3">
-          <FeatureBand icon={ShieldCheck} title="Tenant scoped" text="Resources are isolated by tenant across integrations, secrets, tokens, packages, and execution records." />
-          <FeatureBand icon={LockKeyhole} title="Encrypted secrets" text="Secret values are encrypted at rest and only returned through agent-token protected runtime endpoints." />
-          <FeatureBand icon={ServerCog} title="Agent controlled" text="Agents run near internal systems without exposing inbound access to the control plane." />
+          <FeatureBand
+            icon={ShieldCheck}
+            title="Tenant scoped"
+            text="Resources are isolated by tenant across integrations, secrets, tokens, packages, and execution records."
+          />
+          <FeatureBand
+            icon={KeyRound}
+            title="Secrets stay on-prem"
+            text="Values are encrypted at rest and only returned over agent-token endpoints; the external-vault backend keeps them off the control plane entirely."
+          />
+          <FeatureBand
+            icon={ServerCog}
+            title="Agent controlled"
+            text="Agents run near internal systems and connect outbound only — no inbound access to the control plane required."
+          />
         </div>
       </div>
     </section>
   )
 }
 
-function FeatureBand({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: typeof ShieldCheck
-  title: string
-  text: string
-}) {
+function FeatureBand({ icon: Icon, title, text }: { icon: typeof ShieldCheck; title: string; text: string }) {
   return (
     <div className="flex gap-4 rounded-lg border p-5">
       <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
@@ -232,13 +323,13 @@ function FinalSection() {
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Boxes className="size-4" />
-            Package storage, execution logs, and agent polling are available now.
+            <Workflow className="size-4" />
+            Free Community edition · self-hosted · your code is the manifest.
           </div>
-          <h2 className="mt-3 text-2xl font-semibold tracking-normal">Open the control plane to configure your first integration.</h2>
+          <h2 className="mt-3 text-2xl font-semibold tracking-normal">Stand up Serto on your own infrastructure.</h2>
         </div>
-        <Link className={cn(buttonVariants({ size: 'lg' }))} to="/app">
-          Continue
+        <Link className={cn(buttonVariants({ size: 'lg' }))} to="/install">
+          Get started
           <ArrowRight className="size-4" />
         </Link>
       </div>
