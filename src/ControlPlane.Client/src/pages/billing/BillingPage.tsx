@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LicenseCard } from './LicenseCard'
 
 // Self-serve plans an admin can switch to from the UI. Enterprise is sales-assisted; Free is the
 // default with no charge, so neither appears as a checkout button.
@@ -51,6 +52,9 @@ export function BillingPage() {
 
       {isLoading || !data ? (
         <Skeleton className="h-40 w-full" />
+      ) : !data.billingEnabled ? (
+        // Self-hosted: Stripe billing is inert; the commercial license is the plan/upgrade path.
+        <LicenseCard />
       ) : (
         <>
           <Card>
@@ -90,13 +94,7 @@ export function BillingPage() {
             </CardContent>
           </Card>
 
-          {!data.billingEnabled ? (
-            <p className="text-sm text-muted-foreground">
-              Self-serve billing isn't configured on this deployment. Contact your operator to change
-              plans.
-            </p>
-          ) : (
-            <Card>
+          <Card>
               <CardHeader>
                 <CardTitle>Change plan</CardTitle>
                 <CardDescription>Upgrade to a higher monthly execution limit.</CardDescription>
@@ -119,7 +117,6 @@ export function BillingPage() {
                 ))}
               </CardContent>
             </Card>
-          )}
 
           {actionError && (
             <p className="text-sm text-destructive">

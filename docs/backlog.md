@@ -648,7 +648,7 @@ Completed notes:
 
 ### Commercial Licensing (Community edition + license key)
 
-**Status:** In progress (caps, execution relaxation, and signed Ed25519 license keys shipped; UI surfacing + LICENSE-file split remain)
+**Status:** In progress (caps, execution relaxation, signed Ed25519 license keys, and UI surfacing shipped; production signing key + LICENSE-file split remain)
 
 Give self-hosted deployments an upgrade path: a free Community edition (the full product, capped by
 estate size) and a signed commercial license that lifts the caps for paying businesses. Design doc:
@@ -672,7 +672,8 @@ Acceptance criteria:
 - ✅ Expiry degrades to Community caps after a grace period (default 14d) with warnings — never bricks.
   *(Shipped — `EffectivePlanFor` evaluated live.)*
 - ✅ A vendor-side key-issuance tool exists — `tools/LicenseTool` (`serto-license keygen|issue`).
-- Edition, expiry, and caps are surfaced in the **UI** (backend + `GET /api/license` ready; React remains).
+- ✅ Edition, expiry, and caps are surfaced in the **UI** — Billing page License/Edition card (self-hosted),
+  backed by an enriched `GET /api/license`. *(Shipped 2026-06-10.)*
 - Replace the embedded **dev-placeholder** public key with a production key; update repo `LICENSE` files
   for the MIT-SDK / commercial-control-plane split.
 

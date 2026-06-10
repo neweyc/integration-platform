@@ -1,4 +1,6 @@
+using ControlPlane.Features.Billing;
 using ControlPlane.Infrastructure.Authorization;
+using Shared.Domain;
 
 namespace ControlPlane.Features.Licensing;
 
@@ -6,21 +8,29 @@ public static class LicenseEndpoints
 {
     public static IEndpointRouteBuilder MapLicenseEndpoints(this IEndpointRouteBuilder app)
     {
-        // The current edition/state/expiry. Instance-level (not per-tenant), read straight from the
-        // license service. Surfaced so operators can see their entitlement and expiry. Full UI is step 3.
-        app.MapGet("/api/license", (ILicenseService license) =>
+        // The current edition/state/expiry plus the caps it entitles. Instance-level (not per-tenant), read
+        // straight from the license service. Surfaced so operators can see their entitlement and expiry.
+        app.MapGet("/api/license", (ILicenseService license, BillingPlanCatalog planCatalog) =>
             {
                 var info = license.Current;
+
+                // The plan that actually governs caps on this self-hosted deployment (base tenant is Free):
+                // Free for unlicensed/invalid/expired, the licensed plan while valid or in grace.
+                var effectivePlan = license.EffectivePlanFor(BillingPlan.Free);
+                var maxIntegrations = planCatalog.MaxIntegrationsFor(effectivePlan);
+                var maxEnvironments = planCatalog.MaxEnvironmentsFor(effectivePlan);
+
                 return Results.Ok(new
                 {
-                    Edition = info.State == LicenseState.Unlicensed || info.State == LicenseState.Invalid
-                        ? "Community"
-                        : info.Plan.ToString(),
+                    Edition = effectivePlan == BillingPlan.Free ? "Community" : effectivePlan.ToString(),
                     State = info.State.ToString(),
                     info.Licensee,
-                    info.Plan,
+                    LicensedPlan = info.Plan,
                     info.Expiry,
-                    info.GraceUntil
+                    info.GraceUntil,
+                    // null = unlimited (paid plans).
+                    MaxIntegrations = maxIntegrations == int.MaxValue ? (int?)null : maxIntegrations,
+                    MaxEnvironments = maxEnvironments == int.MaxValue ? (int?)null : maxEnvironments
                 });
             })
             .RequireAuthorization()

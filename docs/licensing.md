@@ -97,7 +97,8 @@ exposes `EffectivePlanFor(tenantPlan)` — evaluated **live** so expiry/grace de
 - *Valid* / *Grace* (within `License:GraceDays`, default 14, past expiry) → lifted to the licensed plan.
 - *Expired* (beyond grace) → degrades to Community. On cloud (Stripe configured) the license is ignored.
 
-`GET /api/license` reports the current edition/state/expiry (full UI is step 3).
+`GET /api/license` reports the current edition/state/expiry plus the caps the edition entitles, surfaced
+on the Billing page (the License/Edition card) for self-hosted deployments.
 
 **Vendor tool.** `tools/LicenseTool` (`serto-license`, vendor-internal, not shipped):
 
@@ -127,7 +128,9 @@ serto-license issue  --key ./keys/license-signing.key \
    `LicenseService` (startup load + live `EffectivePlanFor` with grace/degrade), threaded into the cap
    enforcers, `GET /api/license`, and the `serto-license` issuance tool. Public key embedded
    (`LicensePublicKey`, currently a dev placeholder).
-3. Surface edition/expiry/caps in the UI; graceful expiry (grace period → degrade). *(Backend + API ready;
-   React UI remains.)*
+3. ✅ **Done (2026-06-10)** — Surface edition/expiry/caps in the UI (Billing page License/Edition card,
+   self-hosted) backed by an enriched `GET /api/license`; graceful expiry (grace → degrade) is live via
+   `EffectivePlanFor`.
 4. Update `monetization.md` tiers (done); build out the vendor-side key-issuance workflow. **Also: update
-   the repo `LICENSE` files to reflect the MIT-SDK / commercial-control-plane split.**
+   the repo `LICENSE` files to reflect the MIT-SDK / commercial-control-plane split**, and replace the
+   embedded dev-placeholder public key with a production key.
