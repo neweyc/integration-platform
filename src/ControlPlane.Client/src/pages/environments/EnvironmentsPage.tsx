@@ -40,6 +40,11 @@ export function EnvironmentsPage() {
 
   const { data, isLoading, error } = useEnvironments(canView)
 
+  // The plan caps how many environments a tenant may create (null = unlimited).
+  const maxEnvironments = data?.maxEnvironments ?? null
+  const atEnvironmentLimit =
+    maxEnvironments != null && (data?.environments.length ?? 0) >= maxEnvironments
+
   const createEnvironment = useMutation({
     mutationFn: () =>
       environmentsApi.create({
@@ -120,7 +125,16 @@ export function EnvironmentsPage() {
             Names are canonicalized to lowercase.
           </p>
         </div>
-        {canManage && <Button onClick={handleOpenCreate}>New environment</Button>}
+        {canManage && (
+          <div className="flex flex-col items-end gap-1">
+            <Button onClick={handleOpenCreate} disabled={atEnvironmentLimit}>New environment</Button>
+            {atEnvironmentLimit && (
+              <p className="text-xs text-muted-foreground">
+                {data!.environments.length} / {maxEnvironments} on your plan — upgrade to add more.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (

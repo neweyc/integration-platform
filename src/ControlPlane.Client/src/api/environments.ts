@@ -10,6 +10,8 @@ export interface EnvironmentSummary {
 
 export interface ListEnvironmentsResponse {
   environments: EnvironmentSummary[]
+  // The plan's environment cap; null = unlimited (paid plans).
+  maxEnvironments: number | null
 }
 
 export interface UpsertEnvironmentRequest {
