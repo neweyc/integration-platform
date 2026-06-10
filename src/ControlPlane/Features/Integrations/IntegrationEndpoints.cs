@@ -29,7 +29,8 @@ public static class IntegrationEndpoints
                     request.TimeoutSeconds,
                     request.RetryMaxAttempts,
                     request.RetryBackoffSeconds,
-                    request.PackageId), ct);
+                    request.PackageId,
+                    request.RequiredTags), ct);
 
             return Results.Created($"/api/integrations/{result.Id}", result);
         }).RequirePermission(Permission.ManageIntegrations);
@@ -114,7 +115,8 @@ public static class IntegrationEndpoints
                     request.Triggers,
                     request.TimeoutSeconds,
                     request.RetryMaxAttempts,
-                    request.RetryBackoffSeconds), ct);
+                    request.RetryBackoffSeconds,
+                    request.RequiredTags), ct);
 
             return Results.Ok(result);
         }).RequirePermission(Permission.ManageIntegrations);
@@ -155,7 +157,8 @@ public record CreateIntegrationRequest(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    IReadOnlyList<string>? RequiredTags = null);
 
 public record UpdateIntegrationRequest(
     string Name,
@@ -164,4 +167,5 @@ public record UpdateIntegrationRequest(
     IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
-    int? RetryBackoffSeconds = null);
+    int? RetryBackoffSeconds = null,
+    IReadOnlyList<string>? RequiredTags = null);

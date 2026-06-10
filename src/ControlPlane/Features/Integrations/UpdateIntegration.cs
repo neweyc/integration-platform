@@ -13,7 +13,8 @@ public record UpdateIntegrationCommand(
     IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
-    int? RetryBackoffSeconds = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+    int? RetryBackoffSeconds = null,
+    IReadOnlyList<string>? RequiredTags = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.IntegrationUpdated, "Integration", IntegrationId.ToString(), $"Updated integration '{Name}'");
@@ -45,6 +46,11 @@ public class UpdateIntegrationHandler(IIntegrationUpdateRepository repository, I
         integration.TimeoutSeconds = command.TimeoutSeconds;
         integration.RetryMaxAttempts = command.RetryMaxAttempts;
         integration.RetryBackoffSeconds = command.RetryBackoffSeconds;
+        // Operator-driven edit: the active required tags are taken as-is and become an override when
+        // they diverge from the code-declared defaults (which stay untouched). Omitting the field
+        // (null) leaves the current tags alone; sending an empty list clears them.
+        if (command.RequiredTags is not null)
+            integration.RequiredTags = TagSet.Normalize(command.RequiredTags);
         // The active package version is intentionally not touched here. It can only be changed through
         // the dedicated repoint endpoint, so a general edit (name, status, triggers) can never alter
         // or un-pin the package.

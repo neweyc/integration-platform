@@ -83,6 +83,7 @@ export interface CreateIntegrationRequest {
   className: string
   triggers: IntegrationTrigger[]
   timeoutSeconds?: number
+  requiredTags?: string[]
 }
 
 export interface UpdateIntegrationRequest {
@@ -91,6 +92,7 @@ export interface UpdateIntegrationRequest {
   status: IntegrationStatus
   triggers: IntegrationTrigger[]
   timeoutSeconds?: number
+  requiredTags?: string[]
 }
 
 export interface ListIntegrationsResponse {

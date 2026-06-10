@@ -51,6 +51,7 @@ interface FormState {
   className: string
   timeoutSeconds: string
   status: 'Enabled' | 'Disabled'
+  requiredTags: string
 }
 
 const emptyForm: FormState = {
@@ -63,6 +64,7 @@ const emptyForm: FormState = {
   className: '',
   timeoutSeconds: '',
   status: 'Enabled',
+  requiredTags: '',
 }
 
 export function IntegrationsPage() {
@@ -161,6 +163,7 @@ export function IntegrationsPage() {
     mutationFn: (data: CreateIntegrationRequest) => integrationsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       setSheetOpen(false)
       setForm(emptyForm)
       setEditingTriggers([])
@@ -173,6 +176,7 @@ export function IntegrationsPage() {
       integrationsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       setSheetOpen(false)
       setForm(emptyForm)
       setEditingId(null)
@@ -183,7 +187,10 @@ export function IntegrationsPage() {
 
   const deleteIntegration = useMutation({
     mutationFn: (id: string) => integrationsApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
+    },
   })
 
   const runManual = useMutation({
@@ -191,6 +198,7 @@ export function IntegrationsPage() {
     onSuccess: () => {
       setRunError(null)
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       queryClient.invalidateQueries({ queryKey: ['integration-executions'] })
       queryClient.invalidateQueries({ queryKey: ['trigger-events'] })
     },
@@ -220,6 +228,7 @@ export function IntegrationsPage() {
       className: integration.className,
       timeoutSeconds: integration.timeoutSeconds?.toString() ?? '',
       status: integration.status,
+      requiredTags: (integration.requiredTags ?? []).join(', '),
     })
     setFormError(null)
     setEditingId(integration.id)
@@ -232,6 +241,11 @@ export function IntegrationsPage() {
     if (!canManageIntegrations) return
     setFormError(null)
 
+    const requiredTags = form.requiredTags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean)
+
     if (formMode === 'create') {
       createIntegration.mutate({
         name: form.name,
@@ -241,6 +255,7 @@ export function IntegrationsPage() {
         className: form.className,
         triggers: buildSubmittedTriggers(),
         timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
+        requiredTags,
       })
     } else if (editingId) {
       updateIntegration.mutate({
@@ -251,6 +266,7 @@ export function IntegrationsPage() {
           status: form.status,
           triggers: buildSubmittedTriggers(editingTriggers),
           timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
+          requiredTags,
         },
       })
     }
@@ -579,6 +595,20 @@ export function IntegrationsPage() {
                 value={form.timeoutSeconds}
                 onChange={e => setForm(prev => ({ ...prev, timeoutSeconds: e.target.value }))}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="requiredTags">Required agent capabilities</Label>
+              <Input
+                id="requiredTags"
+                placeholder="e.g. hardware-signal, gpu"
+                value={form.requiredTags}
+                onChange={e => setForm(prev => ({ ...prev, requiredTags: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated. Work only runs on an agent offering all of these tags; leave blank to run
+                on any agent. Overrides the value declared in code.
+              </p>
             </div>
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
