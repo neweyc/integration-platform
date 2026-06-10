@@ -304,6 +304,24 @@ readinessProbe:
 
 ---
 
+## Billing (Stripe)
+
+Self-serve billing is optional and disabled until a Stripe secret key is configured — without it, the
+**Billing** page shows the tenant's plan and usage but offers no checkout, and the webhook endpoint
+no-ops. To enable it:
+
+1. Set `Stripe:SecretKey`, `Stripe:WebhookSecret`, and the `Stripe:TeamPriceId` / `Stripe:BusinessPriceId`
+   for your Stripe Prices. Set `App:BaseUrl` to the control plane's public URL (checkout/portal redirects).
+2. Point a Stripe webhook at `https://<your-control-plane>/api/billing/webhook`, subscribed to
+   `checkout.session.completed` and `customer.subscription.created|updated|deleted`.
+
+A tenant admin (the `ManageBilling` permission) can then upgrade via Stripe Checkout and manage their
+subscription through the Stripe Billing Portal. The webhook is the source of truth: it syncs each
+tenant's plan, subscription status, and monthly execution quota from Stripe. Quotas: Free 1,000,
+Team 10,000, Business 100,000 executions/month.
+
+---
+
 ## Configuration reference
 
 The control plane reads standard ASP.NET Core configuration. Any setting can be overridden by an environment variable using `__` (double underscore) as the section separator.
@@ -326,6 +344,9 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Zepto:FromName` | `Zepto__FromName` | Display name on platform-sent alert emails (defaults to `Serto Alerts`). |
 | `Zepto:BaseUrl` | `Zepto__BaseUrl` | ZeptoMail API endpoint. Override for the EU data center. Defaults to `https://api.zeptomail.com/v1.1/email`. |
 | `AlertWebhooks:AllowPrivateNetworkTargets` | `AlertWebhooks__AllowPrivateNetworkTargets` | When `false` (default), alert webhook URLs that resolve to private/loopback/link-local/metadata addresses are blocked (SSRF protection). Set `true` only on self-hosted deployments that deliberately post alerts to internal endpoints. |
+| `Stripe:SecretKey` | `Stripe__SecretKey` | Stripe secret key. Leave blank to disable self-serve billing entirely (the feature is inert without it). |
+| `Stripe:WebhookSecret` | `Stripe__WebhookSecret` | Signing secret for the `/api/billing/webhook` endpoint, used to verify Stripe webhook signatures. |
+| `Stripe:TeamPriceId` / `Stripe:BusinessPriceId` | `Stripe__TeamPriceId` / `Stripe__BusinessPriceId` | Stripe Price ids for the self-serve Team and Business plans. |
 
 The shipped `appsettings.json` contains `CHANGE-THIS-...` placeholders for `Jwt:Secret` and `Encryption:MasterKey`; always override them in any non-development environment.
 

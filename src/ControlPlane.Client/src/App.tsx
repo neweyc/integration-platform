@@ -16,6 +16,7 @@ import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
 import { UserTokensPage } from '@/pages/userTokens/UserTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { AuditLogPage } from '@/pages/audit/AuditLogPage'
+import { BillingPage } from '@/pages/billing/BillingPage'
 import { AlertsPage } from '@/pages/alerts/AlertsPage'
 import { AcceptInvitationPage } from '@/pages/users/AcceptInvitationPage'
 import { AppShell } from '@/components/layout/AppShell'
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="/access-tokens" element={<UserTokensPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/billing" element={<BillingPage />} />
               <Route path="/audit-log" element={<AuditLogPage />} />
             </Route>
 

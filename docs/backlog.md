@@ -563,7 +563,7 @@ Completed notes:
 
 ### Billing Integration
 
-**Status:** In Progress
+**Status:** Done
 
 Integrate subscriptions and payment management.
 
@@ -573,6 +573,14 @@ Acceptance criteria:
 - Tenant plan is stored.
 - Plan limits are enforced.
 - Billing portal link is available to admins.
+
+Completed notes:
+
+- Added a Billing feature behind `IStripeGateway` (the only type touching the Stripe SDK), so handlers are SDK-free and unit-testable. Inert unless `Stripe:SecretKey` is configured.
+- `POST /api/billing/webhook` verifies the signature and reconciles tenant `Plan`, `SubscriptionStatus`, Stripe ids, and `MaxExecutionsPerMonth` from `checkout.session.completed` and `customer.subscription.created|updated|deleted` (the webhook is the source of truth). Plan limits flow into the existing `IQuotaService`.
+- `Tenant.Plan` (Free/Team/Business/Enterprise) and `SubscriptionStatus` added with a migration; quotas: Free 1k, Team 10k, Business 100k.
+- Admins (`ManageBilling`) get `GET /api/billing/current` (plan + usage), `POST /api/billing/checkout` (Stripe Checkout), and `POST /api/billing/portal` (Stripe Billing Portal). Frontend Billing page with usage bar, plan switcher, and "Manage billing".
+- 13 tests (webhook reconciliation, checkout/portal guards, status). Configuration documented in `installation.md`.
 
 ### Marketplace
 

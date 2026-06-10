@@ -28,6 +28,7 @@ const navItems = [
   { label: 'Access tokens', path: '/access-tokens', permission: 'ViewIntegrations' },
   { label: 'Alerts', path: '/alerts', permission: 'ViewAlerts' },
   { label: 'Users', path: '/users', permission: 'ManageUsers' },
+  { label: 'Billing', path: '/billing', permission: 'ManageBilling' },
   { label: 'Audit log', path: '/audit-log', permission: 'ViewAuditLog' },
 ] satisfies {
   label: string

@@ -5,6 +5,7 @@ using ControlPlane.Features.Alerts;
 using ControlPlane.Features.Alerts.Email;
 using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Health;
 using ControlPlane.Features.IntegrationPackages;
@@ -272,6 +273,17 @@ builder.Services.AddScoped<ICommandHandler<ResetPasswordCommand, bool>, ResetPas
 builder.Services.AddScoped<IOnboardingRepository, OnboardingRepository>();
 builder.Services.AddScoped<ICommandHandler<GetOnboardingStatusCommand, OnboardingStatusResult>, GetOnboardingStatusHandler>();
 
+// Billing feature (Stripe). Inert unless a Stripe secret key is configured.
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("Stripe").Get<StripeOptions>() ?? new StripeOptions());
+builder.Services.AddSingleton<BillingPlanCatalog>();
+builder.Services.AddScoped<IStripeGateway, StripeGateway>();
+builder.Services.AddScoped<IBillingRepository, BillingRepository>();
+builder.Services.AddScoped<ICommandHandler<GetBillingStatusCommand, BillingStatusResult>, GetBillingStatusHandler>();
+builder.Services.AddScoped<ICommandHandler<CreateCheckoutSessionCommand, BillingUrlResult>, CreateCheckoutSessionHandler>();
+builder.Services.AddScoped<ICommandHandler<CreatePortalSessionCommand, BillingUrlResult>, CreatePortalSessionHandler>();
+builder.Services.AddScoped<ICommandHandler<HandleStripeWebhookCommand, bool>, HandleStripeWebhookHandler>();
+
 // User token feature
 builder.Services.AddScoped<IUserTokenService, UserTokenService>();
 builder.Services.AddScoped<IUserTokenRepository, UserTokenRepository>();
@@ -337,6 +349,7 @@ app.MapWorkflowEndpoints();
 app.MapAlertEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapOnboardingEndpoints();
+app.MapBillingEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

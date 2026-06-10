@@ -45,8 +45,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(t => t.Slug).IsUnique();
             b.Property(t => t.Status).HasConversion<string>();
             b.Property(t => t.MaxExecutionsPerMonth).HasDefaultValue(1000);
+            b.Property(t => t.Plan).HasConversion<string>().HasMaxLength(20).HasDefaultValue(BillingPlan.Free);
+            b.Property(t => t.SubscriptionStatus).HasMaxLength(50);
             b.Property(t => t.StripeCustomerId).HasMaxLength(100);
             b.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
+            b.HasIndex(t => t.StripeCustomerId);
         });
 
         modelBuilder.Entity<User>(b =>
