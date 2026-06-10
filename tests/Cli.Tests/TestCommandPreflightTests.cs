@@ -94,4 +94,39 @@ public class TestCommandPreflightTests
 
         Assert.Empty(result.Warnings);
     }
+
+    [Fact]
+    public void WebhookIntegrationWithoutPayload_WarnsToPassPayload()
+    {
+        var result = TestCommand.Preflight(typeof(WebhookOk), None, None, payload: null);
+
+        Assert.False(result.HasErrors);
+        Assert.Contains(result.Warnings, w => w.Contains("--payload", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void WebhookIntegrationWithJsonPayload_ProducesNoPayloadWarning()
+    {
+        var result = TestCommand.Preflight(typeof(WebhookOk), None, None, payload: """{"orderId":42}""");
+
+        Assert.DoesNotContain(result.Warnings, w => w.Contains("payload", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void NonJsonPayload_WarnsItIsNotValidJson()
+    {
+        var result = TestCommand.Preflight(typeof(WebhookOk), None, None, payload: "not-json");
+
+        Assert.False(result.HasErrors);
+        Assert.Contains(result.Warnings, w => w.Contains("not valid JSON", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ScheduledIntegrationWithoutPayload_DoesNotWarnAboutPayload()
+    {
+        // The webhook-payload nudge is scoped to webhook integrations; scheduled ones take no body.
+        var result = TestCommand.Preflight(typeof(ValidScheduled), None, None, payload: null);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Contains("payload", StringComparison.OrdinalIgnoreCase));
+    }
 }

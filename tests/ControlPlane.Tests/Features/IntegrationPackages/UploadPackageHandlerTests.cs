@@ -367,6 +367,69 @@ public class UploadPackageHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ExplicitEnvironment_ProvisionsAndChecksSecretsAgainstIt()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _environmentRepository.ExistsAsync(_tenantId, "staging", Arg.Any<CancellationToken>()).Returns(true);
+        _secretRepository.ListAsync(_tenantId, "staging", Arg.Any<CancellationToken>())
+            .Returns(new List<Secret> { new() { Key = "ERP_API_KEY", Environment = "staging", TenantId = _tenantId } });
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Order Sync", "order-sync", "Acme.OrderSync",
+                Description: null, TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                [new DiscoveredIntegrationTrigger("Hook", "hook", TriggerType.Webhook, CronExpression: null)])
+        ]);
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data,
+            RequiredSecrets: ["ERP_API_KEY", "DB_CONNECTION_STRING"], Environment: "staging"));
+
+        // Integration is provisioned into the requested environment, not the tenant default.
+        await _integrationRepository.Received(1).UpsertBySlugAsync(
+            Arg.Is<Integration>(i => i.Environment == "staging"),
+            Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+            Arg.Any<CancellationToken>());
+        // And the secret check runs against the requested environment's secrets.
+        Assert.Equal("staging", result.SecretCheck.Environment);
+        Assert.Equal(["ERP_API_KEY"], result.SecretCheck.Satisfied);
+        Assert.Equal(["DB_CONNECTION_STRING"], result.SecretCheck.Missing);
+        await _environmentRepository.DidNotReceive().GetDefaultNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_ExplicitEnvironmentThatDoesNotExist_ThrowsAndCreatesNothing()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _environmentRepository.ExistsAsync(_tenantId, "staging", Arg.Any<CancellationToken>()).Returns(false);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            _handler.HandleAsync(new UploadPackageCommand(
+                _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data,
+                Environment: "staging")));
+
+        Assert.Contains("staging", ex.Message);
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<AssemblyPackage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_BlankEnvironment_FallsBackToTenantDefault()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+
+        // A whitespace-only environment is treated as "not supplied" and uses the tenant default.
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data, Environment: "   "));
+
+        Assert.Equal("production", result.SecretCheck.Environment);
+        await _environmentRepository.Received(1).GetDefaultNameAsync(_tenantId, Arg.Any<CancellationToken>());
+        await _environmentRepository.DidNotReceive().ExistsAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task HandleAsync_RequiredSecrets_MatchesConfiguredCaseInsensitivelyAndDedupes()
     {
         var data = CreateZipWithDll();

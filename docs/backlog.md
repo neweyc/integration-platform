@@ -48,7 +48,9 @@ Priority ladder:
 
 ### Developer Authoring Loop
 
-**Status:** In Progress
+**Status:** Done
+
+All acceptance criteria are met: scan/package/deploy previews and provisioning reports, the `serto test` preflight (attributes, cron, discoverability, connector config, cancellation-token usage, sample-payload handling), required-secret detection and the deploy secret check (now honoring `--environment`), and signed webhook replay both against a running control plane and fully offline via `--local`. One beyond-scope nice-to-have remains in the gaps list (payload *schema* deserialization).
 
 Make the normal developer path seamless before layering AI or MCP on top of it. A developer should be able to create, test, scan, package, deploy, and inspect an integration without guessing what the control plane will do.
 
@@ -74,11 +76,15 @@ Completed notes:
 - `serto deploy` sends the scanned required-secret names with the upload; the control plane compares them against the secrets configured in the provisioning environment and returns a secret check (required/satisfied/missing) that the CLI renders. Advisory only — a missing secret does not block the upload.
 - Added CLI and control-plane tests for scan metadata, invalid cron validation, required-secret detection, package hash calculation, upload provisioning reports, deploy trigger detail formatting, webhook replay signing/payload handling, and the deploy secret check (handler comparison plus end-to-end upload).
 
+Completed notes (continued):
+
+- `serto deploy --environment <name>` is now honored end to end: the CLI sends the target environment with the upload, and the control plane provisions the integrations into it and runs the secret check against its configured secrets. The named environment must already exist (an unknown name is rejected); omitting the flag still falls back to the tenant's default environment. Covered by handler tests (explicit env, unknown env rejected, blank-falls-back-to-default) and an end-to-end upload test.
+- `serto test` preflight now also warns when `RunAsync` never references its `CancellationToken` (a source-level check, since the compiled type can't reveal token threading), when a webhook integration is tested without `--payload`, and when a supplied payload is not valid JSON. Added unit tests for the cancellation-token detector and the payload/webhook preflight warnings.
+- `serto webhook replay --local` runs the whole webhook path offline: it signs the payload, validates the signed delivery exactly as the control plane would (signature + the same freshness window), then runs the integration's `RunAsync` with the payload through the `serto test` harness — no running control plane required. The CLI mirrors the server signature/freshness contract (as it already does for the webhook header names), with the tolerance constant kept in step and the verify/freshness helpers locked by unit tests.
+
 Remaining gaps:
 
-- The deploy secret check runs against the provisioning environment (the tenant's default environment); `serto deploy --environment` is not yet honored for provisioning or the check.
-- `serto test` now runs a preflight before executing: it errors on a missing `[Integration]` attribute, an invalid cron expression, or a non-parameterless constructor, and warns when a code-referenced secret is missing from `--secrets`. The connectors also validate their configuration at construction (absolute http(s) base URL, parseable SQL connection string). Still not validated: cancellation-token usage and sample-payload/webhook schema behavior.
-- `serto webhook replay` sends signed payloads to a running control plane; it does not yet spin up an in-process control-plane test harness.
+- `serto test` preflight still does not validate sample-payload *schema* behavior beyond "is it JSON" (it does not deserialize against an expected shape). The connectors validate their configuration at construction (absolute http(s) base URL, parseable SQL connection string).
 
 ### Trigger Declarations And Runtime Overrides
 

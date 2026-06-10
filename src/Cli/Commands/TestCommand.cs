@@ -102,9 +102,13 @@ public sealed class TestCommand : AsyncCommand<TestCommand.Settings>
         // plus a required-secret cross-check, so common "works locally, breaks on deploy" mistakes surface
         // now instead of at deploy or first run.
         var requiredSecrets = ScanCommand.DiscoverRequiredSecrets(currentDir);
-        var preflight = Preflight(type, requiredSecrets, secrets.Keys);
+        var preflight = Preflight(type, requiredSecrets, secrets.Keys, settings.Payload);
 
-        foreach (var warning in preflight.Warnings)
+        // A source-level nudge (the compiled type can't reveal whether RunAsync honors cancellation):
+        // warn when RunAsync ignores its token, so long-running work that won't stop on cancel is caught.
+        var cancellationWarnings = DiscoverCancellationTokenWarnings(currentDir);
+
+        foreach (var warning in preflight.Warnings.Concat(cancellationWarnings))
             AnsiConsole.MarkupLine($"[yellow]⚠ {Markup.Escape(warning)}[/]");
         foreach (var error in preflight.Errors)
             AnsiConsole.MarkupLine($"[red]✗ {Markup.Escape(error)}[/]");
@@ -147,12 +151,13 @@ public sealed class TestCommand : AsyncCommand<TestCommand.Settings>
     /// <summary>
     /// Structural validation of an integration class before it runs, mirroring what the control plane
     /// enforces at deploy: a discovery attribute must be present, a scheduled integration's cron must be
-    /// valid, and the class must be instantiable with no arguments. Returns hard errors (which should stop
-    /// the run) and warnings (missing secrets, which should not). Pure and reflection-based so it is unit
-    /// testable without building a project.
+    /// valid, and the class must be instantiable with no arguments. Also cross-checks required secrets and
+    /// the sample <paramref name="payload"/> a webhook integration will parse. Returns hard errors (which
+    /// should stop the run) and warnings (missing secrets, payload shape, which should not). Pure and
+    /// reflection-based so it is unit testable without building a project.
     /// </summary>
     public static TestPreflightResult Preflight(
-        Type type, IReadOnlyList<string> requiredSecrets, IEnumerable<string> providedSecretKeys)
+        Type type, IReadOnlyList<string> requiredSecrets, IEnumerable<string> providedSecretKeys, string? payload = null)
     {
         var errors = new List<string>();
         var warnings = new List<string>();
@@ -180,7 +185,76 @@ public sealed class TestCommand : AsyncCommand<TestCommand.Settings>
                 warnings.Add($"{secret} is referenced in code but missing from --secrets; the integration may fail when it needs it.");
         }
 
+        // Sample-payload checks for webhook integrations: in production the trigger delivers a request body,
+        // so testing one without a payload (or with a non-JSON one) exercises a path real deliveries won't.
+        if (attribute is WebhookIntegrationAttribute && string.IsNullOrWhiteSpace(payload))
+            warnings.Add($"{type.Name} is a webhook integration; pass --payload to exercise how it parses the request body.");
+
+        if (!string.IsNullOrWhiteSpace(payload) && !IsValidJson(payload))
+            warnings.Add("The supplied --payload is not valid JSON; webhook payloads are usually JSON, so the integration may fail to parse it.");
+
         return new TestPreflightResult(errors, warnings);
+    }
+
+    /// <summary>
+    /// Scans a project's source for integration classes whose <c>RunAsync</c> never references its
+    /// CancellationToken parameter — work that won't stop when the platform cancels a run. Source-based
+    /// because the compiled assembly can't reveal whether the token is threaded through. Best-effort: it
+    /// skips build output and silently ignores files it cannot read.
+    /// </summary>
+    public static IReadOnlyList<string> DiscoverCancellationTokenWarnings(string projectDirectory)
+    {
+        if (!Directory.Exists(projectDirectory))
+            return [];
+
+        var warnings = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)
+                     .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                                 && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            string source;
+            try { source = File.ReadAllText(file); }
+            catch (IOException) { continue; }
+
+            if (DetectUnusedCancellationToken(source) is { } token)
+                warnings.Add($"RunAsync in {Path.GetFileName(file)} never uses its CancellationToken '{token}'; long-running work won't stop when the platform cancels the run.");
+        }
+
+        return warnings;
+    }
+
+    /// <summary>
+    /// Returns the name of the CancellationToken parameter on the first <c>RunAsync</c> in
+    /// <paramref name="source"/> when that token is declared but never referenced again, otherwise null.
+    /// A deliberately conservative heuristic: a token passed to a helper method (so it appears twice)
+    /// counts as used and is not flagged. Pure so it is unit testable without a project on disk.
+    /// </summary>
+    public static string? DetectUnusedCancellationToken(string source)
+    {
+        var signature = System.Text.RegularExpressions.Regex.Match(
+            source, @"RunAsync\s*\([^)]*CancellationToken\s+(?<ct>\w+)");
+        if (!signature.Success)
+            return null;
+
+        var name = signature.Groups["ct"].Value;
+        var uses = System.Text.RegularExpressions.Regex.Matches(
+            source, $@"\b{System.Text.RegularExpressions.Regex.Escape(name)}\b").Count;
+
+        // Exactly one occurrence is the parameter declaration itself — anything more means it is referenced.
+        return uses <= 1 ? name : null;
+    }
+
+    private static bool IsValidJson(string payload)
+    {
+        try
+        {
+            using var _ = JsonDocument.Parse(payload);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static bool IsValidCron(string expression, out string reason)

@@ -347,6 +347,90 @@ public class AgentExecutionApiIntegrationTests
         Assert.DoesNotContain("ERP_API_KEY", uploaded.SecretCheck.Missing);
     }
 
+    [Fact]
+    public async Task UploadPackage_WithEnvironmentField_ProvisionsAndChecksSecretsAgainstThatEnvironment()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(
+            client,
+            "/api/setup",
+            new
+            {
+                TenantName = "Acme",
+                TenantSlug = $"acme-{Guid.NewGuid():N}",
+                AdminEmail = "admin@example.com",
+                AdminPassword = "Password123!"
+            });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        // Create a non-default environment and configure the secret only there.
+        var stagingEnv = await client.PostAsJsonAsync("/api/environments", new { Name = "staging" });
+        Assert.Equal(HttpStatusCode.OK, stagingEnv.StatusCode);
+        var setSecret = await client.PutAsJsonAsync("/api/secrets/staging/ERP_API_KEY", new { Value = "configured" });
+        Assert.Equal(HttpStatusCode.OK, setSecret.StatusCode);
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("MyCompany.Integrations"), "Name" },
+            { new StringContent("1.0.0"), "Version" },
+            { new ByteArrayContent(CreateZipWithDll()), "File", "integrations.zip" },
+            { new StringContent("ERP_API_KEY"), "requiredSecrets" },
+            // Field name mirrors exactly what the CLI deploy --environment sends.
+            { new StringContent("staging"), "environment" }
+        };
+
+        var uploadResponse = await client.PostAsync("/api/integration-packages", form);
+        Assert.Equal(HttpStatusCode.Created, uploadResponse.StatusCode);
+
+        var uploaded = (await uploadResponse.Content.ReadFromJsonAsync<PackageUploadWithSecretsResponse>())!;
+
+        // The secret check runs against staging — where ERP_API_KEY is configured — not the default
+        // production environment, where it is not. This proves the field is honored end to end.
+        Assert.Equal("staging", uploaded.SecretCheck.Environment);
+        Assert.Contains("ERP_API_KEY", uploaded.SecretCheck.Satisfied);
+        Assert.Empty(uploaded.SecretCheck.Missing);
+    }
+
+    [Fact]
+    public async Task UploadPackage_WithUnknownEnvironment_IsRejected()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        await using var factory = new ControlPlaneWebApplicationFactory(database.ConnectionString);
+        using var client = factory.CreateClient();
+
+        var setup = await PostJsonAsync<SetupResponse>(
+            client,
+            "/api/setup",
+            new
+            {
+                TenantName = "Acme",
+                TenantSlug = $"acme-{Guid.NewGuid():N}",
+                AdminEmail = "admin@example.com",
+                AdminPassword = "Password123!"
+            });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setup.Token);
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent("MyCompany.Integrations"), "Name" },
+            { new StringContent("1.0.0"), "Version" },
+            { new ByteArrayContent(CreateZipWithDll()), "File", "integrations.zip" },
+            { new StringContent("does-not-exist"), "environment" }
+        };
+
+        var uploadResponse = await client.PostAsync("/api/integration-packages", form);
+        Assert.Equal(HttpStatusCode.BadRequest, uploadResponse.StatusCode);
+    }
+
     private static async Task<T> GetJsonAsync<T>(HttpClient client, string url)
     {
         var response = await client.GetAsync(url);

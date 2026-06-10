@@ -17,7 +17,11 @@ public record UploadPackageCommand(
     string Version,
     string FileName,
     byte[] Data,
-    IReadOnlyList<string>? RequiredSecrets = null) : ICommand<PackageUploadResult>, IAuditableCommand
+    IReadOnlyList<string>? RequiredSecrets = null,
+    // The environment to provision integrations into and run the secret check against. Null means
+    // "use the tenant's default environment" (the historical behavior); a non-null value is an
+    // explicit target supplied by `serto deploy --environment` and must already exist.
+    string? Environment = null) : ICommand<PackageUploadResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.PackageUploaded, "Package",
@@ -99,12 +103,7 @@ public class UploadPackageHandler(
     {
         Validate(command);
 
-        // Auto-provisioned integrations land in the tenant's default environment, and the secret check
-        // compares against that environment's secrets. Resolved from the registry (rather than a hardcoded
-        // "production") so it always points at an environment that actually exists.
-        var provisioningEnvironment = await environmentRepository.GetDefaultNameAsync(command.TenantId, ct)
-            ?? throw new ValidationException(
-                "This tenant has no environments configured. Create an environment before uploading a package.");
+        var provisioningEnvironment = await ResolveProvisioningEnvironmentAsync(command, ct);
 
         if (await repository.VersionExistsAsync(command.TenantId, command.Name, command.Version, ct))
             throw new ConflictException($"Package '{command.Name}' version '{command.Version}' already exists.");
@@ -155,6 +154,27 @@ public class UploadPackageHandler(
         var secretCheck = await BuildSecretCheckAsync(command, provisioningEnvironment, ct);
 
         return new PackageUploadResult(metadata, provisioning, secretCheck);
+    }
+
+    // Resolves which environment the package's integrations are provisioned into and the secret check
+    // runs against. An explicit `serto deploy --environment` target must already exist (provisioning into
+    // a phantom environment would silently strand the integrations); when none is supplied we fall back to
+    // the tenant's default environment, resolved from the registry so it always names a real environment.
+    private async Task<string> ResolveProvisioningEnvironmentAsync(UploadPackageCommand command, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(command.Environment))
+        {
+            var requested = command.Environment.Trim();
+            if (!await environmentRepository.ExistsAsync(command.TenantId, requested, ct))
+                throw new ValidationException(
+                    $"Environment '{requested}' does not exist. Create it first, or omit --environment to deploy to the default environment.");
+
+            return requested;
+        }
+
+        return await environmentRepository.GetDefaultNameAsync(command.TenantId, ct)
+            ?? throw new ValidationException(
+                "This tenant has no environments configured. Create an environment before uploading a package.");
     }
 
     // Compares the client-supplied required secret names against the secrets configured in the

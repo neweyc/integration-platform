@@ -85,6 +85,14 @@ To test a specific class or provide a mock webhook payload:
 serto test MyIntegration --payload '{"id": 123}'
 ```
 
+Before it runs, `serto test` performs the same structural preflight the control plane enforces at deploy (a discovery attribute is present, a scheduled cron is valid, the class is parameterless-constructible) and adds a few authoring nudges as warnings:
+
+- A required secret referenced in code is missing from `--secrets`.
+- A **webhook** integration is being tested without a `--payload`, or the supplied payload is not valid JSON — both exercise a path real deliveries won't.
+- `RunAsync` never references its `CancellationToken`, so long-running work won't stop when the platform cancels a run. (This is a source-level check; the compiled type can't reveal whether the token is honored.)
+
+Warnings never block the local run; only the structural errors do.
+
 To replay a signed webhook payload against the control plane without configuring an external sender:
 
 ```bash
@@ -94,6 +102,15 @@ SERTO_WEBHOOK_SECRET=whs_... serto webhook replay \
 ```
 
 Use `--payload-file ./sample-webhook.json` for larger samples and `--delivery-id` when you need to test idempotency behavior with a stable delivery id. The replay command signs the payload with the same `X-Integration-Signature`, `X-Integration-Timestamp`, and `X-Integration-Delivery` headers expected by production webhook delivery.
+
+To run the **whole webhook path locally** — no control plane, no network — add `--local`:
+
+```bash
+serto webhook replay --local --payload '{"id":123}'
+serto webhook replay --local OrderHook --payload '{"id":123}' --secrets ./secrets.json
+```
+
+In local mode the command signs the payload, validates the signed delivery exactly as the control plane would (signature check plus the same timestamp freshness window), and then runs the integration's `RunAsync` with the payload through the same harness as `serto test`. It builds the project first and, with no class name, runs the first integration it finds; pass a class name to target a specific one and `--secrets` to supply integration secrets. The signing secret defaults to a fixed local value (loopback both signs and verifies, so it never leaves the machine), or pass `--secret` to use your own.
 
 To preview what the control plane will discover before deploy:
 
@@ -141,6 +158,14 @@ SERTO_API_TOKEN=pat_... serto deploy --url http://your-control-plane
 ```
 
 `serto deploy` publishes the project, creates the archive, runs the scan preview, prints the package hash, and uploads the package only if validation passes. The Control Plane will scan your assembly, discover your classes decorated with integration and trigger attributes, and automatically create or update the executable integration plus its trigger records. This keeps one integration class able to support multiple triggers, such as scheduled and webhook entry points, without duplicating the integration code.
+
+By default the package is provisioned into the tenant's default environment. Pass `--environment <name>` to target a specific one:
+
+```bash
+serto deploy --environment staging
+```
+
+The named environment must already exist (deploying into a phantom environment would silently strand the integrations); an unknown name is rejected. The integrations are created or updated in that environment, and the secret check below runs against *its* configured secrets.
 
 The deploy also sends the required secret names found by the scan, and the Control Plane compares them against the secrets configured in the provisioning environment. After upload, the result includes a **secret check** listing which required secrets are configured and which are missing. Missing secrets are reported as a warning only — they do not block the deploy — but any integration that needs an unset secret will fail until you add it (via the Secrets UI or `PUT /api/secrets/{environment}/{key}`).
 

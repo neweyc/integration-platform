@@ -13,9 +13,8 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [CommandOption("-e|--environment")]
-        [Description("The environment to deploy to")]
-        [DefaultValue("production")]
-        public string Environment { get; init; } = "production";
+        [Description("The environment to provision into and secret-check against. Defaults to the tenant's default environment.")]
+        public string? Environment { get; init; }
 
         [CommandOption("-u|--url")]
         [Description("The Control Plane URL. Defaults to your last `serto login`, else http://localhost:5000.")]
@@ -104,6 +103,11 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                     content.Add(new StringContent(package.PackageName), "name");
                     content.Add(new StringContent(package.PackageVersion), "version");
                     content.Add(fileContent, "file", Path.GetFileName(package.ArchivePath));
+
+                    // Only send the environment when the user named one; otherwise the control plane
+                    // provisions into the tenant's default environment.
+                    if (!string.IsNullOrWhiteSpace(settings.Environment))
+                        content.Add(new StringContent(settings.Environment.Trim()), "environment");
 
                     // The server can't detect required secrets from a compiled assembly, so send the
                     // names found by the local source scan for it to check against configured secrets.

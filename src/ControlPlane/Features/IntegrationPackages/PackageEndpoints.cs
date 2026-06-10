@@ -30,6 +30,13 @@ public static class PackageEndpoints
                 ? rawSecrets.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 : null;
 
+            // Optional target environment from `serto deploy --environment`. Read directly from the form
+            // (like requiredSecrets) so an absent field stays optional and falls back to the tenant default.
+            var environment = httpRequest.Form.TryGetValue("environment", out var rawEnvironment)
+                && !string.IsNullOrWhiteSpace(rawEnvironment)
+                    ? rawEnvironment.ToString()
+                    : null;
+
             var result = await dispatcher.SendAsync(
                 new UploadPackageCommand(
                     currentUser.TenantId,
@@ -37,7 +44,8 @@ public static class PackageEndpoints
                     request.Version,
                     request.File.FileName,
                     memory.ToArray(),
-                    requiredSecrets),
+                    requiredSecrets,
+                    environment),
                 ct);
 
             return Results.Created($"/api/integration-packages/{result.Package.Id}", result);

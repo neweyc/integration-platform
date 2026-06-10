@@ -19,6 +19,70 @@ public class WebhookReplayCommandTests
     }
 
     [Fact]
+    public void VerifySignature_AcceptsSignatureProducedByCreateSignature()
+    {
+        var body = Encoding.UTF8.GetBytes("""{"orderId":123}""");
+        var signature = WebhookReplayCommand.CreateSignature("whs_secret", "1790000000", body);
+
+        Assert.True(WebhookReplayCommand.VerifySignature("whs_secret", "1790000000", body, signature));
+    }
+
+    [Fact]
+    public void VerifySignature_RejectsWrongSecret()
+    {
+        var body = Encoding.UTF8.GetBytes("""{"orderId":123}""");
+        var signature = WebhookReplayCommand.CreateSignature("whs_secret", "1790000000", body);
+
+        Assert.False(WebhookReplayCommand.VerifySignature("whs_other", "1790000000", body, signature));
+    }
+
+    [Fact]
+    public void VerifySignature_RejectsTamperedBody()
+    {
+        var signed = Encoding.UTF8.GetBytes("""{"orderId":123}""");
+        var signature = WebhookReplayCommand.CreateSignature("whs_secret", "1790000000", signed);
+        var tampered = Encoding.UTF8.GetBytes("""{"orderId":999}""");
+
+        Assert.False(WebhookReplayCommand.VerifySignature("whs_secret", "1790000000", tampered, signature));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("deadbeef")]            // missing sha256= prefix
+    [InlineData("sha256=")]            // empty hex
+    public void VerifySignature_RejectsMalformedHeaders(string? header)
+    {
+        var body = Encoding.UTF8.GetBytes("{}");
+
+        Assert.False(WebhookReplayCommand.VerifySignature("whs_secret", "1790000000", body, header));
+    }
+
+    [Fact]
+    public void IsTimestampFresh_AcceptsTimestampWithinWindow()
+    {
+        var now = DateTimeOffset.FromUnixTimeSeconds(1790000000);
+        var recent = (1790000000 - WebhookReplayCommand.ToleranceSeconds + 1).ToString();
+
+        Assert.True(WebhookReplayCommand.IsTimestampFresh(recent, now));
+    }
+
+    [Fact]
+    public void IsTimestampFresh_RejectsStaleTimestamp()
+    {
+        var now = DateTimeOffset.FromUnixTimeSeconds(1790000000);
+        var stale = (1790000000 - WebhookReplayCommand.ToleranceSeconds - 1).ToString();
+
+        Assert.False(WebhookReplayCommand.IsTimestampFresh(stale, now));
+    }
+
+    [Fact]
+    public void IsTimestampFresh_RejectsUnparseableTimestamp()
+    {
+        Assert.False(WebhookReplayCommand.IsTimestampFresh("not-a-number", DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
     public void ResolveSecret_PrefersExplicitSecret()
     {
         var secret = WebhookReplayCommand.ResolveSecret(" whs_explicit ", "whs_env");
