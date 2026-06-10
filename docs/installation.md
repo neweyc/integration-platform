@@ -50,6 +50,14 @@ dotnet run --project src/ControlPlane
 
 Runs on `http://localhost:5000`. **Migrations are applied automatically on startup**, so the schema is created on first run.
 
+To add a schema change, edit the entities/`AppDbContext` fluent mapping and generate a migration (a design-time factory lets the EF tooling run without booting the app):
+
+```bash
+dotnet ef migrations add <Name> --project src/ControlPlane/ControlPlane.csproj
+```
+
+The migration is applied automatically the next time the control plane starts.
+
 ### 3. Start the frontend dev server
 
 ```bash
@@ -64,7 +72,7 @@ Runs on **`http://localhost:5173`** and proxies API calls to the control plane. 
 
 ### 4. Create the first tenant and admin
 
-Open `http://localhost:5173`. You'll be redirected to **`/setup`** to create the first tenant and admin user. After that you can sign in and use the UI.
+Open `http://localhost:5173`. You'll be redirected to **`/setup`** to create the first tenant and admin user. After that you can sign in and use the UI. The Integrations page shows a **Getting started** checklist (connect an agent, deploy an integration, see a successful run) that disappears once you've completed the first run.
 
 ---
 
@@ -204,7 +212,7 @@ POSTGRES_PASSWORD=<strong-password>
 JWT_SECRET=<random, min 32 chars>
 ENCRYPTION_MASTER_KEY=<random>
 
-SERTO_IMAGE_TAG=1.0.3
+SERTO_IMAGE_TAG=1.1.0
 SERTO_CONTROL_PLANE_CONNECTION_STRING="Host=db.example.com;Database=integration_platform;Username=platform;Password=<strong-password>"
 ```
 
@@ -296,6 +304,24 @@ readinessProbe:
 
 ---
 
+## Billing (Stripe)
+
+Self-serve billing is optional and disabled until a Stripe secret key is configured — without it, the
+**Billing** page shows the tenant's plan and usage but offers no checkout, and the webhook endpoint
+no-ops. To enable it:
+
+1. Set `Stripe:SecretKey`, `Stripe:WebhookSecret`, and the `Stripe:TeamPriceId` / `Stripe:BusinessPriceId`
+   for your Stripe Prices. Set `App:BaseUrl` to the control plane's public URL (checkout/portal redirects).
+2. Point a Stripe webhook at `https://<your-control-plane>/api/billing/webhook`, subscribed to
+   `checkout.session.completed` and `customer.subscription.created|updated|deleted`.
+
+A tenant admin (the `ManageBilling` permission) can then upgrade via Stripe Checkout and manage their
+subscription through the Stripe Billing Portal. The webhook is the source of truth: it syncs each
+tenant's plan, subscription status, and monthly execution quota from Stripe. Quotas: Free 1,000,
+Team 10,000, Business 100,000 executions/month.
+
+---
+
 ## Configuration reference
 
 The control plane reads standard ASP.NET Core configuration. Any setting can be overridden by an environment variable using `__` (double underscore) as the section separator.
@@ -307,12 +333,20 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Jwt:Issuer` | `Jwt__Issuer` | Token issuer |
 | `Jwt:Audience` | `Jwt__Audience` | Token audience |
 | `Jwt:ExpiryHours` | `Jwt__ExpiryHours` | Access-token lifetime in hours |
+| `Jwt:RefreshTokenExpiryDays` | `Jwt__RefreshTokenExpiryDays` | Refresh-token lifetime in days (default 30). Refresh tokens rotate on every use. |
+| `App:BaseUrl` | `App__BaseUrl` | Public base URL of the control plane (e.g. `https://serto.example.com`). Required for password-reset emails to contain a working link. |
+| `RateLimit:Enabled` | `RateLimit__Enabled` | Master switch for HTTP rate limiting (default `true`). |
+| `RateLimit:PermitLimit` / `RateLimit:WindowSeconds` | `RateLimit__PermitLimit` / `RateLimit__WindowSeconds` | Global per-IP request budget and window (default 300 / 60s). |
+| `RateLimit:AuthPermitLimit` / `RateLimit:AuthWindowSeconds` | `RateLimit__AuthPermitLimit` / `RateLimit__AuthWindowSeconds` | Stricter per-IP budget for sensitive auth endpoints — login, setup, password reset, token refresh (default 10 / 60s). |
 | `Encryption:MasterKey` | `Encryption__MasterKey` | Master key used to derive the secret-encryption key |
 | `Zepto:Token` | `Zepto__Token` | ZeptoMail "Send Mail" token for the platform-default email sender used by failure alerts. Leave blank to disable the email default. |
 | `Zepto:FromAddress` | `Zepto__FromAddress` | Verified sender address platform-sent alert emails come from. Required for the email default to work. |
 | `Zepto:FromName` | `Zepto__FromName` | Display name on platform-sent alert emails (defaults to `Serto Alerts`). |
 | `Zepto:BaseUrl` | `Zepto__BaseUrl` | ZeptoMail API endpoint. Override for the EU data center. Defaults to `https://api.zeptomail.com/v1.1/email`. |
 | `AlertWebhooks:AllowPrivateNetworkTargets` | `AlertWebhooks__AllowPrivateNetworkTargets` | When `false` (default), alert webhook URLs that resolve to private/loopback/link-local/metadata addresses are blocked (SSRF protection). Set `true` only on self-hosted deployments that deliberately post alerts to internal endpoints. |
+| `Stripe:SecretKey` | `Stripe__SecretKey` | Stripe secret key. Leave blank to disable self-serve billing entirely (the feature is inert without it). |
+| `Stripe:WebhookSecret` | `Stripe__WebhookSecret` | Signing secret for the `/api/billing/webhook` endpoint, used to verify Stripe webhook signatures. |
+| `Stripe:TeamPriceId` / `Stripe:BusinessPriceId` | `Stripe__TeamPriceId` / `Stripe__BusinessPriceId` | Stripe Price ids for the self-serve Team and Business plans. |
 
 The shipped `appsettings.json` contains `CHANGE-THIS-...` placeholders for `Jwt:Secret` and `Encryption:MasterKey`; always override them in any non-development environment.
 

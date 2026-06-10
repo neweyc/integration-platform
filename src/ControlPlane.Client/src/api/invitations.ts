@@ -22,6 +22,8 @@ export interface AcceptInvitationResponse {
   userId: string
   email: string
   token: string
+  refreshToken: string
+  refreshTokenExpiresAt: string
 }
 
 export interface InvitationSummary {

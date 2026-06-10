@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/api/auth'
-import { saveToken } from '@/api/client'
+import { saveTokens } from '@/api/client'
 
 export function SetupPage() {
   const navigate = useNavigate()
@@ -43,7 +43,7 @@ export function SetupPage() {
 
     try {
       const result = await authApi.setup(form)
-      saveToken(result.token)
+      saveTokens(result.token, result.refreshToken)
       queryClient.setQueryData(['setup-status'], { isComplete: true })
       navigate('/integrations')
     } catch (err) {

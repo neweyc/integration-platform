@@ -5,12 +5,14 @@ using ControlPlane.Features.Alerts;
 using ControlPlane.Features.Alerts.Email;
 using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Health;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Invitations;
+using ControlPlane.Features.Onboarding;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
 using ControlPlane.Features.Tenants;
@@ -20,8 +22,10 @@ using ControlPlane.Features.Webhooks;
 using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
+using ControlPlane.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +64,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
+// Rate limiting — a generous global per-IP limit plus a strict policy for sensitive auth endpoints.
+builder.Services.AddSertoRateLimiting(builder.Configuration);
+
 // In development, allow requests from the Vite dev server on port 5173
 if (builder.Environment.IsDevelopment())
 {
@@ -79,6 +86,11 @@ builder.Services.AddScoped<IDispatcher, AuditingDispatcher>();
 
 // Infrastructure services
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IAuthTokenIssuer, AuthTokenIssuer>();
+builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
+builder.Services.AddScoped<IPasswordResetNotifier, PasswordResetNotifier>();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<IEncryptionService, AesEncryptionService>();
 builder.Services.AddScoped<IQuotaService, QuotaService>();
@@ -252,6 +264,25 @@ builder.Services.AddScoped<IUserListRepository, UserRepository>();
 builder.Services.AddScoped<ICommandHandler<RegisterUserCommand, RegisterUserResult>, RegisterUserHandler>();
 builder.Services.AddScoped<ICommandHandler<ListUsersCommand, ListUsersResult>, ListUsersHandler>();
 builder.Services.AddScoped<ICommandHandler<LoginUserCommand, LoginUserResult>, LoginUserHandler>();
+builder.Services.AddScoped<ICommandHandler<RefreshSessionCommand, AuthTokens>, RefreshSessionHandler>();
+builder.Services.AddScoped<ICommandHandler<LogoutCommand, bool>, LogoutHandler>();
+builder.Services.AddScoped<ICommandHandler<ForgotPasswordCommand, bool>, ForgotPasswordHandler>();
+builder.Services.AddScoped<ICommandHandler<ResetPasswordCommand, bool>, ResetPasswordHandler>();
+
+// Onboarding feature
+builder.Services.AddScoped<IOnboardingRepository, OnboardingRepository>();
+builder.Services.AddScoped<ICommandHandler<GetOnboardingStatusCommand, OnboardingStatusResult>, GetOnboardingStatusHandler>();
+
+// Billing feature (Stripe). Inert unless a Stripe secret key is configured.
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("Stripe").Get<StripeOptions>() ?? new StripeOptions());
+builder.Services.AddSingleton<BillingPlanCatalog>();
+builder.Services.AddScoped<IStripeGateway, StripeGateway>();
+builder.Services.AddScoped<IBillingRepository, BillingRepository>();
+builder.Services.AddScoped<ICommandHandler<GetBillingStatusCommand, BillingStatusResult>, GetBillingStatusHandler>();
+builder.Services.AddScoped<ICommandHandler<CreateCheckoutSessionCommand, BillingUrlResult>, CreateCheckoutSessionHandler>();
+builder.Services.AddScoped<ICommandHandler<CreatePortalSessionCommand, BillingUrlResult>, CreatePortalSessionHandler>();
+builder.Services.AddScoped<ICommandHandler<HandleStripeWebhookCommand, bool>, HandleStripeWebhookHandler>();
 
 // User token feature
 builder.Services.AddScoped<IUserTokenService, UserTokenService>();
@@ -283,6 +314,14 @@ app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Rate limiting sits after static files (so SPA assets aren't throttled) and before auth. It is
+// skipped entirely when disabled — tests turn it off so repeated requests don't trip the limiter.
+var rateLimitOptions = app.Services.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+if (rateLimitOptions.Enabled)
+{
+    app.UseRateLimiter();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors();
@@ -309,6 +348,8 @@ app.MapAuditLogEndpoints();
 app.MapWorkflowEndpoints();
 app.MapAlertEndpoints();
 app.MapEnvironmentEndpoints();
+app.MapOnboardingEndpoints();
+app.MapBillingEndpoints();
 
 // Fallback: any request that didn't match an API route returns index.html
 // so that React Router can handle client-side navigation.

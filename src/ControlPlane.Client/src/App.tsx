@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
+import { ForgotPasswordPage } from '@/pages/login/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage'
 import { LandingPage } from '@/pages/landing/LandingPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { IntegrationHistoryPage } from '@/pages/integrationHistory/IntegrationHistoryPage'
@@ -14,6 +16,7 @@ import { AgentTokensPage } from '@/pages/agentTokens/AgentTokensPage'
 import { UserTokensPage } from '@/pages/userTokens/UserTokensPage'
 import { UsersPage } from '@/pages/users/UsersPage'
 import { AuditLogPage } from '@/pages/audit/AuditLogPage'
+import { BillingPage } from '@/pages/billing/BillingPage'
 import { AlertsPage } from '@/pages/alerts/AlertsPage'
 import { AcceptInvitationPage } from '@/pages/users/AcceptInvitationPage'
 import { AppShell } from '@/components/layout/AppShell'
@@ -48,6 +51,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
             <Route path="/app" element={<RootRedirect />} />
 
@@ -69,6 +74,7 @@ export default function App() {
               <Route path="/access-tokens" element={<UserTokensPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/billing" element={<BillingPage />} />
               <Route path="/audit-log" element={<AuditLogPage />} />
             </Route>
 

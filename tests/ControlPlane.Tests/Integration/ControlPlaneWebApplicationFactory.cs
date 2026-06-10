@@ -11,7 +11,9 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace ControlPlane.Tests.IntegrationTests;
 
-internal sealed class ControlPlaneWebApplicationFactory(string connectionString)
+internal sealed class ControlPlaneWebApplicationFactory(
+    string connectionString,
+    IReadOnlyDictionary<string, string?>? configOverrides = null)
     : WebApplicationFactory<Program>
 {
     private const string JwtSecret = "integration-test-secret-with-at-least-32-characters";
@@ -31,8 +33,14 @@ internal sealed class ControlPlaneWebApplicationFactory(string connectionString)
                 ["Jwt:Issuer"] = JwtIssuer,
                 ["Jwt:Audience"] = JwtAudience,
                 ["Jwt:ExpiryHours"] = "1",
-                ["Encryption:MasterKey"] = "integration-test-encryption-master-key"
+                ["Encryption:MasterKey"] = "integration-test-encryption-master-key",
+                // Tests fire many requests per process; the limiter would otherwise trip.
+                ["RateLimit:Enabled"] = "false"
             });
+
+            // Per-test overrides are added last so they win over the defaults above.
+            if (configOverrides is not null)
+                config.AddInMemoryCollection(configOverrides);
         });
 
         builder.ConfigureServices(services =>

@@ -29,6 +29,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AgentHeartbeat> AgentHeartbeats => Set<AgentHeartbeat>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<TenantAlertSettings> TenantAlertSettings => Set<TenantAlertSettings>();
     public DbSet<IntegrationAlertSettings> IntegrationAlertSettings => Set<IntegrationAlertSettings>();
 
@@ -43,8 +45,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(t => t.Slug).IsUnique();
             b.Property(t => t.Status).HasConversion<string>();
             b.Property(t => t.MaxExecutionsPerMonth).HasDefaultValue(1000);
+            b.Property(t => t.Plan).HasConversion<string>().HasMaxLength(20).HasDefaultValue(BillingPlan.Free);
+            b.Property(t => t.SubscriptionStatus).HasMaxLength(50);
             b.Property(t => t.StripeCustomerId).HasMaxLength(100);
             b.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
+            b.HasIndex(t => t.StripeCustomerId);
         });
 
         modelBuilder.Entity<User>(b =>
@@ -574,6 +579,49 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             b.HasIndex(t => t.TokenHash).IsUnique();
             b.HasIndex(t => new { t.TenantId, t.UserId });
+
+            b.HasOne(t => t.Tenant)
+             .WithMany()
+             .HasForeignKey(t => t.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(t => t.User)
+             .WithMany()
+             .HasForeignKey(t => t.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RefreshToken>(b =>
+        {
+            b.ToTable("refresh_tokens");
+            b.HasKey(t => t.Id);
+            b.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);
+            b.Property(t => t.ExpiresAt).IsRequired();
+            b.Property(t => t.ReplacedByTokenHash).HasMaxLength(64);
+
+            b.HasIndex(t => t.TokenHash).IsUnique();
+            b.HasIndex(t => t.UserId);
+
+            b.HasOne(t => t.Tenant)
+             .WithMany()
+             .HasForeignKey(t => t.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(t => t.User)
+             .WithMany()
+             .HasForeignKey(t => t.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(b =>
+        {
+            b.ToTable("password_reset_tokens");
+            b.HasKey(t => t.Id);
+            b.Property(t => t.TokenHash).IsRequired().HasMaxLength(64);
+            b.Property(t => t.ExpiresAt).IsRequired();
+
+            b.HasIndex(t => t.TokenHash).IsUnique();
+            b.HasIndex(t => t.UserId);
 
             b.HasOne(t => t.Tenant)
              .WithMany()

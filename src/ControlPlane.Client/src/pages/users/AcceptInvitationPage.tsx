@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { invitationsApi } from '@/api/invitations'
-import { saveToken } from '@/api/client'
+import { saveTokens } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,7 +17,7 @@ export function AcceptInvitationPage() {
   const acceptInvitation = useMutation({
     mutationFn: () => invitationsApi.accept(form),
     onSuccess: result => {
-      saveToken(result.token)
+      saveTokens(result.token, result.refreshToken)
       navigate('/integrations')
     },
     onError: (err: Error) => setFormError(err.message),

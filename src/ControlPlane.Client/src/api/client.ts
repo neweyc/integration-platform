@@ -3,23 +3,71 @@
 
 const BASE_URL = '/api'
 
+const TOKEN_KEY = 'token'
+const REFRESH_TOKEN_KEY = 'refreshToken'
+
 export function getToken(): string | null {
-  return localStorage.getItem('token')
+  return localStorage.getItem(TOKEN_KEY)
 }
 
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+// Kept for callers that only have an access token; prefer saveTokens when a refresh token is available.
 export function saveToken(token: string) {
-  localStorage.setItem('token', token)
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function saveTokens(token: string, refreshToken?: string | null) {
+  localStorage.setItem(TOKEN_KEY, token)
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+  }
 }
 
 export function clearToken() {
-  localStorage.removeItem('token')
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
 export function isAuthenticated(): boolean {
   return getToken() !== null
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// A single in-flight refresh shared across concurrent 401s, so a burst of failed requests triggers
+// exactly one token rotation rather than a stampede.
+let refreshInFlight: Promise<boolean> | null = null
+
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return false
+
+  refreshInFlight ??= (async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      })
+      if (!res.ok) {
+        clearToken()
+        return false
+      }
+      const data = await res.json()
+      saveTokens(data.accessToken, data.refreshToken)
+      return true
+    } catch {
+      return false
+    }
+  })()
+
+  const result = await refreshInFlight
+  refreshInFlight = null
+  return result
+}
+
+async function request<T>(path: string, options: RequestInit = {}, allowRefresh = true): Promise<T> {
   const token = getToken()
 
   const headers: Record<string, string> = {
@@ -32,6 +80,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const response = await fetch(`${BASE_URL}${path}`, { ...options, headers })
+
+  // On an expired access token, transparently refresh once and replay the original request.
+  if (response.status === 401 && allowRefresh && path !== '/auth/refresh' && getRefreshToken()) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      return request<T>(path, options, false)
+    }
+  }
 
   if (!response.ok) {
     // Try to extract a meaningful error message from the ProblemDetails response

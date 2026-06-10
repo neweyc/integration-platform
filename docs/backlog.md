@@ -484,7 +484,7 @@ Acceptance criteria:
 
 ### JWT Refresh Tokens
 
-**Status:** Todo
+**Status:** Done
 
 Avoid forcing users to fully re-login when access tokens expire.
 
@@ -495,9 +495,16 @@ Acceptance criteria:
 - Logout invalidates refresh token.
 - UI handles access-token renewal.
 
+Completed notes:
+
+- Added a `RefreshToken` entity (only the SHA-256 hash stored) and `IAuthTokenIssuer`, which issues an access + refresh pair on every sign-in flow: login, first-run setup, and invitation acceptance.
+- `POST /api/auth/refresh` rotates the token (old one revoked, successor recorded); reuse of a revoked token revokes the whole chain (theft detection). `POST /api/auth/logout` revokes a token idempotently.
+- Refresh lifetime is `Jwt:RefreshTokenExpiryDays` (default 30).
+- The frontend stores both tokens and transparently refreshes once on a 401, replaying the original request; a single in-flight refresh is shared across concurrent 401s. Sign-out revokes server-side, best-effort.
+
 ### Rate Limiting
 
-**Status:** Todo
+**Status:** Done
 
 Protect public and agent-facing endpoints from abuse.
 
@@ -506,6 +513,13 @@ Acceptance criteria:
 - Login/setup endpoints are rate limited.
 - Agent endpoints have reasonable limits per token.
 - Rate limit responses are documented.
+
+Completed notes:
+
+- Added ASP.NET Core rate limiting: a generous global per-IP fixed window across the API, plus a strict `auth` policy (default 10/60s per IP) on login, setup, password reset, and token refresh.
+- Static assets bypass the limiter (served earlier in the pipeline) and health endpoints opt out so monitoring is never throttled. Rejections return `429` with `Retry-After` and a problem body.
+- Fully config-driven via the `RateLimit` section (documented in `installation.md`); tests disable it via `RateLimit:Enabled=false`.
+- Agent endpoints are covered by the global per-IP limit. Per-agent-token limits remain a future refinement (noted, not yet implemented).
 
 ---
 
@@ -530,7 +544,7 @@ Acceptance criteria:
 
 ### Password Reset
 
-**Status:** Todo
+**Status:** Done
 
 Support forgotten-password flow.
 
@@ -540,9 +554,16 @@ Acceptance criteria:
 - Reset token expires.
 - Password change invalidates old sessions where applicable.
 
+Completed notes:
+
+- `POST /api/auth/forgot-password` always returns 204 (no user enumeration); when the email matches a user it stores a hashed, 1-hour reset token and emails a link via the platform-default ZeptoMail sender.
+- `POST /api/auth/reset-password` consumes the single-use token, sets the new BCrypt password, and revokes all of the user's refresh tokens so existing sessions can't outlive the reset.
+- Reset links use `App:BaseUrl`; without an email sender or base URL configured the request still succeeds and logs a clear operator warning.
+- Frontend: `/forgot-password` and `/reset-password` pages plus a "Forgot your password?" link on sign-in.
+
 ### Billing Integration
 
-**Status:** In Progress
+**Status:** Done
 
 Integrate subscriptions and payment management.
 
@@ -552,6 +573,14 @@ Acceptance criteria:
 - Tenant plan is stored.
 - Plan limits are enforced.
 - Billing portal link is available to admins.
+
+Completed notes:
+
+- Added a Billing feature behind `IStripeGateway` (the only type touching the Stripe SDK), so handlers are SDK-free and unit-testable. Inert unless `Stripe:SecretKey` is configured.
+- `POST /api/billing/webhook` verifies the signature and reconciles tenant `Plan`, `SubscriptionStatus`, Stripe ids, and `MaxExecutionsPerMonth` from `checkout.session.completed` and `customer.subscription.created|updated|deleted` (the webhook is the source of truth). Plan limits flow into the existing `IQuotaService`.
+- `Tenant.Plan` (Free/Team/Business/Enterprise) and `SubscriptionStatus` added with a migration; quotas: Free 1k, Team 10k, Business 100k.
+- Admins (`ManageBilling`) get `GET /api/billing/current` (plan + usage), `POST /api/billing/checkout` (Stripe Checkout), and `POST /api/billing/portal` (Stripe Billing Portal). Frontend Billing page with usage bar, plan switcher, and "Manage billing".
+- 13 tests (webhook reconciliation, checkout/portal guards, status). Configuration documented in `installation.md`.
 
 ### Marketplace
 
@@ -572,7 +601,7 @@ Acceptance criteria:
 
 ### Fix EF Migration Tooling
 
-**Status:** Todo
+**Status:** Done
 
 `dotnet ef migrations add` failed locally with a `deps.json` path issue. Migrations were added manually.
 
@@ -581,6 +610,11 @@ Acceptance criteria:
 - `dotnet ef migrations add <Name>` works from the repository root.
 - Generated migrations compile without manual path fixes.
 - Documentation includes the expected migration command.
+
+Completed notes:
+
+- Added `AppDbContextDesignTimeFactory` (`IDesignTimeDbContextFactory<AppDbContext>`) so the EF tooling builds the context directly instead of booting the web app (whose startup applies migrations and needs full Jwt/DB/encryption config). This is what broke design-time resolution.
+- `dotnet ef migrations add <Name> --project src/ControlPlane/ControlPlane.csproj` now generates clean, compiling migrations (the refresh-token and password-reset migrations were generated this way). The command is documented in `installation.md`.
 
 ### Align EF Model Snapshot With Fluent Mapping
 

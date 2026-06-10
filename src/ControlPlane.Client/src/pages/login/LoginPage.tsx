@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { authApi } from '@/api/auth'
-import { saveToken } from '@/api/client'
+import { saveTokens } from '@/api/client'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -26,7 +26,7 @@ export function LoginPage() {
 
     try {
       const result = await authApi.login(form)
-      saveToken(result.token)
+      saveTokens(result.token, result.refreshToken)
       navigate('/integrations')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed.')
@@ -81,6 +81,10 @@ export function LoginPage() {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign in'}
               </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                <Link to="/forgot-password" className="underline">Forgot your password?</Link>
+              </p>
             </form>
           </CardContent>
         </Card>
