@@ -33,6 +33,20 @@ export interface Integration {
   lastExecution?: ExecutionSummary | null
   // The package version this integration is currently pinned to (null = runs from the agent's local path).
   packageId?: string | null
+  // Agent capabilities required to run this integration (empty = any agent in the environment).
+  requiredTags?: string[]
+}
+
+export interface UnroutableIntegration {
+  id: string
+  name: string
+  slug: string
+  environment: string
+  requiredTags: string[]
+}
+
+export interface UnroutableIntegrationsResponse {
+  integrations: UnroutableIntegration[]
 }
 
 export type ExecutionStatus = 'Running' | 'Succeeded' | 'Failed' | 'TimedOut'
@@ -146,6 +160,7 @@ export const integrationsApi = {
     return api.get<ListIntegrationsResponse>(`/integrations${query}`)
   },
   get: (id: string) => api.get<Integration>(`/integrations/${id}`),
+  unroutable: () => api.get<UnroutableIntegrationsResponse>('/integrations/unroutable'),
   executions: (id: string, limit = 25) =>
     api.get<ListIntegrationExecutionsResponse>(`/integrations/${id}/executions?limit=${limit}`),
   logs: (integrationId: string, executionId: string) =>

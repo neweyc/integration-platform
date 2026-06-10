@@ -46,6 +46,19 @@ public static class IntegrationEndpoints
             return Results.Ok(result);
         }).RequirePermission(Permission.ViewIntegrations);
 
+        // Integrations whose required agent capabilities no live agent currently offers — i.e. work
+        // that can't be routed anywhere right now.
+        group.MapGet("/unroutable", async (
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new GetUnroutableIntegrationsCommand(currentUser.TenantId), ct);
+
+            return Results.Ok(result);
+        }).RequirePermission(Permission.ViewIntegrations);
+
         group.MapGet("/{id:guid}", async (
             Guid id,
             IDispatcher dispatcher,

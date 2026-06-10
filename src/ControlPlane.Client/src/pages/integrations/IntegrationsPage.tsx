@@ -35,7 +35,7 @@ import {
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { GettingStartedChecklist } from '@/components/onboarding/GettingStartedChecklist'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Zap } from 'lucide-react'
+import { Zap, AlertTriangle } from 'lucide-react'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
@@ -112,6 +112,14 @@ export function IntegrationsPage() {
     queryFn: () => integrationsApi.list(),
     enabled: canViewIntegrations,
   })
+
+  // Integrations whose required agent capabilities no live agent currently offers.
+  const { data: unroutableData } = useQuery({
+    queryKey: ['integrations-unroutable'],
+    queryFn: integrationsApi.unroutable,
+    enabled: canViewIntegrations,
+  })
+  const unroutable = unroutableData?.integrations ?? []
 
   // Environment options come from the canonical registry rather than a hardcoded list.
   const { data: envData } = useEnvironments(canViewIntegrations)
@@ -296,6 +304,40 @@ export function IntegrationsPage() {
       </div>
 
       <GettingStartedChecklist />
+
+      {unroutable.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="space-y-2 text-sm">
+              <p className="font-medium text-amber-900 dark:text-amber-200">
+                {unroutable.length} integration{unroutable.length === 1 ? '' : 's'} can't run on any
+                connected agent
+              </p>
+              <p className="text-amber-800/80 dark:text-amber-200/80">
+                No live agent in their environment offers the required capabilities, so their work will
+                queue until a matching agent connects.
+              </p>
+              <ul className="space-y-1">
+                {unroutable.map(item => (
+                  <li key={item.id} className="text-amber-900 dark:text-amber-200">
+                    <span className="font-medium">{item.name}</span>
+                    <span className="text-amber-800/70 dark:text-amber-200/70"> ({item.environment}) — needs </span>
+                    {item.requiredTags.map(tag => (
+                      <code
+                        key={tag}
+                        className="mr-1 rounded bg-amber-500/20 px-1 py-0.5 text-xs text-amber-900 dark:text-amber-100"
+                      >
+                        {tag}
+                      </code>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive">
