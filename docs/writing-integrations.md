@@ -195,6 +195,8 @@ Notes:
 - Capability tags are **routing only** — they decide *where* work runs, not *who* can access what. They are self-reported by the agent and are not a security boundary.
 - If no agent offers the required tags, the integration's work stays queued until one connects, rather than running on the wrong host.
 
+`serto scan` lists each integration's required capabilities as an advisory (it runs offline, so it can't check live agents). `serto deploy` goes further: after uploading it checks the control plane and warns if a just-deployed integration is **not currently routable** — i.e. no connected agent in its environment offers the required capabilities.
+
 ---
 
 ## IIntegrationContext

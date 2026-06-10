@@ -16,6 +16,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
     private const string IntegrationAttributeName = "Serto.Sdk.IntegrationAttribute";
     private const string ScheduledAttributeName = "Serto.Sdk.ScheduledIntegrationAttribute";
     private const string WebhookAttributeName = "Serto.Sdk.WebhookIntegrationAttribute";
+    private const string RequiresCapabilitiesAttributeName = "Serto.Sdk.RequiresAgentCapabilitiesAttribute";
 
     public sealed class Settings : CommandSettings
     {
@@ -215,6 +216,14 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
                 }
             }
 
+            var requiredTags = attributes
+                .Where(a => a.GetType().FullName == RequiresCapabilitiesAttributeName)
+                .SelectMany(a => GetStringArray(a, "Tags"))
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => tag.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             discovered.Add(new ScannedIntegration(
                 GetRequiredString(metadataAttr, "Name"),
                 GetRequiredString(metadataAttr, "Slug"),
@@ -223,7 +232,8 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
                 GetPositiveInt(metadataAttr, "TimeoutSeconds"),
                 GetPositiveInt(metadataAttr, "RetryMaxAttempts"),
                 GetPositiveInt(metadataAttr, "RetryBackoffSeconds"),
-                triggers));
+                triggers,
+                requiredTags));
         }
 
         return discovered;
@@ -314,6 +324,15 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             AnsiConsole.MarkupLine("[blue]Required secrets:[/] none detected");
         }
 
+        // Capability requirements are an offline advisory: scan can't see live agents, so it can't
+        // know real routability — but it can remind the author which agents this work needs.
+        foreach (var integration in result.Integrations.Where(i => i.RequiredTags is { Count: > 0 }))
+        {
+            var tags = string.Join(", ", integration.RequiredTags!);
+            AnsiConsole.MarkupLine(
+                $"[yellow]Requires agent capabilities:[/] [green]{Markup.Escape(integration.Slug)}[/] needs [green]{Markup.Escape(tags)}[/] — it will only run on an agent advertising these, or it won't be routable.");
+        }
+
         foreach (var warning in result.Warnings)
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] {Markup.Escape(warning)}");
 
@@ -380,6 +399,9 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
 
     private static string? GetString(object attribute, string propertyName) =>
         attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) as string;
+
+    private static string[] GetStringArray(object attribute, string propertyName) =>
+        attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) as string[] ?? [];
 
     private static int? GetPositiveInt(object attribute, string propertyName) =>
         attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) switch
@@ -468,7 +490,8 @@ public record ScannedIntegration(
     int? TimeoutSeconds,
     int? RetryMaxAttempts,
     int? RetryBackoffSeconds,
-    IReadOnlyList<ScannedTrigger> Triggers);
+    IReadOnlyList<ScannedTrigger> Triggers,
+    IReadOnlyList<string>? RequiredTags = null);
 
 public record ScannedTrigger(
     string Name,

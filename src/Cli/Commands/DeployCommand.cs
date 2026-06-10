@@ -128,9 +128,14 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
                 });
 
             if (uploadResult is not null)
+            {
                 RenderUploadResult(uploadResult);
+                await WarnIfUnroutableAsync(controlPlaneUrl, token, uploadResult, ct);
+            }
             else
+            {
                 AnsiConsole.MarkupLine("[green]Success![/] Package uploaded; the control plane will auto-provision discovered integrations.");
+            }
         }
         finally
         {
@@ -139,6 +144,36 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         }
 
         return 0;
+    }
+
+    // After upload, ask the control plane which integrations can't currently be routed and flag any we
+    // just deployed. Best-effort: a failure here (permissions, network) must never fail the deploy.
+    private static async Task WarnIfUnroutableAsync(
+        string controlPlaneUrl, string token, PackageUploadResponse upload, CancellationToken ct)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(controlPlaneUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var unroutable = await client.GetFromJsonAsync<UnroutableIntegrationsResponse>(
+                "/api/integrations/unroutable", ct);
+            if (unroutable is null || unroutable.Integrations.Count == 0)
+                return;
+
+            var deployed = upload.Provisioning.Select(p => (p.Slug, p.Environment)).ToHashSet();
+
+            foreach (var item in unroutable.Integrations.Where(u => deployed.Contains((u.Slug, u.Environment))))
+            {
+                var tags = string.Join(", ", item.RequiredTags);
+                AnsiConsole.MarkupLine(
+                    $"[yellow]Not currently routable:[/] [green]{Markup.Escape(item.Slug)}[/] needs agent capabilities [green]{Markup.Escape(tags)}[/] — no connected agent in [green]{Markup.Escape(item.Environment)}[/] offers them, so its work will queue until a matching agent connects.");
+            }
+        }
+        catch
+        {
+            // Best-effort: never fail a deploy because the routability check couldn't run.
+        }
     }
 
     public static string? ResolveToken(string? explicitToken, params string?[] environmentTokens)
@@ -402,6 +437,15 @@ public record PackageProvisioningResponse(
     string Action,
     Guid PackageId,
     IReadOnlyList<PackageProvisionedTriggerResponse> Triggers);
+
+public record UnroutableIntegrationsResponse(IReadOnlyList<UnroutableIntegrationResponse> Integrations);
+
+public record UnroutableIntegrationResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string Environment,
+    IReadOnlyList<string> RequiredTags);
 
 public record PackageProvisionedTriggerResponse(
     Guid Id,

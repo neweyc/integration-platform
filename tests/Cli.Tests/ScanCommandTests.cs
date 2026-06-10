@@ -176,6 +176,26 @@ public class Integration
         public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
     }
 
+    [Fact]
+    public void ScanAssembly_DiscoversRequiredAgentCapabilities()
+    {
+        var result = ScanCommand.ScanAssembly(typeof(CapabilityTaggedIntegration).Assembly);
+
+        var integration = result.Single(i => i.Slug == "cli-capability-tagged");
+
+        Assert.NotNull(integration.RequiredTags);
+        Assert.Equal(2, integration.RequiredTags!.Count);
+        Assert.Contains("hardware-signal", integration.RequiredTags);
+        Assert.Contains("site-floor-1", integration.RequiredTags);
+    }
+
+    [Integration("CLI Capability Tagged", "cli-capability-tagged")]
+    [RequiresAgentCapabilities("hardware-signal", " site-floor-1 ", "Hardware-Signal")]
+    private sealed class CapabilityTaggedIntegration : IIntegration
+    {
+        public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
+    }
+
     [ScheduledIntegration(
         "CLI Multi Trigger",
         "cli-multi-trigger",
