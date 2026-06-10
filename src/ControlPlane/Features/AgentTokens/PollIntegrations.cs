@@ -8,7 +8,8 @@ namespace ControlPlane.Features.AgentTokens;
 public record PollIntegrationsCommand(
     Guid TenantId,
     string Environment,
-    Guid LeaseOwnerId) : ICommand<PollIntegrationsResult>;
+    Guid LeaseOwnerId,
+    IReadOnlyList<string>? AgentTags = null) : ICommand<PollIntegrationsResult>;
 
 public record PollIntegrationsResult(IReadOnlyList<AgentIntegrationItem> Integrations);
 
@@ -27,11 +28,14 @@ public record AgentIntegrationItem(
     Guid? PackageId = null,
     string? Payload = null);
 
+// agentTags are the capabilities the polling agent offers; only work whose integration's required
+// tags are a subset is claimable (see TagSet.IsSatisfiedBy).
 public interface IPollRepository
 {
     Task<IReadOnlyList<ClaimedWork>> ClaimDueScheduledAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -40,6 +44,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingManualRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -48,6 +53,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingWebhookRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -56,6 +62,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingRetryRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -64,6 +71,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkflowRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -72,6 +80,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingQueueRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -80,6 +89,7 @@ public interface IPollRepository
     Task<IReadOnlyList<ClaimedWork>> ClaimPendingFileRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -96,27 +106,28 @@ public class PollIntegrationsHandler(IPollRepository repository)
     public async Task<PollIntegrationsResult> HandleAsync(PollIntegrationsCommand command, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
+        var agentTags = command.AgentTags ?? [];
 
         var scheduled = await repository.ClaimDueScheduledAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var manualRuns = await repository.ClaimPendingManualRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var webhookRuns = await repository.ClaimPendingWebhookRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var retryRuns = await repository.ClaimPendingRetryRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var workflowRuns = await repository.ClaimPendingWorkflowRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var queueRuns = await repository.ClaimPendingQueueRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var fileRuns = await repository.ClaimPendingFileRunsAsync(
-            command.TenantId, command.Environment, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
+            command.TenantId, command.Environment, agentTags, command.LeaseOwnerId, DefaultClaimDuration, now, ct);
 
         var items = new List<AgentIntegrationItem>();
 

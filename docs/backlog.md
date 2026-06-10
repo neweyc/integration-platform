@@ -285,7 +285,7 @@ Remaining limitations:
 
 ### Agent Capability Tags
 
-**Status:** Todo
+**Status:** Done
 
 Route work to agents by capability, not just environment, so integrations that need a specific
 host (hardware access, a VPN, a GPU, a licensed driver) only run where they can. Design doc:
@@ -313,6 +313,19 @@ Notes:
   `env ∈ agent.environments`).
 - If a capability ever needs to be *trusted*, tags must move from self-reported to server-assigned
   on the agent token — folds into the "Authz Revisit" pass.
+
+Completed notes:
+
+- `[RequiresAgentCapabilities("...")]` SDK attribute; scanner extracts and normalizes tags onto the
+  integration (`RequiredTags` + `DeclaredRequiredTags`, Postgres `text[]`), with the same
+  declared-default/override/drift handling as trigger cron/enabled.
+- Agents advertise `AgentOptions.Tags` via an `X-Agent-Capabilities` header on poll and heartbeat;
+  `PollRepository` only claims a work item when `TagSet.IsSatisfiedBy(integration.RequiredTags, agentTags)`.
+- `GET /api/integrations/unroutable` + an Integrations-page banner surface work no live agent can run.
+  (Wiring it into the failure-alert channel was left as a future add — currently UI-only.)
+- Operators can override required tags on the integration edit form; preserved across redeploys.
+- Backward compatible (empty tags ⇒ any agent). Tests across scanner, upload drift, routing, unroutable
+  detection, operator override, and a DB-backed array-persistence/reconcile test. Docs updated.
 
 ### Execution Token Scoping
 

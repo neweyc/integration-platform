@@ -69,10 +69,11 @@ public class IntegrationRepository(AppDbContext db)
         existing.PackageId = integration.PackageId;
         existing.UpdatedAt = DateTime.UtcNow;
         // Package upload is code-driven: record new declared defaults and preserve operator overrides.
+        var tagsOverridden = ReconcileRequiredTags(existing, integration.DeclaredRequiredTags);
         var triggerResults = ReplaceTriggers(existing, triggers, TriggerReconcileSource.Code);
 
         await db.SaveChangesAsync(ct);
-        return new IntegrationUpsertResult(existing, Created: false, triggerResults);
+        return new IntegrationUpsertResult(existing, Created: false, triggerResults, tagsOverridden);
     }
 
     public Task<Integration?> GetByIdAsync(Guid tenantId, Guid integrationId, CancellationToken ct = default) =>
@@ -209,4 +210,19 @@ public class IntegrationRepository(AppDbContext db)
 
     private static bool IsCronOverridden(IntegrationTrigger trigger) =>
         !string.Equals(trigger.CronExpression, trigger.DeclaredCronExpression, StringComparison.Ordinal);
+
+    // Integration-level analog of ReconcileRuntimeValues for the required-tags set on a code-driven
+    // (package) update: record the new code-declared tags, and let the active tags follow code only
+    // when an operator hasn't already overridden them. Returns whether an override is in effect after
+    // reconciliation (active != declared), i.e. drift to report.
+    private static bool ReconcileRequiredTags(Integration existing, string[] declaredFromCode)
+    {
+        var wasOverridden = !TagSet.Equal(existing.RequiredTags, existing.DeclaredRequiredTags);
+
+        existing.DeclaredRequiredTags = declaredFromCode;
+        if (!wasOverridden)
+            existing.RequiredTags = declaredFromCode;
+
+        return !TagSet.Equal(existing.RequiredTags, existing.DeclaredRequiredTags);
+    }
 }

@@ -128,6 +128,8 @@ builder.Services.AddScoped<IExecutionLogReadRepository, ExecutionLogReadReposito
 builder.Services.AddScoped<ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>, CreateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<GetIntegrationCommand, CreateIntegrationResult?>, GetIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationsCommand, ListIntegrationsResult>, ListIntegrationsHandler>();
+builder.Services.AddScoped<IRoutingHealthRepository, RoutingHealthRepository>();
+builder.Services.AddScoped<ICommandHandler<GetUnroutableIntegrationsCommand, UnroutableIntegrationsResult>, GetUnroutableIntegrationsHandler>();
 builder.Services.AddScoped<ICommandHandler<UpdateIntegrationCommand, CreateIntegrationResult>, UpdateIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteIntegrationCommand, bool>, DeleteIntegrationHandler>();
 builder.Services.AddScoped<ICommandHandler<ListIntegrationExecutionsCommand, ListIntegrationExecutionsResult>, ListIntegrationExecutionsHandler>();

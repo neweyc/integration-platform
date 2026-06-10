@@ -14,7 +14,8 @@ public record DiscoveredIntegration(
     int? TimeoutSeconds,
     int? RetryMaxAttempts,
     int? RetryBackoffSeconds,
-    IReadOnlyList<DiscoveredIntegrationTrigger> Triggers);
+    IReadOnlyList<DiscoveredIntegrationTrigger> Triggers,
+    IReadOnlyList<string>? RequiredTags = null);
 
 public record DiscoveredIntegrationTrigger(
     string Name,
@@ -33,6 +34,7 @@ public class AssemblyScanner : IAssemblyScanner
     private const string IntegrationAttributeName = "Serto.Sdk.IntegrationAttribute";
     private const string ScheduledAttributeName = "Serto.Sdk.ScheduledIntegrationAttribute";
     private const string WebhookAttributeName = "Serto.Sdk.WebhookIntegrationAttribute";
+    private const string RequiresCapabilitiesAttributeName = "Serto.Sdk.RequiresAgentCapabilitiesAttribute";
 
     public List<DiscoveredIntegration> ScanZip(byte[] zipData)
     {
@@ -106,6 +108,14 @@ public class AssemblyScanner : IAssemblyScanner
             if (metadataAttr is null)
                 continue;
 
+            var requiredTags = attributes
+                .Where(a => a.GetType().FullName == RequiresCapabilitiesAttributeName)
+                .SelectMany(a => GetStringArray(a, "Tags"))
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => tag.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var triggers = new List<DiscoveredIntegrationTrigger>();
             foreach (var attribute in attributes)
             {
@@ -136,7 +146,8 @@ public class AssemblyScanner : IAssemblyScanner
                 GetNullableInt(metadataAttr, "TimeoutSeconds"),
                 GetNullableInt(metadataAttr, "RetryMaxAttempts"),
                 GetNullableInt(metadataAttr, "RetryBackoffSeconds"),
-                triggers));
+                triggers,
+                requiredTags));
         }
 
         return discovered;
@@ -159,6 +170,9 @@ public class AssemblyScanner : IAssemblyScanner
 
     private static string? GetString(object attribute, string propertyName) =>
         attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) as string;
+
+    private static string[] GetStringArray(object attribute, string propertyName) =>
+        attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) as string[] ?? [];
 
     private static int? GetNullableInt(object attribute, string propertyName) =>
         attribute.GetType().GetProperty(propertyName)?.GetValue(attribute) switch

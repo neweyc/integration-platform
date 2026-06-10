@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Triggers;
 using ControlPlane.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public async Task<IReadOnlyList<ClaimedWork>> ClaimDueScheduledAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -78,6 +80,9 @@ public class PollRepository(AppDbContext db) : IPollRepository
             if (workItem.Integration.Status != IntegrationStatus.Enabled)
                 continue;
 
+            if (!TagSet.IsSatisfiedBy(workItem.Integration.RequiredTags, agentTags))
+                continue;
+
             if (runningIntegrations.Contains(workItem.IntegrationId))
                 continue;
 
@@ -99,6 +104,9 @@ public class PollRepository(AppDbContext db) : IPollRepository
             var integration = trigger.Integration;
 
             if (reclaimedTriggerIds.Contains(trigger.Id))
+                continue;
+
+            if (!TagSet.IsSatisfiedBy(integration.RequiredTags, agentTags))
                 continue;
 
             if (activeWorkItemIntegrations.Contains(integration.Id))
@@ -184,6 +192,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public async Task<IReadOnlyList<ClaimedWork>> ClaimPendingManualRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -219,6 +228,9 @@ public class PollRepository(AppDbContext db) : IPollRepository
             if (workItem.Integration.Status != IntegrationStatus.Enabled)
                 continue;
 
+            if (!TagSet.IsSatisfiedBy(workItem.Integration.RequiredTags, agentTags))
+                continue;
+
             if (runningIntegrations.Contains(workItem.IntegrationId))
                 continue;
 
@@ -243,6 +255,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public Task<IReadOnlyList<ClaimedWork>> ClaimPendingWebhookRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -250,6 +263,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         ClaimPendingWorkItemsAsync(
             tenantId,
             environment,
+            agentTags,
             TriggerSource.Webhook,
             claimOwner,
             claimDuration,
@@ -259,6 +273,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public Task<IReadOnlyList<ClaimedWork>> ClaimPendingRetryRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -266,6 +281,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         ClaimPendingWorkItemsAsync(
             tenantId,
             environment,
+            agentTags,
             TriggerSource.Retry,
             claimOwner,
             claimDuration,
@@ -275,6 +291,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkflowRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -282,6 +299,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         ClaimPendingWorkItemsAsync(
             tenantId,
             environment,
+            agentTags,
             TriggerSource.Workflow,
             claimOwner,
             claimDuration,
@@ -291,6 +309,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public Task<IReadOnlyList<ClaimedWork>> ClaimPendingQueueRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -298,6 +317,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         ClaimPendingWorkItemsAsync(
             tenantId,
             environment,
+            agentTags,
             TriggerSource.Queue,
             claimOwner,
             claimDuration,
@@ -307,6 +327,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     public Task<IReadOnlyList<ClaimedWork>> ClaimPendingFileRunsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         Guid claimOwner,
         TimeSpan claimDuration,
         DateTime now,
@@ -314,6 +335,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         ClaimPendingWorkItemsAsync(
             tenantId,
             environment,
+            agentTags,
             TriggerSource.File,
             claimOwner,
             claimDuration,
@@ -323,6 +345,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
     private async Task<IReadOnlyList<ClaimedWork>> ClaimPendingWorkItemsAsync(
         Guid tenantId,
         string environment,
+        IReadOnlyList<string> agentTags,
         TriggerSource triggerSource,
         Guid claimOwner,
         TimeSpan claimDuration,
@@ -357,6 +380,9 @@ public class PollRepository(AppDbContext db) : IPollRepository
         foreach (var workItem in claimable)
         {
             if (workItem.Integration.Status != IntegrationStatus.Enabled)
+                continue;
+
+            if (!TagSet.IsSatisfiedBy(workItem.Integration.RequiredTags, agentTags))
                 continue;
 
             if (runningIntegrations.Contains(workItem.IntegrationId))

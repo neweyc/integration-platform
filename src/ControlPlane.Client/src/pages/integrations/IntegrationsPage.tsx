@@ -35,7 +35,7 @@ import {
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { GettingStartedChecklist } from '@/components/onboarding/GettingStartedChecklist'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Zap } from 'lucide-react'
+import { Zap, AlertTriangle } from 'lucide-react'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
@@ -51,6 +51,7 @@ interface FormState {
   className: string
   timeoutSeconds: string
   status: 'Enabled' | 'Disabled'
+  requiredTags: string
 }
 
 const emptyForm: FormState = {
@@ -63,6 +64,7 @@ const emptyForm: FormState = {
   className: '',
   timeoutSeconds: '',
   status: 'Enabled',
+  requiredTags: '',
 }
 
 export function IntegrationsPage() {
@@ -113,6 +115,14 @@ export function IntegrationsPage() {
     enabled: canViewIntegrations,
   })
 
+  // Integrations whose required agent capabilities no live agent currently offers.
+  const { data: unroutableData } = useQuery({
+    queryKey: ['integrations-unroutable'],
+    queryFn: integrationsApi.unroutable,
+    enabled: canViewIntegrations,
+  })
+  const unroutable = unroutableData?.integrations ?? []
+
   // Environment options come from the canonical registry rather than a hardcoded list.
   const { data: envData } = useEnvironments(canViewIntegrations)
   const environments = envData?.environments ?? []
@@ -153,6 +163,7 @@ export function IntegrationsPage() {
     mutationFn: (data: CreateIntegrationRequest) => integrationsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       setSheetOpen(false)
       setForm(emptyForm)
       setEditingTriggers([])
@@ -165,6 +176,7 @@ export function IntegrationsPage() {
       integrationsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       setSheetOpen(false)
       setForm(emptyForm)
       setEditingId(null)
@@ -175,7 +187,10 @@ export function IntegrationsPage() {
 
   const deleteIntegration = useMutation({
     mutationFn: (id: string) => integrationsApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['integrations'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
+    },
   })
 
   const runManual = useMutation({
@@ -183,6 +198,7 @@ export function IntegrationsPage() {
     onSuccess: () => {
       setRunError(null)
       queryClient.invalidateQueries({ queryKey: ['integrations'] })
+      queryClient.invalidateQueries({ queryKey: ['integrations-unroutable'] })
       queryClient.invalidateQueries({ queryKey: ['integration-executions'] })
       queryClient.invalidateQueries({ queryKey: ['trigger-events'] })
     },
@@ -212,6 +228,7 @@ export function IntegrationsPage() {
       className: integration.className,
       timeoutSeconds: integration.timeoutSeconds?.toString() ?? '',
       status: integration.status,
+      requiredTags: (integration.requiredTags ?? []).join(', '),
     })
     setFormError(null)
     setEditingId(integration.id)
@@ -224,6 +241,11 @@ export function IntegrationsPage() {
     if (!canManageIntegrations) return
     setFormError(null)
 
+    const requiredTags = form.requiredTags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean)
+
     if (formMode === 'create') {
       createIntegration.mutate({
         name: form.name,
@@ -233,6 +255,7 @@ export function IntegrationsPage() {
         className: form.className,
         triggers: buildSubmittedTriggers(),
         timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
+        requiredTags,
       })
     } else if (editingId) {
       updateIntegration.mutate({
@@ -243,6 +266,7 @@ export function IntegrationsPage() {
           status: form.status,
           triggers: buildSubmittedTriggers(editingTriggers),
           timeoutSeconds: form.timeoutSeconds ? Number(form.timeoutSeconds) : undefined,
+          requiredTags,
         },
       })
     }
@@ -296,6 +320,40 @@ export function IntegrationsPage() {
       </div>
 
       <GettingStartedChecklist />
+
+      {unroutable.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="space-y-2 text-sm">
+              <p className="font-medium text-amber-900 dark:text-amber-200">
+                {unroutable.length} integration{unroutable.length === 1 ? '' : 's'} can't run on any
+                connected agent
+              </p>
+              <p className="text-amber-800/80 dark:text-amber-200/80">
+                No live agent in their environment offers the required capabilities, so their work will
+                queue until a matching agent connects.
+              </p>
+              <ul className="space-y-1">
+                {unroutable.map(item => (
+                  <li key={item.id} className="text-amber-900 dark:text-amber-200">
+                    <span className="font-medium">{item.name}</span>
+                    <span className="text-amber-800/70 dark:text-amber-200/70"> ({item.environment}) — needs </span>
+                    {item.requiredTags.map(tag => (
+                      <code
+                        key={tag}
+                        className="mr-1 rounded bg-amber-500/20 px-1 py-0.5 text-xs text-amber-900 dark:text-amber-100"
+                      >
+                        {tag}
+                      </code>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-destructive">
@@ -537,6 +595,20 @@ export function IntegrationsPage() {
                 value={form.timeoutSeconds}
                 onChange={e => setForm(prev => ({ ...prev, timeoutSeconds: e.target.value }))}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="requiredTags">Required agent capabilities</Label>
+              <Input
+                id="requiredTags"
+                placeholder="e.g. hardware-signal, gpu"
+                value={form.requiredTags}
+                onChange={e => setForm(prev => ({ ...prev, requiredTags: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated. Work only runs on an agent offering all of these tags; leave blank to run
+                on any agent. Overrides the value declared in code.
+              </p>
             </div>
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}

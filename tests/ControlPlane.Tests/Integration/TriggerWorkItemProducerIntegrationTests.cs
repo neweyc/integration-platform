@@ -97,6 +97,7 @@ public class TriggerWorkItemProducerIntegrationTests
             var claimed = await repository.ClaimPendingQueueRunsAsync(
                 tenant.Id,
                 "production",
+                [],
                 agentId,
                 TimeSpan.FromMinutes(5),
                 now.AddSeconds(1));

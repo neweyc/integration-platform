@@ -117,6 +117,40 @@ public class UpdateIntegrationHandlerTests
         Assert.Equal("Timeout must be greater than zero seconds.", ex.Message);
     }
 
+    [Fact]
+    public async Task HandleAsync_SetsRequiredTagsAsOperatorOverride()
+    {
+        var existing = Existing();
+        existing.DeclaredRequiredTags = ["hardware-signal", "gpu"];
+        existing.RequiredTags = ["hardware-signal", "gpu"];
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
+
+        var command = new UpdateIntegrationCommand(
+            _tenantId, _integrationId, "Integration", null, IntegrationStatus.Enabled,
+            Triggers: [], RequiredTags: ["hardware-signal"]);
+
+        var result = await _handler.HandleAsync(command);
+
+        // Operator value applied; the code-declared defaults are untouched, so this reads as an override.
+        Assert.Equal(["hardware-signal"], existing.RequiredTags);
+        Assert.Equal(["hardware-signal", "gpu"], existing.DeclaredRequiredTags);
+        Assert.Equal(["hardware-signal"], result.RequiredTags);
+        Assert.True(result.RequiredTagsOverridden);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NullRequiredTags_LeavesExistingTagsUnchanged()
+    {
+        var existing = Existing();
+        existing.RequiredTags = ["gpu"];
+        existing.DeclaredRequiredTags = ["gpu"];
+        _repository.GetByIdAsync(_tenantId, _integrationId).Returns(existing);
+
+        await _handler.HandleAsync(Command()); // command.RequiredTags is null
+
+        Assert.Equal(["gpu"], existing.RequiredTags);
+    }
+
     private Integration Existing() => new()
     {
         Id = _integrationId,

@@ -29,7 +29,8 @@ public static class IntegrationEndpoints
                     request.TimeoutSeconds,
                     request.RetryMaxAttempts,
                     request.RetryBackoffSeconds,
-                    request.PackageId), ct);
+                    request.PackageId,
+                    request.RequiredTags), ct);
 
             return Results.Created($"/api/integrations/{result.Id}", result);
         }).RequirePermission(Permission.ManageIntegrations);
@@ -42,6 +43,19 @@ public static class IntegrationEndpoints
         {
             var result = await dispatcher.SendAsync(
                 new ListIntegrationsCommand(currentUser.TenantId, environment), ct);
+
+            return Results.Ok(result);
+        }).RequirePermission(Permission.ViewIntegrations);
+
+        // Integrations whose required agent capabilities no live agent currently offers — i.e. work
+        // that can't be routed anywhere right now.
+        group.MapGet("/unroutable", async (
+            IDispatcher dispatcher,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await dispatcher.SendAsync(
+                new GetUnroutableIntegrationsCommand(currentUser.TenantId), ct);
 
             return Results.Ok(result);
         }).RequirePermission(Permission.ViewIntegrations);
@@ -101,7 +115,8 @@ public static class IntegrationEndpoints
                     request.Triggers,
                     request.TimeoutSeconds,
                     request.RetryMaxAttempts,
-                    request.RetryBackoffSeconds), ct);
+                    request.RetryBackoffSeconds,
+                    request.RequiredTags), ct);
 
             return Results.Ok(result);
         }).RequirePermission(Permission.ManageIntegrations);
@@ -142,7 +157,8 @@ public record CreateIntegrationRequest(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    IReadOnlyList<string>? RequiredTags = null);
 
 public record UpdateIntegrationRequest(
     string Name,
@@ -151,4 +167,5 @@ public record UpdateIntegrationRequest(
     IReadOnlyList<IntegrationTriggerInput> Triggers,
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
-    int? RetryBackoffSeconds = null);
+    int? RetryBackoffSeconds = null,
+    IReadOnlyList<string>? RequiredTags = null);

@@ -126,6 +126,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.RetryMaxAttempts);
             b.Property(i => i.RetryBackoffSeconds);
             b.Property(i => i.PackageId);
+            b.Property(i => i.RequiredTags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
+            b.Property(i => i.DeclaredRequiredTags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
 
             // Slug must be unique within a tenant
             b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();
@@ -536,6 +538,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(h => h.Environment).IsRequired().HasMaxLength(50);
             b.Property(h => h.Version).HasMaxLength(100);
             b.Property(h => h.Hostname).HasMaxLength(200);
+            b.Property(h => h.Tags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
 
             b.HasIndex(h => new { h.TenantId, h.AgentTokenId }).IsUnique();
             b.HasIndex(h => new { h.TenantId, h.Environment, h.LastSeenAt });

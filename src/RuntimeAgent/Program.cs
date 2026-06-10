@@ -19,11 +19,19 @@ builder.Services.AddSingleton(options);
 builder.Services.Configure<HostOptions>(o =>
     o.ShutdownTimeout = TimeSpan.FromSeconds(options.ShutdownDrainSeconds + 10));
 
-// HTTP client for the control plane — attaches the agent token to every request
+// HTTP client for the control plane — attaches the agent token (and offered capabilities) to every request
 builder.Services.AddHttpClient<IControlPlaneClient, ControlPlaneClient>(client =>
 {
     client.BaseAddress = new Uri(options.ControlPlaneUrl);
     client.DefaultRequestHeaders.Add("X-Agent-Token", options.AgentToken);
+
+    // Advertise the agent's capabilities so the control plane only routes work this agent can run.
+    var tags = options.Tags
+        .Where(tag => !string.IsNullOrWhiteSpace(tag))
+        .Select(tag => tag.Trim())
+        .ToArray();
+    if (tags.Length > 0)
+        client.DefaultRequestHeaders.Add("X-Agent-Capabilities", string.Join(",", tags));
 })
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {

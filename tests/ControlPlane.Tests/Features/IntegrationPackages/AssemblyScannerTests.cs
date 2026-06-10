@@ -44,8 +44,39 @@ public class AssemblyScannerTests
             && t.CronExpression is null);
     }
 
+    [Fact]
+    public void ScanAssembly_RequiresAgentCapabilities_DiscoversNormalizedRequiredTags()
+    {
+        var discovered = AssemblyScanner.ScanAssembly(typeof(CapabilityTaggedIntegration).Assembly);
+
+        var integration = discovered.Single(i => i.Slug == "scanner-capability-tagged");
+
+        // Tags are trimmed and de-duplicated (case-insensitive).
+        Assert.NotNull(integration.RequiredTags);
+        Assert.Equal(2, integration.RequiredTags!.Count);
+        Assert.Contains("hardware-signal", integration.RequiredTags);
+        Assert.Contains("site-floor-1", integration.RequiredTags);
+    }
+
+    [Fact]
+    public void ScanAssembly_NoCapabilityAttribute_HasNoRequiredTags()
+    {
+        var discovered = AssemblyScanner.ScanAssembly(typeof(BaseOnlyDiscoveredIntegration).Assembly);
+
+        var integration = discovered.Single(i => i.Slug == "scanner-base-only");
+
+        Assert.True(integration.RequiredTags is null || integration.RequiredTags.Count == 0);
+    }
+
     [Integration("Scanner Base Only", "scanner-base-only", Description = "Base metadata only", TimeoutSeconds = 45)]
     private sealed class BaseOnlyDiscoveredIntegration : IIntegration
+    {
+        public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    [Integration("Scanner Capability Tagged", "scanner-capability-tagged")]
+    [RequiresAgentCapabilities("hardware-signal", " site-floor-1 ", "Hardware-Signal")]
+    private sealed class CapabilityTaggedIntegration : IIntegration
     {
         public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
     }

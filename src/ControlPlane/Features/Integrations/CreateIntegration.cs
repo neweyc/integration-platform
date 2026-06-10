@@ -26,7 +26,8 @@ public record CreateIntegrationCommand(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+    Guid? PackageId = null,
+    IReadOnlyList<string>? RequiredTags = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.IntegrationCreated, "Integration",
@@ -44,7 +45,10 @@ public record CreateIntegrationResult(
     int? TimeoutSeconds = null,
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
-    Guid? PackageId = null);
+    Guid? PackageId = null,
+    IReadOnlyList<string>? RequiredTags = null,
+    IReadOnlyList<string>? DeclaredRequiredTags = null,
+    bool RequiredTagsOverridden = false);
 
 public record IntegrationTriggerResult(
     Guid Id,
@@ -83,7 +87,8 @@ public interface IIntegrationRepository
 public record IntegrationUpsertResult(
     Integration Integration,
     bool Created,
-    IReadOnlyList<IntegrationTriggerUpsertResult> Triggers);
+    IReadOnlyList<IntegrationTriggerUpsertResult> Triggers,
+    bool RequiredTagsOverridden = false);
 
 public record IntegrationTriggerUpsertResult(
     IntegrationTrigger Trigger,
@@ -125,6 +130,9 @@ public class CreateIntegrationHandler(
         var oneTimeSecrets = new Dictionary<string, string>();
         var triggers = BuildTriggers(command.TenantId, command.Triggers, encryption, oneTimeSecrets);
 
+        // A newly created integration has no override yet: declared defaults match the active tags.
+        var requiredTags = TagSet.Normalize(command.RequiredTags);
+
         var integration = new Integration
         {
             TenantId = command.TenantId,
@@ -137,7 +145,9 @@ public class CreateIntegrationHandler(
             RetryMaxAttempts = command.RetryMaxAttempts,
             RetryBackoffSeconds = command.RetryBackoffSeconds,
             PackageId = command.PackageId,
-            Status = IntegrationStatus.Enabled
+            Status = IntegrationStatus.Enabled,
+            RequiredTags = requiredTags,
+            DeclaredRequiredTags = requiredTags
         };
 
         var created = await repository.CreateAsync(integration, triggers, ct);
@@ -277,7 +287,10 @@ public class CreateIntegrationHandler(
             integration.TimeoutSeconds,
             integration.RetryMaxAttempts,
             integration.RetryBackoffSeconds,
-            integration.PackageId);
+            integration.PackageId,
+            integration.RequiredTags,
+            integration.DeclaredRequiredTags,
+            RequiredTagsOverridden: !TagSet.Equal(integration.RequiredTags, integration.DeclaredRequiredTags));
 
     internal static IntegrationTriggerResult ToTriggerResult(
         Integration integration,

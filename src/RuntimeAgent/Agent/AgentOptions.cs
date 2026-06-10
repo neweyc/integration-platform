@@ -11,6 +11,11 @@ public class AgentOptions
     // The environment this agent is responsible for, e.g. "production"
     public string Environment { get; set; } = "";
 
+    // Capabilities this agent offers, e.g. ["hardware-signal", "site-floor-1"]. The control plane only
+    // routes an integration to this agent when its required tags are all present here. Empty = the agent
+    // can run any integration in its environment.
+    public string[] Tags { get; set; } = [];
+
     // Directory to scan for integration assemblies (.dll files)
     public string IntegrationsPath { get; set; } = "";
 

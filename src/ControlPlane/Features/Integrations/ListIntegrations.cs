@@ -19,7 +19,8 @@ public record ListIntegrationItem(
     int RetryMaxAttempts,
     int? RetryBackoffSeconds,
     Guid? PackageId,
-    ExecutionSummary? LastExecution);
+    ExecutionSummary? LastExecution,
+    IReadOnlyList<string>? RequiredTags = null);
 
 public class ListIntegrationsHandler(
     IIntegrationReadRepository repository,
@@ -55,7 +56,8 @@ public class ListIntegrationsHandler(
                     i.RetryMaxAttempts,
                     i.RetryBackoffSeconds,
                     i.PackageId,
-                    lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution));
+                    lastExecution is null ? null : ListIntegrationExecutionsHandler.ToSummary(lastExecution),
+                    i.RequiredTags);
             })
             .ToList();
 

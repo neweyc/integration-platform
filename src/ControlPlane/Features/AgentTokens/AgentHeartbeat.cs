@@ -11,7 +11,8 @@ public record AgentHeartbeatCommand(
     string? Version,
     string? Hostname,
     int CurrentConcurrency,
-    int MaxConcurrency) : ICommand<bool>;
+    int MaxConcurrency,
+    IReadOnlyList<string>? Tags = null) : ICommand<bool>;
 
 public record ListAgentHeartbeatsCommand(Guid TenantId) : ICommand<ListAgentHeartbeatsResult>;
 
@@ -26,7 +27,8 @@ public record AgentHeartbeatItem(
     int CurrentConcurrency,
     int MaxConcurrency,
     DateTime LastSeenAt,
-    bool IsStale);
+    bool IsStale,
+    IReadOnlyList<string> Tags);
 
 public interface IAgentHeartbeatRepository
 {
@@ -57,6 +59,7 @@ public class AgentHeartbeatHandler(IAgentHeartbeatRepository repository)
             Hostname = string.IsNullOrWhiteSpace(command.Hostname) ? null : command.Hostname,
             CurrentConcurrency = command.CurrentConcurrency,
             MaxConcurrency = command.MaxConcurrency,
+            Tags = (command.Tags ?? []).ToArray(),
             LastSeenAt = DateTime.UtcNow
         }, ct);
 
@@ -87,7 +90,8 @@ public class ListAgentHeartbeatsHandler(IAgentHeartbeatRepository repository)
                 a.CurrentConcurrency,
                 a.MaxConcurrency,
                 a.LastSeenAt,
-                now - a.LastSeenAt > StaleAfter))
+                now - a.LastSeenAt > StaleAfter,
+                a.Tags))
             .ToList());
     }
 }
@@ -111,6 +115,7 @@ public class AgentHeartbeatRepository(AppDbContext db) : IAgentHeartbeatReposito
             existing.Hostname = heartbeat.Hostname;
             existing.CurrentConcurrency = heartbeat.CurrentConcurrency;
             existing.MaxConcurrency = heartbeat.MaxConcurrency;
+            existing.Tags = heartbeat.Tags;
             existing.LastSeenAt = heartbeat.LastSeenAt;
             existing.UpdatedAt = DateTime.UtcNow;
         }
