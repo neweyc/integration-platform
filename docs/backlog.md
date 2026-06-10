@@ -674,6 +674,31 @@ Acceptance criteria:
 Depends on a decision: keep SDK/CLI/Connectors MIT but make the **control plane source-available /
 commercial** (not MIT), so unlicensed commercial use is a real liability — see the design doc.
 
+### On-Prem Secret Vault (reference-based secrets)
+
+**Status:** Todo
+
+Stop storing secret *values* in the control plane so a hosted control plane can hold references only —
+the prerequisite for a cloud offering under "credentials never leave our network." Design doc:
+[docs/secret-vault.md](secret-vault.md); strategy context in [docs/cloud-strategy.md](cloud-strategy.md).
+
+Acceptance criteria:
+
+- An `ISecretBackend` abstraction; today's encrypted-in-DB store becomes the **embedded** backend (no
+  behavior change, default for simple self-hosted).
+- An **external-vault** backend: the control plane stores `{ environment, key } → reference` only; secret
+  values live in an on-prem vault container (first-party or an OpenBao/HashiCorp Vault/KMS integration),
+  and the **agent resolves references against the vault at run time** rather than receiving a decrypted
+  bundle from the control plane.
+- Secret *values* never rest in (ideally never transit) the control plane under the external backend; the
+  Secrets UI manages bindings, not values.
+- Migration tooling from embedded → external; the control plane no longer needs `Encryption:MasterKey`
+  under the external backend.
+- Cloud deployments mandate the external backend ("no secrets in the cloud, full stop").
+
+Enables the cloud tier (phase-2); decouples secret storage from the control plane for security-conscious
+self-hosted buyers too.
+
 ### Marketplace
 
 **Status:** Todo

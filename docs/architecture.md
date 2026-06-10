@@ -111,6 +111,11 @@ Three auth mechanisms exist:
 - Secret values are **never returned** through the user-facing API — only keys and metadata
 - The secret bundle endpoint (`GET /api/agent/secrets/{environment}`) decrypts and returns all values for an environment, but is only accessible with a valid agent token
 
+> This describes the current **embedded** secret store (values held by the control plane). A planned
+> change introduces a reference-based **external-vault** backend so secret values can live in an on-prem
+> vault and never rest in the control plane — required before a hosted control plane is offered. See
+> [secret-vault.md](secret-vault.md).
+
 ### SaaS Infrastructure
 
 The control plane is built for multi-tenancy from the ground up:
