@@ -31,6 +31,7 @@ public interface IEnvironmentWriteRepository
 {
     Task<Environment?> FindAsync(Guid tenantId, string name, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid tenantId, string name, CancellationToken ct = default);
+    Task<int> CountAsync(Guid tenantId, CancellationToken ct = default);
     Task AddAsync(Environment environment, CancellationToken ct = default);
     Task<IReadOnlyList<Environment>> ListTrackedAsync(Guid tenantId, CancellationToken ct = default);
     Task<EnvironmentUsage> GetUsageAsync(Guid tenantId, string name, CancellationToken ct = default);
@@ -51,6 +52,9 @@ public class EnvironmentRepository(AppDbContext db)
 
     public Task<bool> ExistsAsync(Guid tenantId, string name, CancellationToken ct = default) =>
         db.Environments.AnyAsync(e => e.TenantId == tenantId && e.Name == name, ct);
+
+    public Task<int> CountAsync(Guid tenantId, CancellationToken ct = default) =>
+        db.Environments.CountAsync(e => e.TenantId == tenantId, ct);
 
     public async Task<string?> GetDefaultNameAsync(Guid tenantId, CancellationToken ct = default)
     {

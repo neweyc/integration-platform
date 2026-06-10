@@ -43,6 +43,8 @@ Environments (e.g. `production`, `staging`) are a **first-class, per-tenant regi
 - **Lifecycle.** An environment cannot be deleted while live configuration (integrations, secrets, agent tokens, or workflows) still references it; the API returns `409` listing what to move or remove first. Historical records (executions, work items, heartbeats) do not pin an environment.
 - **Default.** Exactly one environment per tenant is the default: it is pre-selected when creating integrations and agent tokens and is the target for package auto-provisioning. The default cannot be deleted and its default flag cannot be cleared directly — making another environment the default moves it — so a valid default always exists.
 
+- **Plan cap.** The number of environments a tenant can create is capped by its plan — the **Free** plan is limited to **2** (the seeded `production` plus one more); paid plans are effectively unlimited. The cap only blocks *new* environments beyond it, so a tenant that downgrades keeps the environments it already has but can't add more until it upgrades.
+
 Viewing the registry requires `ViewEnvironments`; creating, editing, or deleting requires `ManageEnvironments`.
 
 ---

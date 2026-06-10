@@ -1,6 +1,9 @@
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using NSubstitute;
+using Shared.Domain;
 using Environment = Shared.Domain.Environment;
 
 namespace ControlPlane.Tests.Features.Environments;
@@ -8,9 +11,18 @@ namespace ControlPlane.Tests.Features.Environments;
 public class EnvironmentHandlerTests
 {
     private readonly IEnvironmentWriteRepository _repository = Substitute.For<IEnvironmentWriteRepository>();
+    private readonly ITenantReadRepository _tenants = Substitute.For<ITenantReadRepository>();
+    private readonly BillingPlanCatalog _planCatalog = new(new StripeOptions());
     private readonly Guid _tenantId = Guid.NewGuid();
 
-    private CreateEnvironmentHandler CreateHandler => new(_repository);
+    public EnvironmentHandlerTests()
+    {
+        // Default: a Free-plan tenant well under its environment cap.
+        _tenants.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
+            .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
+    }
+
+    private CreateEnvironmentHandler CreateHandler => new(_repository, _tenants, _planCatalog);
     private UpdateEnvironmentHandler UpdateHandler => new(_repository);
     private DeleteEnvironmentHandler DeleteHandler => new(_repository);
 
@@ -27,6 +39,35 @@ public class EnvironmentHandlerTests
         await _repository.Received(1).AddAsync(
             Arg.Is<Environment>(e => e.Name == "staging" && e.TenantId == _tenantId), Arg.Any<CancellationToken>());
         await _repository.Received(1).SaveAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Create_FreePlanAtEnvironmentLimit_ThrowsValidation()
+    {
+        _repository.ExistsAsync(_tenantId, "staging", Arg.Any<CancellationToken>()).Returns(false);
+        // Free is capped at 2 environments; the tenant already has 2.
+        _repository.CountAsync(_tenantId, Arg.Any<CancellationToken>()).Returns(2);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => CreateHandler.HandleAsync(
+            new CreateEnvironmentCommand(_tenantId, "staging", null, null, 0, false)));
+
+        Assert.Contains("limited to 2 environments", ex.Message);
+        await _repository.DidNotReceive().AddAsync(Arg.Any<Environment>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Create_PaidPlan_AllowsBeyondFreeLimit()
+    {
+        _tenants.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
+            .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Team });
+        _repository.ExistsAsync(_tenantId, "staging", Arg.Any<CancellationToken>()).Returns(false);
+        _repository.CountAsync(_tenantId, Arg.Any<CancellationToken>()).Returns(50);
+        _repository.ListTrackedAsync(_tenantId, Arg.Any<CancellationToken>()).Returns([]);
+
+        var result = await CreateHandler.HandleAsync(
+            new CreateEnvironmentCommand(_tenantId, "staging", null, null, 0, false));
+
+        Assert.Equal("staging", result.Name);
     }
 
     [Fact]

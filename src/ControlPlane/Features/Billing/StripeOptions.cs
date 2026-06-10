@@ -30,6 +30,14 @@ public class BillingPlanCatalog(StripeOptions options)
         _ => 1_000
     };
 
+    // Maximum environments a plan may have. Free is capped (one extra beyond the seeded production
+    // environment); paid plans are effectively unlimited.
+    public int MaxEnvironmentsFor(BillingPlan plan) => plan switch
+    {
+        BillingPlan.Free => 2,
+        _ => int.MaxValue
+    };
+
     // The Stripe price id to check out for a plan, or null for plans that aren't self-serve
     // (Free has no charge; Enterprise is sales-assisted).
     public string? PriceIdFor(BillingPlan plan) => plan switch

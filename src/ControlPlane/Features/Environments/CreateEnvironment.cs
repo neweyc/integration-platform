@@ -1,3 +1,5 @@
+using ControlPlane.Features.Billing;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Shared.Domain;
@@ -18,7 +20,10 @@ public record CreateEnvironmentCommand(
             (result as EnvironmentDto)?.Name, $"Created environment '{(result as EnvironmentDto)?.Name}'");
 }
 
-public class CreateEnvironmentHandler(IEnvironmentWriteRepository repository)
+public class CreateEnvironmentHandler(
+    IEnvironmentWriteRepository repository,
+    ITenantReadRepository tenants,
+    BillingPlanCatalog planCatalog)
     : ICommandHandler<CreateEnvironmentCommand, EnvironmentDto>
 {
     public async Task<EnvironmentDto> HandleAsync(CreateEnvironmentCommand command, CancellationToken ct = default)
@@ -33,6 +38,15 @@ public class CreateEnvironmentHandler(IEnvironmentWriteRepository repository)
 
         if (await repository.ExistsAsync(command.TenantId, name, ct))
             throw new ConflictException($"Environment '{name}' already exists.");
+
+        // Enforce the plan's environment cap (Free is limited; paid plans are unlimited). This only
+        // blocks new environments beyond the cap — a downgraded tenant keeps the ones it already has.
+        var tenant = await tenants.GetByIdAsync(command.TenantId, ct)
+            ?? throw new NotFoundException("Tenant not found.");
+        var maxEnvironments = planCatalog.MaxEnvironmentsFor(tenant.Plan);
+        if (await repository.CountAsync(command.TenantId, ct) >= maxEnvironments)
+            throw new ValidationException(
+                $"The {tenant.Plan} plan is limited to {maxEnvironments} environments. Upgrade to add more.");
 
         var environment = new Environment
         {
