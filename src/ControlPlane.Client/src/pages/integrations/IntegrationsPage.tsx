@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   integrationsApi,
@@ -81,6 +81,32 @@ export function IntegrationsPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [runError, setRunError] = useState<string | null>(null)
 
+  // List filters live in the URL so a filtered view survives refresh and can be shared/linked.
+  // Defaults (all environments, all statuses, empty search) are omitted to keep the query string clean.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const environmentFilter = searchParams.get('env') ?? ''
+  const statusParam = searchParams.get('status')
+  const statusFilter: 'all' | 'active' | 'inactive' =
+    statusParam === 'active' || statusParam === 'inactive' ? statusParam : 'all'
+  const search = searchParams.get('q') ?? ''
+
+  function setFilterParam(key: string, value: string, isDefault: boolean) {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        if (isDefault) next.delete(key)
+        else next.set(key, value)
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  const setEnvironmentFilter = (value: string) => setFilterParam('env', value, value === '')
+  const setStatusFilter = (value: 'all' | 'active' | 'inactive') =>
+    setFilterParam('status', value, value === 'all')
+  const setSearch = (value: string) => setFilterParam('q', value, value.trim() === '')
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['integrations'],
     queryFn: () => integrationsApi.list(),
@@ -90,6 +116,38 @@ export function IntegrationsPage() {
   // Environment options come from the canonical registry rather than a hardcoded list.
   const { data: envData } = useEnvironments(canViewIntegrations)
   const environments = envData?.environments ?? []
+
+  const allIntegrations = useMemo(() => data?.integrations ?? [], [data])
+
+  const filteredIntegrations = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return allIntegrations.filter(integration => {
+      if (environmentFilter && integration.environment !== environmentFilter) return false
+      if (statusFilter === 'active' && integration.status !== 'Enabled') return false
+      if (statusFilter === 'inactive' && integration.status !== 'Disabled') return false
+      if (query) {
+        const haystack =
+          `${integration.name} ${integration.slug} ${integration.className ?? ''}`.toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+      return true
+    })
+  }, [allIntegrations, environmentFilter, statusFilter, search])
+
+  const filtersActive = environmentFilter !== '' || statusFilter !== 'all' || search.trim() !== ''
+
+  function clearFilters() {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('env')
+        next.delete('status')
+        next.delete('q')
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const createIntegration = useMutation({
     mutationFn: (data: CreateIntegrationRequest) => integrationsApi.create(data),
@@ -254,17 +312,58 @@ export function IntegrationsPage() {
         </div>
       )}
 
+      {!isLoading && allIntegrations.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            aria-label="Filter by environment"
+            value={environmentFilter}
+            onChange={e => setEnvironmentFilter(e.target.value)}
+            className="h-9 w-full sm:w-56"
+          >
+            <option value="">All environments</option>
+            {environments.map(env => (
+              <option key={env.name} value={env.name}>
+                {env.displayName}
+              </option>
+            ))}
+          </Select>
+
+          <div className="flex items-center gap-0.5 rounded-md border bg-background p-0.5">
+            {(['all', 'active', 'inactive'] as const).map(value => (
+              <Button
+                key={value}
+                size="sm"
+                variant={statusFilter === value ? 'default' : 'ghost'}
+                className="capitalize"
+                onClick={() => setStatusFilter(value)}
+              >
+                {value}
+              </Button>
+            ))}
+          </div>
+
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filter by name…"
+            className="h-9 w-full sm:ml-auto sm:w-64"
+          />
+        </div>
+      )}
+
       {isLoading ? (
         <IntegrationsTableSkeleton />
       ) : (
         <IntegrationsTable
-          integrations={data?.integrations ?? []}
+          integrations={filteredIntegrations}
           onEdit={handleOpenEdit}
           onViewHistory={id => navigate(`/integrations/${id}/history`)}
           onRun={id => runManual.mutate(id)}
           isRunPending={runManual.isPending}
           onDelete={id => deleteIntegration.mutate(id)}
           onCreate={handleOpenCreate}
+          hasActiveFilters={filtersActive}
+          onClearFilters={clearFilters}
           canManageIntegrations={canManageIntegrations}
           canTriggerManualRun={canTriggerManualRun}
           canViewExecutions={canViewExecutions}
@@ -473,6 +572,8 @@ function IntegrationsTable({
   isRunPending,
   onDelete,
   onCreate,
+  hasActiveFilters,
+  onClearFilters,
   canManageIntegrations,
   canTriggerManualRun,
   canViewExecutions,
@@ -484,11 +585,24 @@ function IntegrationsTable({
   isRunPending: boolean
   onDelete: (id: string) => void
   onCreate: () => void
+  hasActiveFilters: boolean
+  onClearFilters: () => void
   canManageIntegrations: boolean
   canTriggerManualRun: boolean
   canViewExecutions: boolean
 }) {
   if (integrations.length === 0) {
+    // Distinguish "you have none" from "your filters hid them all".
+    if (hasActiveFilters) {
+      return (
+        <EmptyState
+          icon={Zap}
+          title="No integrations match your filters"
+          description="Try a different environment or status, or clear the search."
+          primaryAction={{ label: 'Clear filters', onClick: onClearFilters }}
+        />
+      )
+    }
     return (
       <EmptyState
         icon={Zap}
