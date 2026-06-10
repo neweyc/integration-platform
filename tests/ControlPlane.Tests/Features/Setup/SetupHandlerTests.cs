@@ -8,16 +8,17 @@ namespace ControlPlane.Tests.Features.Setup;
 public class SetupHandlerTests
 {
     private readonly ISetupRepository _repository = Substitute.For<ISetupRepository>();
-    private readonly IJwtTokenService _tokenService = Substitute.For<IJwtTokenService>();
+    private readonly IAuthTokenIssuer _issuer = Substitute.For<IAuthTokenIssuer>();
     private readonly SetupHandler _handler;
 
     public SetupHandlerTests()
     {
-        _handler = new SetupHandler(_repository, _tokenService);
+        _handler = new SetupHandler(_repository, _issuer);
 
         _repository.CreateTenantAsync(Arg.Any<Tenant>()).Returns(call => call.Arg<Tenant>());
         _repository.CreateUserAsync(Arg.Any<User>()).Returns(call => call.Arg<User>());
-        _tokenService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
+        _issuer.IssueAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(new AuthTokens("jwt-token", "rt_refresh", DateTime.UtcNow.AddDays(30)));
     }
 
     [Fact]

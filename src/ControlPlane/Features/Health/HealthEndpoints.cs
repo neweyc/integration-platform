@@ -9,7 +9,9 @@ public static class HealthEndpoints
     {
         var group = app.MapGroup("")
             .WithTags("Health")
-            .AllowAnonymous();
+            .AllowAnonymous()
+            // Orchestrators poll these frequently; never let the rate limiter throttle health.
+            .DisableRateLimiting();
 
         // Liveness: the process is up and able to serve HTTP. It deliberately checks no
         // dependencies — a transient database outage must not make an orchestrator kill an

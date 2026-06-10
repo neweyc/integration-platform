@@ -50,6 +50,14 @@ dotnet run --project src/ControlPlane
 
 Runs on `http://localhost:5000`. **Migrations are applied automatically on startup**, so the schema is created on first run.
 
+To add a schema change, edit the entities/`AppDbContext` fluent mapping and generate a migration (a design-time factory lets the EF tooling run without booting the app):
+
+```bash
+dotnet ef migrations add <Name> --project src/ControlPlane/ControlPlane.csproj
+```
+
+The migration is applied automatically the next time the control plane starts.
+
 ### 3. Start the frontend dev server
 
 ```bash
@@ -307,6 +315,11 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Jwt:Issuer` | `Jwt__Issuer` | Token issuer |
 | `Jwt:Audience` | `Jwt__Audience` | Token audience |
 | `Jwt:ExpiryHours` | `Jwt__ExpiryHours` | Access-token lifetime in hours |
+| `Jwt:RefreshTokenExpiryDays` | `Jwt__RefreshTokenExpiryDays` | Refresh-token lifetime in days (default 30). Refresh tokens rotate on every use. |
+| `App:BaseUrl` | `App__BaseUrl` | Public base URL of the control plane (e.g. `https://serto.example.com`). Required for password-reset emails to contain a working link. |
+| `RateLimit:Enabled` | `RateLimit__Enabled` | Master switch for HTTP rate limiting (default `true`). |
+| `RateLimit:PermitLimit` / `RateLimit:WindowSeconds` | `RateLimit__PermitLimit` / `RateLimit__WindowSeconds` | Global per-IP request budget and window (default 300 / 60s). |
+| `RateLimit:AuthPermitLimit` / `RateLimit:AuthWindowSeconds` | `RateLimit__AuthPermitLimit` / `RateLimit__AuthWindowSeconds` | Stricter per-IP budget for sensitive auth endpoints — login, setup, password reset, token refresh (default 10 / 60s). |
 | `Encryption:MasterKey` | `Encryption__MasterKey` | Master key used to derive the secret-encryption key |
 | `Zepto:Token` | `Zepto__Token` | ZeptoMail "Send Mail" token for the platform-default email sender used by failure alerts. Leave blank to disable the email default. |
 | `Zepto:FromAddress` | `Zepto__FromAddress` | Verified sender address platform-sent alert emails come from. Required for the email default to work. |

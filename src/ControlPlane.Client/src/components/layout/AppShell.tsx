@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
-import { clearToken } from '@/api/client'
+import { clearToken, getRefreshToken } from '@/api/client'
+import { authApi } from '@/api/auth'
 import { getCurrentUser, hasPermission, type Permission } from '@/lib/rbac'
 
 const navItems = [
@@ -40,7 +41,16 @@ export function AppShell() {
   const user = getCurrentUser()
   const visibleNavItems = navItems.filter(item => hasPermission(item.permission, user))
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    // Best-effort server-side revocation; never block local sign-out on it.
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      try {
+        await authApi.logout(refreshToken)
+      } catch {
+        // ignore — clearing local tokens below still signs the user out
+      }
+    }
     clearToken()
     navigate('/login')
   }

@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SetupPage } from '@/pages/setup/SetupPage'
 import { LoginPage } from '@/pages/login/LoginPage'
+import { ForgotPasswordPage } from '@/pages/login/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage'
 import { LandingPage } from '@/pages/landing/LandingPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { IntegrationHistoryPage } from '@/pages/integrationHistory/IntegrationHistoryPage'
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
             <Route path="/app" element={<RootRedirect />} />
 

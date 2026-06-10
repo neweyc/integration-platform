@@ -5,14 +5,14 @@ namespace ControlPlane.Features.Auth;
 
 public record LoginUserCommand(string Email, string Password) : ICommand<LoginUserResult>;
 
-public record LoginUserResult(string Token, string Email, string Role);
+public record LoginUserResult(string Token, string Email, string Role, string RefreshToken, DateTime RefreshTokenExpiresAt);
 
 public interface IUserReadRepository
 {
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
 }
 
-public class LoginUserHandler(IUserReadRepository repository, IJwtTokenService tokenService)
+public class LoginUserHandler(IUserReadRepository repository, IAuthTokenIssuer issuer)
     : ICommandHandler<LoginUserCommand, LoginUserResult>
 {
     public async Task<LoginUserResult> HandleAsync(LoginUserCommand command, CancellationToken ct = default)
@@ -26,8 +26,10 @@ public class LoginUserHandler(IUserReadRepository repository, IJwtTokenService t
         if (user is null || !BCrypt.Net.BCrypt.Verify(command.Password, user.PasswordHash))
             throw new ValidationException("Invalid email or password.");
 
-        var token = tokenService.GenerateToken(user);
+        var tokens = await issuer.IssueAsync(user, ct);
 
-        return new LoginUserResult(token, user.Email, user.Role.ToString());
+        return new LoginUserResult(
+            tokens.AccessToken, user.Email, user.Role.ToString(),
+            tokens.RefreshToken, tokens.RefreshTokenExpiresAt);
     }
 }

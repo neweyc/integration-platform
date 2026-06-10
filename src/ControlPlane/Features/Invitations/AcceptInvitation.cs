@@ -7,12 +7,14 @@ namespace ControlPlane.Features.Invitations;
 
 public record AcceptInvitationCommand(string Token, string Password) : ICommand<AcceptInvitationResult>;
 
-public record AcceptInvitationResult(Guid UserId, string Email, string Token);
+public record AcceptInvitationResult(
+    Guid UserId, string Email, string Token,
+    string RefreshToken, DateTime RefreshTokenExpiresAt);
 
 public class AcceptInvitationHandler(
     IInvitationRepository invitationRepository,
     IUserRepository userRepository,
-    IJwtTokenService tokenService,
+    IAuthTokenIssuer issuer,
     IAuditRecorder auditRecorder)
     : ICommandHandler<AcceptInvitationCommand, AcceptInvitationResult>
 {
@@ -39,7 +41,7 @@ public class AcceptInvitationHandler(
         invitation.AcceptedAt = DateTime.UtcNow;
         await invitationRepository.UpdateAsync(invitation, ct);
 
-        var token = tokenService.GenerateToken(createdUser);
+        var tokens = await issuer.IssueAsync(createdUser, ct);
 
         // The actor is the newly-created user, who has no authenticated context yet — record explicitly.
         await auditRecorder.RecordAsync(new AuditDescriptor(
@@ -49,6 +51,8 @@ public class AcceptInvitationHandler(
             ExplicitActorUserId: createdUser.Id,
             ExplicitActorEmail: createdUser.Email), ct);
 
-        return new AcceptInvitationResult(createdUser.Id, createdUser.Email, token);
+        return new AcceptInvitationResult(
+            createdUser.Id, createdUser.Email, tokens.AccessToken,
+            tokens.RefreshToken, tokens.RefreshTokenExpiresAt);
     }
 }

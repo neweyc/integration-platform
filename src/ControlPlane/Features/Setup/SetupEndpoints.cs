@@ -1,4 +1,5 @@
 using ControlPlane.Infrastructure;
+using ControlPlane.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ControlPlane.Features.Setup;
@@ -30,7 +31,7 @@ public static class SetupEndpoints
                     request.AdminPassword), ct);
 
             return Results.Ok(result);
-        }).WithTags("Setup");
+        }).WithTags("Setup").RequireRateLimiting(RateLimitOptions.AuthPolicy);
 
         return app;
     }

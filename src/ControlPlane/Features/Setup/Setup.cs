@@ -11,7 +11,9 @@ public record SetupCommand(
     string AdminEmail,
     string AdminPassword) : ICommand<SetupResult>;
 
-public record SetupResult(Guid TenantId, string TenantName, Guid UserId, string Email, string Token);
+public record SetupResult(
+    Guid TenantId, string TenantName, Guid UserId, string Email, string Token,
+    string RefreshToken, DateTime RefreshTokenExpiresAt);
 
 public interface ISetupRepository
 {
@@ -20,7 +22,7 @@ public interface ISetupRepository
     Task<User> CreateUserAsync(User user, CancellationToken ct = default);
 }
 
-public class SetupHandler(ISetupRepository repository, IJwtTokenService tokenService)
+public class SetupHandler(ISetupRepository repository, IAuthTokenIssuer issuer)
     : ICommandHandler<SetupCommand, SetupResult>
 {
     public async Task<SetupResult> HandleAsync(SetupCommand command, CancellationToken ct = default)
@@ -49,9 +51,11 @@ public class SetupHandler(ISetupRepository repository, IJwtTokenService tokenSer
 
         var createdUser = await repository.CreateUserAsync(user, ct);
 
-        var token = tokenService.GenerateToken(createdUser);
+        var tokens = await issuer.IssueAsync(createdUser, ct);
 
-        return new SetupResult(createdTenant.Id, createdTenant.Name, createdUser.Id, createdUser.Email, token);
+        return new SetupResult(
+            createdTenant.Id, createdTenant.Name, createdUser.Id, createdUser.Email,
+            tokens.AccessToken, tokens.RefreshToken, tokens.RefreshTokenExpiresAt);
     }
 
     private static void ValidateCommand(SetupCommand command)

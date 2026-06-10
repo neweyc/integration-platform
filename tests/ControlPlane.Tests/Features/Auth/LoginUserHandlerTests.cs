@@ -8,12 +8,12 @@ namespace ControlPlane.Tests.Features.Auth;
 public class LoginUserHandlerTests
 {
     private readonly IUserReadRepository _repository = Substitute.For<IUserReadRepository>();
-    private readonly IJwtTokenService _tokenService = Substitute.For<IJwtTokenService>();
+    private readonly IAuthTokenIssuer _issuer = Substitute.For<IAuthTokenIssuer>();
     private readonly LoginUserHandler _handler;
 
     public LoginUserHandlerTests()
     {
-        _handler = new LoginUserHandler(_repository, _tokenService);
+        _handler = new LoginUserHandler(_repository, _issuer);
     }
 
     [Fact]
@@ -29,13 +29,15 @@ public class LoginUserHandlerTests
         };
 
         _repository.GetByEmailAsync("admin@acme.com").Returns(user);
-        _tokenService.GenerateToken(user).Returns("jwt-token");
+        _issuer.IssueAsync(user, Arg.Any<CancellationToken>())
+            .Returns(new AuthTokens("jwt-token", "rt_refresh", DateTime.UtcNow.AddDays(30)));
 
         var result = await _handler.HandleAsync(new LoginUserCommand("admin@acme.com", "securepass123"));
 
         Assert.Equal("jwt-token", result.Token);
         Assert.Equal("admin@acme.com", result.Email);
         Assert.Equal("Admin", result.Role);
+        Assert.Equal("rt_refresh", result.RefreshToken);
     }
 
     [Fact]
