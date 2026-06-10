@@ -565,6 +565,26 @@ Completed notes:
 - Fully config-driven via the `RateLimit` section (documented in `installation.md`); tests disable it via `RateLimit:Enabled=false`.
 - Agent endpoints are covered by the global per-IP limit. Per-agent-token limits remain a future refinement (noted, not yet implemented).
 
+### Trusted Agent Capability Tags
+
+**Status:** Todo (low priority)
+
+Today agent capability tags (see [Agent Capability Tags](#agent-capability-tags)) are **self-reported by
+the agent and used for routing only** — they decide *where* work runs, not *who* can access what. The
+moment a tag needs to *mean* something security-wise (e.g. `pci-host`, a data-residency region, a
+compliance boundary), self-reported tags are worthless: an agent could simply claim the tag. Such tags
+must instead be **server-assigned to the agent token** and trusted from there.
+
+Low priority — only needed when a real trusted-capability requirement appears; it should be designed as
+part of the broader [Authz Revisit](#authz-revisit) pass rather than bolted on piecemeal.
+
+Acceptance criteria:
+
+- A subset of capability tags can be **granted on the agent token** (server-side), not just self-reported.
+- Routing distinguishes trusted (token-granted) tags from self-reported ones; an integration can require a trusted tag.
+- An agent cannot self-grant a trusted tag by reporting it in `X-Agent-Capabilities`.
+- The distinction is visible in the UI (which tags are trusted vs advertised).
+
 ---
 
 ## P2 — Environment Management
