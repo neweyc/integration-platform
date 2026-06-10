@@ -1,5 +1,7 @@
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -11,13 +13,17 @@ public class CreateIntegrationHandlerTests
     private readonly IIntegrationRepository _repository = Substitute.For<IIntegrationRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
+    private readonly ITenantReadRepository _tenants = Substitute.For<ITenantReadRepository>();
+    private readonly BillingPlanCatalog _planCatalog = new(new StripeOptions());
     private readonly CreateIntegrationHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public CreateIntegrationHandlerTests()
     {
-        _handler = new CreateIntegrationHandler(_repository, _encryption, _environments);
+        _handler = new CreateIntegrationHandler(_repository, _encryption, _environments, _tenants, _planCatalog);
         _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+        _tenants.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
+            .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
         _repository.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())
             .Returns(call =>
             {
@@ -127,6 +133,27 @@ public class CreateIntegrationHandlerTests
         ]);
 
         await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(command));
+    }
+
+    [Fact]
+    public async Task HandleAsync_AtPlanIntegrationCap_ThrowsValidationException()
+    {
+        // Free plan caps integrations at 10; a tenant already at the cap can't add a net-new one.
+        _repository.CountAsync(_tenantId).Returns(10);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(Command()));
+
+        Assert.Contains("limited to 10 integrations", ex.Message);
+    }
+
+    [Fact]
+    public async Task HandleAsync_BelowPlanIntegrationCap_Succeeds()
+    {
+        _repository.CountAsync(_tenantId).Returns(9);
+
+        var result = await _handler.HandleAsync(Command());
+
+        Assert.Equal("sync-orders", result.Slug);
     }
 
     [Theory]

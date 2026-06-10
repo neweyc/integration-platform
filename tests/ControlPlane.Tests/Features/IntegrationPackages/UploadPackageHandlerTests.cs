@@ -1,9 +1,11 @@
 using System.IO.Compression;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using NSubstitute;
 using Shared.Domain;
@@ -18,15 +20,23 @@ public class UploadPackageHandlerTests
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly ISecretReadRepository _secretRepository = Substitute.For<ISecretReadRepository>();
     private readonly IEnvironmentReadRepository _environmentRepository = Substitute.For<IEnvironmentReadRepository>();
+    private readonly ITenantReadRepository _tenantRepository = Substitute.For<ITenantReadRepository>();
+    private readonly BillingPlanCatalog _planCatalog = new(new StripeOptions());
     private readonly UploadPackageHandler _handler;
     private readonly Guid _tenantId = Guid.NewGuid();
 
     public UploadPackageHandlerTests()
     {
         _handler = new UploadPackageHandler(
-            _repository, _scanner, _integrationRepository, _encryption, _secretRepository, _environmentRepository);
+            _repository, _scanner, _integrationRepository, _encryption, _secretRepository, _environmentRepository,
+            _tenantRepository, _planCatalog);
         // Auto-provisioning targets the tenant's default environment.
         _environmentRepository.GetDefaultNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns("production");
+        _tenantRepository.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
+            .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
+        // Default: nothing already provisioned, so any discovered integration counts as net-new.
+        _integrationRepository.ExistingSlugsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<string>());
         _repository.CreateAsync(Arg.Any<AssemblyPackage>()).Returns(call => call.Arg<AssemblyPackage>());
         _secretRepository.ListAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new List<Secret>());
@@ -117,6 +127,50 @@ public class UploadPackageHandlerTests
                 && triggers[0].Slug == "scheduled"
                 && triggers[0].Type == TriggerType.Scheduled
                 && triggers[0].CronExpression == "0 0 * * *"));
+    }
+
+    [Fact]
+    public async Task HandleAsync_NetNewIntegrationBeyondPlanCap_ThrowsValidationException()
+    {
+        // Tenant is already at the Free cap (10) and the package introduces a net-new integration.
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _integrationRepository.CountAsync(_tenantId).Returns(10);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Nightly Sync", "nightly-sync", "Acme.NightlySync", null,
+                TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                [new DiscoveredIntegrationTrigger("Scheduled", "scheduled", TriggerType.Scheduled, "0 0 * * *")])
+        ]);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => _handler.HandleAsync(
+            new UploadPackageCommand(_tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data)));
+
+        Assert.Contains("limited to 10 integrations", ex.Message);
+        // Nothing was persisted — the cap is checked before any writes.
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<AssemblyPackage>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_RedeployOfExistingIntegrationsAtCap_Succeeds()
+    {
+        // At the cap, but the package only redeploys integrations the tenant already has (zero net-new).
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _integrationRepository.CountAsync(_tenantId).Returns(10);
+        _integrationRepository.ExistingSlugsAsync(_tenantId, Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<string> { "nightly-sync" });
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Nightly Sync", "nightly-sync", "Acme.NightlySync", null,
+                TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                [new DiscoveredIntegrationTrigger("Scheduled", "scheduled", TriggerType.Scheduled, "0 0 * * *")])
+        ]);
+
+        var result = await _handler.HandleAsync(
+            new UploadPackageCommand(_tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data));
+
+        Assert.Single(result.Provisioning);
     }
 
     [Fact]

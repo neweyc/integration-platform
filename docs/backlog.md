@@ -648,7 +648,7 @@ Completed notes:
 
 ### Commercial Licensing (Community edition + license key)
 
-**Status:** Todo
+**Status:** In progress (caps + execution relaxation shipped; signed license keys remain)
 
 Give self-hosted deployments an upgrade path: a free Community edition (the full product, capped by
 estate size) and a signed commercial license that lifts the caps for paying businesses. Design doc:
@@ -660,10 +660,11 @@ not DRM.
 
 Acceptance criteria:
 
-- `BillingPlanCatalog` gains `MaxIntegrationsFor(plan)` (Community = 5); enforced on `CreateIntegration`
+- ✅ `BillingPlanCatalog` gains `MaxIntegrationsFor(plan)` (Community = 10); enforced on `CreateIntegration`
   **and** package-upload provisioning, blocking only net-new integrations beyond the cap (redeploys of
-  existing ones always succeed). Environments cap (2) already enforced.
-- The self-hosted hard execution cap is relaxed (execution metering remains cloud-only).
+  existing ones always succeed). Environments cap (2) already enforced. *(Shipped 2026-06-10.)*
+- ✅ The self-hosted hard execution cap is relaxed — `QuotaService` meters only when Stripe is configured
+  (execution metering remains cloud-only). *(Shipped 2026-06-10.)*
 - A signed, offline license file (`{ licensee, plan, expiry }`) is validated at startup against a
   shipped public key and sets the deployment's `Plan` — the on-prem analog of the Stripe webhook. No
   phone-home; instance-level entitlement.
@@ -671,8 +672,9 @@ Acceptance criteria:
 - Edition, expiry, and caps are surfaced in the UI.
 - A vendor-side key-issuance tool exists.
 
-Depends on a decision: keep SDK/CLI/Connectors MIT but make the **control plane source-available /
-commercial** (not MIT), so unlicensed commercial use is a real liability — see the design doc.
+✅ **Ratified (2026-06-10):** keep SDK/CLI/Connectors/Testing MIT but make the **control plane
+source-available / commercial** (not MIT), so unlicensed commercial use is a real liability. This
+unblocks the signed-license-key work; the repo's LICENSE files still need updating to reflect the split.
 
 ### On-Prem Secret Vault (reference-based secrets)
 

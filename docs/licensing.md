@@ -25,11 +25,12 @@ free, professional users pay, and a trial that's fully representative of the pai
 
 | Edition | How | Caps | Support |
 |--------|-----|------|---------|
-| **Community** | Free, no license (self-hosted) | 5 integrations, 2 environments, single tenant | Community |
+| **Community** | Free, no license (self-hosted) | 10 integrations, 2 environments, single tenant | Community |
 | **Commercial** (Team / Business / Enterprise) | Signed license key (self-hosted) | Raised/unlimited per plan; enterprise features (SSO, retention, RBAC depth) at the top tiers | Paid, with SLA |
 | **Cloud-hosted** | Per-tenant Stripe subscription | Per-plan; **execution-metered** (cost-based) | Per plan |
 
-The integration cap (proposed **5**) is the primary hobbyist/business dial and is trivially tunable.
+The integration cap (**10**, ratified 2026-06-10) is the primary hobbyist/business dial and is trivially
+tunable via `BillingPlanCatalog.MaxIntegrationsFor`.
 
 ## Mechanism: a license key just sets the Plan
 
@@ -52,18 +53,19 @@ apply. Minimal new surface.
 
 | Limit | Community | Enforced at |
 |-------|-----------|-------------|
-| Integrations | 5 (new `MaxIntegrationsFor(plan)`) | `CreateIntegration` **and** package-upload provisioning — block only **net-new** integrations beyond the cap; redeploys of existing ones always succeed |
+| Integrations | 10 (`MaxIntegrationsFor(plan)`) ✅ | `CreateIntegration` **and** package-upload provisioning — block only **net-new** integrations beyond the cap; redeploys of existing ones always succeed. *(Shipped.)* |
 | Environments | 2 (already shipped) | `CreateEnvironment` (done) |
-| Executions | not gated on-prem | metering kept **cloud-only** (cost control); relax the current hard 1000 cap for self-hosted |
+| Executions | not gated on-prem ✅ | metering kept **cloud-only** (`QuotaService` returns unmetered when Stripe is unconfigured); the hard 1000 cap no longer applies self-hosted. *(Shipped.)* |
 
-## Control-plane license (decision required)
+## Control-plane license (ratified 2026-06-10)
 
-For "unlicensed commercial use is a liability" to be true, the enforcing component can't be MIT:
+For "unlicensed commercial use is a liability" to be true, the enforcing component can't be MIT. **Decision:**
 
 - Keep **SDK / CLI / Connectors / Testing MIT** — the integration-as-code promise stays open, authors'
   projects reference open packages.
 - Make the **control plane source-available / commercial** (not MIT). This is the upstream decision the
-  whole licensing lever rests on. **Recommended; needs ratification before build.**
+  whole licensing lever rests on; it is now **ratified**, unblocking the signed-license-key work (step 2).
+  The repository's license headers / `LICENSE` files still need to be updated to reflect this split.
 
 ## Trial
 
@@ -74,16 +76,19 @@ For "unlicensed commercial use is a liability" to be true, the enforcing compone
 
 ## Open questions
 
-1. Integration cap number — proposed **5** (vs 3 / 10).
+1. ~~Integration cap number~~ — **resolved: 10** (2026-06-10).
 2. License format & signing — signed JSON (Ed25519 or RSA); vendor key management; a small issuance CLI.
+   *Open; gates step 2.*
 3. Per-instance vs per-tenant on the rare multi-tenant on-prem deployment — default **instance-level**.
 4. Which capabilities are *feature-gated* (truly enterprise-only, e.g. SSO) vs *cap-gated*. Prefer caps +
    support as the primary gate so trials stay representative; feature-gate sparingly.
 
 ## Rollout
 
-1. Add `MaxIntegrationsFor(plan)` to `BillingPlanCatalog`; enforce on create + upload (net-new only).
-   Relax the self-hosted execution cap.
+1. ✅ **Done (2026-06-10)** — `MaxIntegrationsFor(plan)` on `BillingPlanCatalog` (Community = 10); enforced
+   on `CreateIntegration` and package-upload provisioning (net-new only). Self-hosted execution cap relaxed
+   (`QuotaService` meters only when Stripe is configured).
 2. License file format + signing + startup validation → sets the deployment's Plan; ship the public key.
+   *(Unblocked by the control-plane license ratification; signing scheme still to choose — open question 2.)*
 3. Surface edition/expiry/caps in the UI; graceful expiry (grace period → degrade).
 4. Update `monetization.md` tiers; build the vendor-side key-issuance tool.

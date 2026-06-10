@@ -38,6 +38,16 @@ public class BillingPlanCatalog(StripeOptions options)
         _ => int.MaxValue
     };
 
+    // Maximum integrations a plan may have. Free (Community, self-hosted) is bounded by estate size — the
+    // primary "cap, don't cripple" dial — while paid plans are effectively unlimited. Enforced on create
+    // and on package-upload provisioning, blocking only net-new integrations beyond the cap (redeploys of
+    // existing ones always succeed). See docs/licensing.md.
+    public int MaxIntegrationsFor(BillingPlan plan) => plan switch
+    {
+        BillingPlan.Free => 10,
+        _ => int.MaxValue
+    };
+
     // The Stripe price id to check out for a plan, or null for plans that aren't self-serve
     // (Free has no charge; Enterprise is sales-assisted).
     public string? PriceIdFor(BillingPlan plan) => plan switch

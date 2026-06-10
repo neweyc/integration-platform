@@ -1,9 +1,11 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Secrets;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Cronos;
@@ -97,7 +99,9 @@ public class UploadPackageHandler(
     IIntegrationRepository integrationRepository,
     IEncryptionService encryption,
     ISecretReadRepository secretRepository,
-    IEnvironmentReadRepository environmentRepository)
+    IEnvironmentReadRepository environmentRepository,
+    ITenantReadRepository tenantRepository,
+    BillingPlanCatalog planCatalog)
     : ICommandHandler<UploadPackageCommand, PackageUploadResult>
 {
     private const int MaxPackageSizeBytes = 100 * 1024 * 1024;
@@ -114,6 +118,8 @@ public class UploadPackageHandler(
         var discovered = scanner.ScanZip(command.Data);
         foreach (var integration in discovered)
             ValidateDiscoveredIntegration(command.TenantId, integration, provisioningEnvironment);
+
+        await EnforceIntegrationCapAsync(command.TenantId, discovered, ct);
 
         var package = new AssemblyPackage
         {
@@ -209,6 +215,29 @@ public class UploadPackageHandler(
         var missing = required.Where(name => !configuredKeys.Contains(name)).ToList();
 
         return new PackageSecretCheck(provisioningEnvironment, required, satisfied, missing);
+    }
+
+    // Enforce the plan's integration cap against the integrations a package would provision, counting only
+    // net-new slugs — redeploying integrations the tenant already has always succeeds. Checked before any
+    // writes so an over-cap upload fails cleanly without persisting a half-provisioned package.
+    private async Task EnforceIntegrationCapAsync(
+        Guid tenantId, IReadOnlyCollection<DiscoveredIntegration> discovered, CancellationToken ct)
+    {
+        var tenant = await tenantRepository.GetByIdAsync(tenantId, ct)
+            ?? throw new NotFoundException("Tenant not found.");
+        var maxIntegrations = planCatalog.MaxIntegrationsFor(tenant.Plan);
+        if (maxIntegrations == int.MaxValue)
+            return;
+
+        var slugs = discovered.Select(d => d.Slug).ToList();
+        var existingSlugs = await integrationRepository.ExistingSlugsAsync(tenantId, slugs, ct);
+        var netNew = slugs.Count(slug => !existingSlugs.Contains(slug));
+
+        var currentCount = await integrationRepository.CountAsync(tenantId, ct);
+        if (currentCount + netNew > maxIntegrations)
+            throw new ValidationException(
+                $"The {tenant.Plan} plan is limited to {maxIntegrations} integrations. " +
+                $"This deploy would add {netNew} new integration(s) on top of {currentCount}. Upgrade to add more.");
     }
 
     private static void ValidateDiscoveredIntegration(

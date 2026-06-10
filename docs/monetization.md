@@ -40,7 +40,7 @@ Serto targets teams that already write code. It removes the platform tax without
 ### Tier 1 — Community (free, self-hosted)
 
 - Full control plane + runtime agent — the complete product, not a crippled subset
-- Capped by estate size, not executions: **5 integrations, 2 environments**, single tenant
+- Capped by estate size, not executions: **10 integrations, 2 environments**, single tenant
 - Unmetered executions (no per-run limit on your own hardware)
 - Community support only
 

@@ -1,6 +1,8 @@
 using ControlPlane.Features.AgentTokens;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Integrations;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
 using NSubstitute;
@@ -17,10 +19,14 @@ public class PackagePinningTests
     private readonly Guid _tenantId = Guid.NewGuid();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly IEnvironmentReadRepository _environments = Substitute.For<IEnvironmentReadRepository>();
+    private readonly ITenantReadRepository _tenants = Substitute.For<ITenantReadRepository>();
+    private readonly BillingPlanCatalog _planCatalog = new(new StripeOptions());
 
     public PackagePinningTests()
     {
         _environments.ExistsAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+        _tenants.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
+            .Returns(new Tenant { Id = _tenantId, Plan = BillingPlan.Free });
     }
 
     // CreateIntegration with package pin
@@ -29,7 +35,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithValidPackagePin_StoresPackageId()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
         var packageId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -48,7 +54,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithUnknownPackage_Throws()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
         var unknownId = Guid.NewGuid();
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
@@ -64,7 +70,7 @@ public class PackagePinningTests
     public async Task CreateIntegration_WithNoPackage_PackageIdIsNull()
     {
         var repo = Substitute.For<IIntegrationRepository>();
-        var handler = new CreateIntegrationHandler(repo, _encryption, _environments);
+        var handler = new CreateIntegrationHandler(repo, _encryption, _environments, _tenants, _planCatalog);
 
         repo.SlugExistsAsync(_tenantId, "sync-orders").Returns(false);
         repo.CreateAsync(Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>())

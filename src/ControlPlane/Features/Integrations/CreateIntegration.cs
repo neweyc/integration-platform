@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
+using ControlPlane.Features.Tenants;
 using ControlPlane.Features.Webhooks;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
@@ -78,6 +80,10 @@ public record WebhookSigning(
 public interface IIntegrationRepository
 {
     Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default);
+    Task<int> CountAsync(Guid tenantId, CancellationToken ct = default);
+    // Of the given slugs, which already exist for this tenant — so package upload can tell net-new
+    // integrations (which count against the plan cap) from redeploys of existing ones (which never do).
+    Task<HashSet<string>> ExistingSlugsAsync(Guid tenantId, IReadOnlyCollection<string> slugs, CancellationToken ct = default);
     Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default);
     Task<string?> GetTenantSlugAsync(Guid tenantId, CancellationToken ct = default);
     Task<Integration> CreateAsync(Integration integration, IReadOnlyList<IntegrationTrigger> triggers, CancellationToken ct = default);
@@ -109,7 +115,9 @@ public enum TriggerReconcileSource
 public class CreateIntegrationHandler(
     IIntegrationRepository repository,
     IEncryptionService encryption,
-    IEnvironmentReadRepository environments)
+    IEnvironmentReadRepository environments,
+    ITenantReadRepository tenants,
+    BillingPlanCatalog planCatalog)
     : ICommandHandler<CreateIntegrationCommand, CreateIntegrationResult>
 {
     public async Task<CreateIntegrationResult> HandleAsync(CreateIntegrationCommand command, CancellationToken ct = default)
@@ -122,6 +130,16 @@ public class CreateIntegrationHandler(
 
         if (await repository.SlugExistsAsync(command.TenantId, command.Slug, ct))
             throw new ConflictException($"An integration with slug '{command.Slug}' already exists.");
+
+        // Enforce the plan's integration cap (Community is bounded by estate size; paid plans are
+        // unlimited). Only blocks net-new integrations beyond the cap — a downgraded tenant keeps the ones
+        // it already has. See docs/licensing.md.
+        var tenant = await tenants.GetByIdAsync(command.TenantId, ct)
+            ?? throw new NotFoundException("Tenant not found.");
+        var maxIntegrations = planCatalog.MaxIntegrationsFor(tenant.Plan);
+        if (await repository.CountAsync(command.TenantId, ct) >= maxIntegrations)
+            throw new ValidationException(
+                $"The {tenant.Plan} plan is limited to {maxIntegrations} integrations. Upgrade to add more.");
 
         if (command.PackageId.HasValue
             && !await repository.PackageExistsAsync(command.TenantId, command.PackageId.Value, ct))

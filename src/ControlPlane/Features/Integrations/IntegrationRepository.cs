@@ -11,6 +11,22 @@ public class IntegrationRepository(AppDbContext db)
     public Task<bool> SlugExistsAsync(Guid tenantId, string slug, CancellationToken ct = default) =>
         db.Integrations.AnyAsync(i => i.TenantId == tenantId && i.Slug == slug, ct);
 
+    public Task<int> CountAsync(Guid tenantId, CancellationToken ct = default) =>
+        db.Integrations.CountAsync(i => i.TenantId == tenantId, ct);
+
+    public async Task<HashSet<string>> ExistingSlugsAsync(Guid tenantId, IReadOnlyCollection<string> slugs, CancellationToken ct = default)
+    {
+        if (slugs.Count == 0)
+            return new HashSet<string>();
+
+        var existing = await db.Integrations
+            .Where(i => i.TenantId == tenantId && slugs.Contains(i.Slug))
+            .Select(i => i.Slug)
+            .ToListAsync(ct);
+
+        return existing.ToHashSet();
+    }
+
     public Task<bool> PackageExistsAsync(Guid tenantId, Guid packageId, CancellationToken ct = default) =>
         db.AssemblyPackages.AnyAsync(p => p.TenantId == tenantId && p.Id == packageId, ct);
 
