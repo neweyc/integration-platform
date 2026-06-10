@@ -142,12 +142,12 @@ dotnet publish src/Cli -c Release -o ~/.serto
 alias serto='dotnet ~/.serto/Cli.dll'
 ```
 
-> **Note:** `serto init` scaffolds a project that references the published `Serto.Sdk`, `Serto.Connectors`, and `Serto.Testing` NuGet packages. The current package version is `1.2.1`:
+> **Note:** `serto init` scaffolds a project that references the published `Serto.Sdk`, `Serto.Connectors`, and `Serto.Testing` NuGet packages. The current package version is `1.2.2`:
 >
 > ```xml
 > <ItemGroup>
->   <PackageReference Include="Serto.Sdk" Version="1.2.1" />
->   <PackageReference Include="Serto.Connectors" Version="1.2.1" />
+>   <PackageReference Include="Serto.Sdk" Version="1.2.2" />
+>   <PackageReference Include="Serto.Connectors" Version="1.2.2" />
 > </ItemGroup>
 > ```
 
@@ -213,7 +213,7 @@ POSTGRES_PASSWORD=<strong-password>
 JWT_SECRET=<random, min 32 chars>
 ENCRYPTION_MASTER_KEY=<random>
 
-SERTO_IMAGE_TAG=1.2.1
+SERTO_IMAGE_TAG=1.2.2
 SERTO_CONTROL_PLANE_CONNECTION_STRING="Host=db.example.com;Database=integration_platform;Username=platform;Password=<strong-password>"
 ```
 
@@ -374,7 +374,7 @@ npm run build   # outputs to src/ControlPlane/wwwroot
 - **Control plane can't connect to the database** — confirm the dev container is healthy (`docker compose -f docker-compose.dev.yml ps`) and that the connection string host/port match (`127.0.0.1:5433`).
 - **UI loads but API calls fail in dev** — make sure the control plane is running on `:5000`; the Vite dev server on `:5173` proxies to it.
 - **`/setup` doesn't appear** — setup is only offered until the first tenant exists. If a tenant was already created, go to the login page instead.
-- **Scaffolded integration won't restore `Serto.Sdk`** — confirm NuGet.org is reachable and that the generated project references a published package version such as `1.2.1`.
+- **Scaffolded integration won't restore `Serto.Sdk`** — confirm NuGet.org is reachable and that the generated project references a published package version such as `1.2.2`.
 
 ---
 
