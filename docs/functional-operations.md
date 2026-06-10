@@ -47,6 +47,17 @@ Viewing the registry requires `ViewEnvironments`; creating, editing, or deleting
 
 ---
 
+## Agent capabilities & routing
+
+By default any runtime agent in an integration's environment can run it. When an integration needs a **particular** host — wired to hardware, inside a specific network, with a GPU or a licensed driver — it declares the capabilities it requires, and the control plane only routes its work to an agent that offers all of them.
+
+- **Declared in code, overridable.** Authors declare `[RequiresAgentCapabilities("hardware-signal", …)]`; the value is recorded as the *declared default*. An operator can override an integration's required tags on the Integrations page, and package redeploys preserve that override and report it as drift — the same model as trigger cron/enabled.
+- **Agents advertise what they offer.** An agent reports its `Tags` (from config) on every poll and heartbeat. The claim rule is a subset/AND match: an agent claims a work item only when the integration's required tags are all present in the agent's tags. No required tags ⇒ any agent in the environment, unchanged.
+- **Unroutable work is surfaced, not silent.** If no live agent in an integration's environment offers its required tags, the work would queue forever — so the Integrations page shows a banner listing the affected integrations and the capabilities they need (`GET /api/integrations/unroutable`).
+- **Routing only, not a trust boundary.** Tags decide *where* work runs, not *who* can access what. They are self-reported by the agent; do not rely on them for authorization.
+
+---
+
 ## Integrations
 
 An integration is a named, versioned definition of a job. It does not contain code — it is a registry entry that tells the runtime agent what to run, when, and in which environment.

@@ -350,6 +350,7 @@ Legacy direct user registration within the authenticated user's tenant. This end
       "timeoutSeconds": 300,
       "retryMaxAttempts": 2,
       "retryBackoffSeconds": 60,
+      "requiredTags": ["hardware-signal"],
       "lastExecution": {
         "id": "uuid",
         "status": "Succeeded",
@@ -390,7 +391,8 @@ Legacy direct user registration within the authenticated user's tenant. This end
   "timeoutSeconds": 300,
   "retryMaxAttempts": 2,
   "retryBackoffSeconds": 60,
-  "packageId": "uuid"
+  "packageId": "uuid",
+  "requiredTags": ["hardware-signal"]
 }
 ```
 
@@ -405,6 +407,7 @@ Legacy direct user registration within the authenticated user's tenant. This end
 | `retryMaxAttempts` | No | Number of retry attempts after the initial attempt. Defaults to `0`. Must be non-negative. |
 | `retryBackoffSeconds` | No | Delay before a retry work item becomes available. Defaults to immediate retry. Must be non-negative when provided. |
 | `packageId` | No | Uploaded package version to execute. `null` keeps local agent path fallback. |
+| `requiredTags` | No | Agent capabilities required to run this integration. Work is only routed to an agent offering all of them; empty/omitted means any agent in the environment. Sets an operator override of the code-declared value. |
 
 **Response:** `201 Created` with integration object. Webhook trigger records also return `webhookUrl` and one-time `webhookSecret`.
 
@@ -415,6 +418,29 @@ Legacy direct user registration within the authenticated user's tenant. This end
 **Auth:** JWT
 
 **Response:** Integration object or `404`
+
+---
+
+### `GET /api/integrations/unroutable`
+
+Lists enabled integrations whose required capability tags no live agent (seen in the last ~2 minutes) currently offers in their environment — i.e. work that can't be routed anywhere right now.
+
+**Auth:** JWT with `ViewIntegrations`
+
+**Response**
+```json
+{
+  "integrations": [
+    {
+      "id": "uuid",
+      "name": "Pulse the reactor",
+      "slug": "reactor-pulse",
+      "environment": "production",
+      "requiredTags": ["hardware-signal"]
+    }
+  ]
+}
+```
 
 ---
 
@@ -596,6 +622,8 @@ Returns structured logs recorded for a single execution, oldest first.
 ```
 
 Set `timeoutSeconds` to `null` or omit it to run without a timeout. Timed-out executions are recorded with status `TimedOut`.
+
+The body also accepts `requiredTags` (a string array) — the agent capabilities required to run this integration. Setting it records an operator override of the code-declared value (preserved across redeploys, reported as drift); omitting the field leaves the current tags unchanged, and an empty array clears them.
 
 The general update does not accept a package id — the active version is a package-level property and is changed through the activate endpoint (see `PUT /api/integration-packages/{id}/activate`), so an edit never alters or un-pins the package.
 
@@ -1150,16 +1178,18 @@ Lists recent workflow runs and node states.
 
 All agent endpoints use `X-Agent-Token: agt_<token>` header for authentication (not JWT).
 
+Agents may also send `X-Agent-Capabilities: tag1,tag2` (comma-separated) on `GET /api/agent/integrations` and `POST /api/agent/heartbeat` to advertise the capabilities they offer. The control plane only claims an integration's work for the agent when the integration's `requiredTags` are all present in this list; integrations with no required tags are claimable by any agent in the environment. The reported tags are also stored on the agent's heartbeat. Tags are self-reported and used for routing only — not authorization.
+
 ### `GET /api/agent/integrations`
 
 Claims and returns work items for the token's environment. Built-in work producers currently include due scheduled integrations, manual run requests, signed webhook deliveries, and retry attempts. Future trigger adapters should use the same work-item dispatch path.
 
-**Auth:** `X-Agent-Token`
+**Auth:** `X-Agent-Token` (optionally `X-Agent-Capabilities`)
 
 Calling this endpoint:
 - Evaluates cron schedules for all enabled scheduled integrations in the token's environment
 - Creates and claims due scheduled work items with a 5-minute claim lease
-- Claims pending manual, webhook, and retry work items
+- Claims pending manual, webhook, and retry work items — only those whose integration's required capability tags the agent offers
 - Updates `integration_schedule_states` with `last_dispatched_at` and `next_run_at`
 - Skips integrations with active work items or running executions
 - Can reclaim work items with expired claims

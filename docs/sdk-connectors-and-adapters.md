@@ -19,6 +19,7 @@ It should stay small and stable. Today it provides:
 
 - `IIntegration` — the entry point the runtime agent executes.
 - `IIntegrationContext` — execution-scoped secrets, logging, HTTP client, metadata, and trigger payload.
+- Attributes — `[Integration]`, `[ScheduledIntegration]`, `[WebhookIntegration]` declare integration and trigger intent; `[RequiresAgentCapabilities("...")]` declares the agent capabilities an integration needs so it only runs where it can.
 
 The SDK should not become a large catalog of vendor-specific APIs. A small SDK keeps package compatibility manageable and keeps integration authors close to ordinary C#.
 
@@ -49,6 +50,8 @@ Trigger adapter -> WorkItem -> Agent claim -> ExecutionRecord -> Integration cod
 ```
 
 Trigger adapters should not introduce trigger-specific execution APIs. The runtime agent should continue to execute claimed work items without knowing which adapter produced them.
+
+Work is claimed by environment and, when an integration declares required capabilities, by capability: an agent only claims a work item whose integration's required tags are a subset of the tags that agent offers. With no required tags, claiming is purely by environment as before.
 
 The product direction is to store trigger configuration separately from executable integration metadata. An integration is the code and run policy; trigger records are the schedules, webhooks, queues, file arrivals, API events, or other producers that can create work for that integration. This lets one integration have multiple triggers while preserving the same work-item execution path.
 

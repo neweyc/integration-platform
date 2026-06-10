@@ -36,7 +36,7 @@ The system is split into two independently deployable components:
 └─────────────────────────────────┘
 ```
 
-This separation is a first-class design decision. The control plane owns all state and decisions. Trigger adapters create work items in the control plane. The runtime agent is stateless: it claims work items, executes work, and reports back. This enables a self-hosted model where the agent runs inside the customer's network with access to internal systems, while the control plane can be cloud-hosted.
+This separation is a first-class design decision. The control plane owns all state and decisions. Trigger adapters create work items in the control plane. The runtime agent is stateless: it claims work items, executes work, and reports back. Claiming is scoped by environment and, when an integration declares required capabilities, filtered so only an agent offering those capabilities can claim its work (see "Agent capabilities & routing" in functional operations). This enables a self-hosted model where the agent runs inside the customer's network with access to internal systems, while the control plane can be cloud-hosted.
 
 ---
 
