@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { GettingStartedChecklist } from '@/components/onboarding/GettingStartedChecklist'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Zap } from 'lucide-react'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
@@ -262,6 +264,7 @@ export function IntegrationsPage() {
           onRun={id => runManual.mutate(id)}
           isRunPending={runManual.isPending}
           onDelete={id => deleteIntegration.mutate(id)}
+          onCreate={handleOpenCreate}
           canManageIntegrations={canManageIntegrations}
           canTriggerManualRun={canTriggerManualRun}
           canViewExecutions={canViewExecutions}
@@ -469,6 +472,7 @@ function IntegrationsTable({
   onRun,
   isRunPending,
   onDelete,
+  onCreate,
   canManageIntegrations,
   canTriggerManualRun,
   canViewExecutions,
@@ -479,18 +483,23 @@ function IntegrationsTable({
   onRun: (id: string) => void
   isRunPending: boolean
   onDelete: (id: string) => void
+  onCreate: () => void
   canManageIntegrations: boolean
   canTriggerManualRun: boolean
   canViewExecutions: boolean
 }) {
   if (integrations.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No integrations yet.</p>
-        {canManageIntegrations && (
-          <p className="text-sm mt-1">Create your first one to get started.</p>
-        )}
-      </div>
+      <EmptyState
+        icon={Zap}
+        title="No integrations yet"
+        description="Integrations are the jobs Serto runs for you — on a schedule, from a webhook, or on demand. Deploy one from code with the serto CLI, or define one here."
+        primaryAction={canManageIntegrations ? { label: 'New integration', onClick: onCreate } : undefined}
+      >
+        <code className="block rounded bg-muted p-3 text-left text-xs break-all select-all">
+          serto init my-integration &amp;&amp; serto deploy
+        </code>
+      </EmptyState>
     )
   }
 

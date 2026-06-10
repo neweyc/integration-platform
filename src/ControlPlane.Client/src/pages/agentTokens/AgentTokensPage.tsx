@@ -7,6 +7,8 @@ import { Select } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Cpu, Server } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -129,6 +131,7 @@ export function AgentTokensPage() {
         <TokensTable
           tokens={data?.tokens ?? []}
           onRevoke={id => revokeToken.mutate(id)}
+          onCreate={handleOpenSheet}
         />
       )}
       </div>
@@ -204,16 +207,20 @@ export function AgentTokensPage() {
 function TokensTable({
   tokens,
   onRevoke,
+  onCreate,
 }: {
   tokens: AgentTokenSummary[]
   onRevoke: (id: string) => void
+  onCreate: () => void
 }) {
   if (tokens.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No agent tokens yet.</p>
-        <p className="text-sm mt-1">Create a token to allow a runtime agent to fetch secrets.</p>
-      </div>
+      <EmptyState
+        icon={Cpu}
+        title="No agent tokens yet"
+        description="A runtime agent authenticates with an agent token to pull work and fetch secrets for one environment. Create a token, then start an agent with it."
+        primaryAction={{ label: 'New token', onClick: onCreate }}
+      />
     )
   }
 
@@ -259,10 +266,11 @@ function TokensTable({
 function AgentStatusTable({ agents }: { agents: AgentHeartbeatSummary[] }) {
   if (agents.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No agents have connected yet.</p>
-        <p className="text-sm mt-1">Start a runtime agent with a valid token to see it here.</p>
-      </div>
+      <EmptyState
+        icon={Server}
+        title="No agents have connected yet"
+        description="Start a runtime agent with a valid agent token and it will appear here with its status and last heartbeat."
+      />
     )
   }
 

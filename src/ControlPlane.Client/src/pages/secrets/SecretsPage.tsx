@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/sheet'
 import { Select } from '@/components/ui/select'
 import { AccessDenied } from '@/components/layout/AccessDenied'
+import { EmptyState } from '@/components/ui/empty-state'
+import { KeyRound } from 'lucide-react'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 import { useEnvironments, defaultEnvironmentName } from '@/hooks/useEnvironments'
 
@@ -118,6 +120,7 @@ export function SecretsPage() {
         <SecretsTable
           secrets={data?.secrets ?? []}
           onDelete={key => deleteSecret.mutate(key)}
+          onCreate={handleOpenSheet}
           canManageSecrets={canManageSecrets}
         />
       )}
@@ -176,18 +179,22 @@ export function SecretsPage() {
 function SecretsTable({
   secrets,
   onDelete,
+  onCreate,
   canManageSecrets,
 }: {
   secrets: SecretSummary[]
   onDelete: (key: string) => void
+  onCreate: () => void
   canManageSecrets: boolean
 }) {
   if (secrets.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No secrets yet.</p>
-        <p className="text-sm mt-1">Add your first secret to get started.</p>
-      </div>
+      <EmptyState
+        icon={KeyRound}
+        title="No secrets yet"
+        description="Secrets are encrypted values — API keys, connection strings, tokens — that your integrations read at runtime by name. They're scoped to the selected environment and never shown again after saving."
+        primaryAction={canManageSecrets ? { label: 'Add secret', onClick: onCreate } : undefined}
+      />
     )
   }
 

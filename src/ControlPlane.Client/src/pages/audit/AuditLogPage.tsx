@@ -4,6 +4,8 @@ import { AccessDenied } from '@/components/layout/AccessDenied'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ScrollText } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -60,10 +62,11 @@ export function AuditLogPage() {
 function AuditLogTable({ entries }: { entries: AuditLogEntry[] }) {
   if (entries.length === 0) {
     return (
-      <div className="rounded-lg border py-16 text-center text-muted-foreground">
-        <p className="text-sm">No audit entries yet.</p>
-        <p className="mt-1 text-sm">Security and configuration changes will appear here.</p>
-      </div>
+      <EmptyState
+        icon={ScrollText}
+        title="No audit entries yet"
+        description="Security and configuration changes — logins, secret edits, deploys, role changes — are recorded here as they happen."
+      />
     )
   }
 

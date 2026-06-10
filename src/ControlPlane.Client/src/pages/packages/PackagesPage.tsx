@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Package } from 'lucide-react'
 import {
   packagesApi,
   type PackageMetadata,
@@ -10,6 +10,7 @@ import { integrationsApi, type Integration } from '@/api/integrations'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -197,9 +198,17 @@ export function PackagesPage() {
       {isLoading ? (
         <PackagesSkeleton />
       ) : groups.length === 0 ? (
-        <EmptyState message="No packages uploaded yet." hint="Deploy an integration with the CLI to publish one." />
+        <EmptyState
+          icon={Package}
+          title="No packages uploaded yet"
+          description="A package is one built integration project, version-pinned. Deploy from your project with the serto CLI to publish the first one — it's auto-provisioned here."
+        >
+          <code className="block rounded bg-muted p-3 text-left text-xs break-all select-all">
+            serto deploy
+          </code>
+        </EmptyState>
       ) : visibleGroups.length === 0 ? (
-        <EmptyState message="No packages match your filter." />
+        <EmptyState title="No packages match your filter." />
       ) : (
         <div className="border rounded-lg divide-y">
           {visibleGroups.map(group => {
@@ -365,15 +374,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function EmptyState({ message, hint }: { message: string; hint?: string }) {
-  return (
-    <div className="text-center py-16 text-muted-foreground border rounded-lg">
-      <p className="text-sm">{message}</p>
-      {hint && <p className="text-sm mt-1">{hint}</p>}
-    </div>
-  )
 }
 
 function PackagesSkeleton() {

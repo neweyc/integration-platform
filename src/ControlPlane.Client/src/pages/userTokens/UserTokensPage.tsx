@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { KeyRound } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -90,6 +92,7 @@ export function UserTokensPage() {
         <TokensTable
           tokens={data?.tokens ?? []}
           onRevoke={id => revokeToken.mutate(id)}
+          onCreate={handleOpenSheet}
         />
       )}
 
@@ -154,16 +157,20 @@ export function UserTokensPage() {
 function TokensTable({
   tokens,
   onRevoke,
+  onCreate,
 }: {
   tokens: UserTokenSummary[]
   onRevoke: (id: string) => void
+  onCreate: () => void
 }) {
   if (tokens.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No access tokens yet.</p>
-        <p className="text-sm mt-1">Create a token to authenticate the CLI or API calls.</p>
-      </div>
+      <EmptyState
+        icon={KeyRound}
+        title="No access tokens yet"
+        description="Personal access tokens let the serto CLI and API authenticate as you. Create one, then pass it to serto login or set SERTO_API_TOKEN."
+        primaryAction={{ label: 'New token', onClick: onCreate }}
+      />
     )
   }
 
