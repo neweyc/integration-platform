@@ -1,6 +1,6 @@
 services:
   agent:
-    image: craytech/serto.agent:${SERTO_IMAGE_TAG:-1.0.3}
+    image: craytech/serto.agent:${SERTO_IMAGE_TAG:-1.1.0}
     environment:
       Agent__ControlPlaneUrl: ${SERTO_AGENT_CONTROL_PLANE_URL}
       Agent__AgentToken: ${SERTO_AGENT_TOKEN}
