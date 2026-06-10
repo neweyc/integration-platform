@@ -646,6 +646,34 @@ Completed notes:
 - Admins (`ManageBilling`) get `GET /api/billing/current` (plan + usage), `POST /api/billing/checkout` (Stripe Checkout), and `POST /api/billing/portal` (Stripe Billing Portal). Frontend Billing page with usage bar, plan switcher, and "Manage billing".
 - 13 tests (webhook reconciliation, checkout/portal guards, status). Configuration documented in `installation.md`.
 
+### Commercial Licensing (Community edition + license key)
+
+**Status:** Todo
+
+Give self-hosted deployments an upgrade path: a free Community edition (the full product, capped by
+estate size) and a signed commercial license that lifts the caps for paying businesses. Design doc:
+[docs/licensing.md](licensing.md).
+
+Core principles: cap, don't cripple (trial is representative); gate self-hosted on **integrations +
+environments**, not executions (metering stays cloud-only); the license is a compliance instrument,
+not DRM.
+
+Acceptance criteria:
+
+- `BillingPlanCatalog` gains `MaxIntegrationsFor(plan)` (Community = 5); enforced on `CreateIntegration`
+  **and** package-upload provisioning, blocking only net-new integrations beyond the cap (redeploys of
+  existing ones always succeed). Environments cap (2) already enforced.
+- The self-hosted hard execution cap is relaxed (execution metering remains cloud-only).
+- A signed, offline license file (`{ licensee, plan, expiry }`) is validated at startup against a
+  shipped public key and sets the deployment's `Plan` — the on-prem analog of the Stripe webhook. No
+  phone-home; instance-level entitlement.
+- Expiry degrades to Community caps after a grace period with warnings — never bricks a running system.
+- Edition, expiry, and caps are surfaced in the UI.
+- A vendor-side key-issuance tool exists.
+
+Depends on a decision: keep SDK/CLI/Connectors MIT but make the **control plane source-available /
+commercial** (not MIT), so unlicensed commercial use is a real liability — see the design doc.
+
 ### Marketplace
 
 **Status:** Todo

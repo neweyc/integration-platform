@@ -37,15 +37,18 @@ Serto targets teams that already write code. It removes the platform tax without
 
 ## Pricing model
 
-### Tier 1 — Open source / self-hosted (free)
+### Tier 1 — Community (free, self-hosted)
 
-- Full control plane + runtime agent
-- Unlimited integrations
-- Unlimited executions
+- Full control plane + runtime agent — the complete product, not a crippled subset
+- Capped by estate size, not executions: **5 integrations, 2 environments**, single tenant
+- Unmetered executions (no per-run limit on your own hardware)
 - Community support only
-- Single tenant per deployment
 
-**Goal:** Build adoption, establish trust, make the product the default choice for developers who want code-first integrations.
+**Goal:** Build adoption, establish trust, make the product the default choice for developers who want code-first integrations. A hobbyist (home automation, a few personal jobs) lives here for free; a business outgrows the caps and buys a commercial license.
+
+**Paid self-hosted** lifts the caps via a signed **commercial license** (Team / Business / Enterprise) — no Stripe required on-prem. The license is a compliance instrument (offline-signed, degrades rather than bricks on expiry). See [licensing.md](licensing.md). Because Community is the full product behind size caps, a trial is fully representative of what you pay for.
+
+**Goal of the cap, not a cripple:** executions are deliberately *not* the on-prem gate — metering runs on someone else's hardware is the wrong lever. Estate size (integrations/environments) is the cleaner "this is a business now" signal.
 
 ---
 
