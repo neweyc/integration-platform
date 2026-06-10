@@ -212,7 +212,7 @@ POSTGRES_PASSWORD=<strong-password>
 JWT_SECRET=<random, min 32 chars>
 ENCRYPTION_MASTER_KEY=<random>
 
-SERTO_IMAGE_TAG=1.1.1
+SERTO_IMAGE_TAG=1.1.2
 SERTO_CONTROL_PLANE_CONNECTION_STRING="Host=db.example.com;Database=integration_platform;Username=platform;Password=<strong-password>"
 ```
 
