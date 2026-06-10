@@ -251,6 +251,51 @@ docker compose -f docker-compose.trial.yml up -d
 
 ---
 
+## Health and readiness endpoints
+
+The control plane exposes two unauthenticated operational endpoints for orchestrators and load balancers:
+
+| Endpoint | Checks | Meaning |
+|----------|--------|---------|
+| `GET /healthz` | Process liveness only | The process is up and serving HTTP. Returns `200 {"status":"healthy"}`. It checks no dependencies on purpose, so a transient database outage never makes an orchestrator kill an otherwise-healthy process. |
+| `GET /readyz` | Database connectivity | The process can reach its database and is ready for traffic. Returns `200 {"status":"ready","database":"up"}` when reachable, or `503 {"status":"not-ready","database":"down"}` when not. |
+
+Use **liveness** to decide whether to restart a container, and **readiness** to decide whether to route traffic to it.
+
+### Docker
+
+The published control-plane image has a built-in `HEALTHCHECK` that polls `/healthz`, so `docker ps` and Compose report container health automatically. The build-from-source `docker-compose.yml` additionally health-checks `/readyz`, so a `healthy` control plane there means it can actually reach the database:
+
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/readyz"]
+  interval: 30s
+  timeout: 5s
+  start_period: 30s
+  retries: 3
+```
+
+### Kubernetes
+
+Map liveness to `/healthz` and readiness to `/readyz` so the database check gates traffic without triggering restarts:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 30
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 10
+```
+
+---
+
 ## Configuration reference
 
 The control plane reads standard ASP.NET Core configuration. Any setting can be overridden by an environment variable using `__` (double underscore) as the section separator.

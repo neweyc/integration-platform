@@ -6,6 +6,7 @@ using ControlPlane.Features.Alerts.Email;
 using ControlPlane.Features.AuditLog;
 using ControlPlane.Features.Auth;
 using ControlPlane.Features.Environments;
+using ControlPlane.Features.Health;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
@@ -291,6 +292,7 @@ app.UseUserTokenAuthentication();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthEndpoints();
 app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();

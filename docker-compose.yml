@@ -38,6 +38,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Readiness (/readyz) also checks database connectivity, so a "healthy" controlplane here means
+    # it can actually serve work. start_period covers first-run migrations applied on startup.
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/readyz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   postgres_data:

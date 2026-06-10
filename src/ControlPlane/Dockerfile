@@ -2,6 +2,16 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
+# curl lets the container self-report health to Docker/Compose (the aspnet image ships without it).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Liveness probe. Readiness (/readyz, which also checks the database) is left to the orchestrator so
+# a transient database blip doesn't make Docker tear down an otherwise-healthy process.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl --fail --silent http://localhost:8080/healthz || exit 1
+
 # Build the React frontend (always runs on host platform — output is platform-independent JS)
 FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend
 WORKDIR /app

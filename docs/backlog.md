@@ -427,7 +427,7 @@ Acceptance criteria:
 
 ### Health Checks
 
-**Status:** Todo
+**Status:** Done
 
 Add operational health endpoints.
 
@@ -436,6 +436,15 @@ Acceptance criteria:
 - `/healthz` reports process liveness.
 - `/readyz` checks database connectivity.
 - Docker/Kubernetes examples use the endpoints.
+
+Completed notes:
+
+- Added a Health feature folder (`Features/Health/HealthEndpoints.cs`) exposing anonymous `GET /healthz` and `GET /readyz`, mapped via the standard `MapHealthEndpoints()` convention.
+- `/healthz` reports liveness only (no dependency checks) so a transient database outage can't cause an orchestrator to kill a healthy process; `/readyz` pings the database via `CanConnectAsync` and returns `503 {"status":"not-ready","database":"down"}` when unreachable.
+- Control-plane Dockerfile installs `curl` and adds a `HEALTHCHECK` on `/healthz`, inherited by every image (dev, trial, prod).
+- Build-from-source `docker-compose.yml` adds a `/readyz` healthcheck so a `healthy` control plane means it can actually reach the database.
+- Documented both endpoints in `installation.md` with Docker and Kubernetes liveness/readiness probe examples.
+- Added `HealthEndpointsIntegrationTests` covering anonymous `/healthz` and database-backed `/readyz`.
 
 ### Cache Derived Encryption Key
 
