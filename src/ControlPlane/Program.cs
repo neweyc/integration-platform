@@ -177,9 +177,15 @@ builder.Services.AddScoped<ICommandHandler<DeletePackageCommand, bool>, DeletePa
 builder.Services.AddScoped<ISecretRepository, SecretRepository>();
 builder.Services.AddScoped<ISecretReadRepository, SecretRepository>();
 builder.Services.AddScoped<ISecretDeleteRepository, SecretRepository>();
-// Secret value storage backend. Embedded = encrypted in the control-plane DB (today's behavior); a
-// future external-vault backend stores references only (see docs/secret-vault.md).
-builder.Services.AddScoped<ISecretBackend, EmbeddedSecretBackend>();
+// Secret value storage backend, selected by Secrets:Backend (default "Embedded"). Embedded = values
+// encrypted in the control-plane DB (today's behavior). ExternalVault = the control plane stores only
+// references; values live in a vault on the customer's iron and the agent resolves them. Hosted
+// deployments mandate ExternalVault so secret material never rests here. See docs/secret-vault.md.
+var secretBackend = builder.Configuration["Secrets:Backend"];
+if (string.Equals(secretBackend, "ExternalVault", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddScoped<ISecretBackend, ExternalVaultSecretBackend>();
+else
+    builder.Services.AddScoped<ISecretBackend, EmbeddedSecretBackend>();
 builder.Services.AddScoped<ICommandHandler<SetSecretCommand, SetSecretResult>, SetSecretHandler>();
 builder.Services.AddScoped<ICommandHandler<ListSecretsCommand, ListSecretsResult>, ListSecretsHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteSecretCommand, bool>, DeleteSecretHandler>();

@@ -16,6 +16,14 @@ public class AgentOptions
     // can run any integration in its environment.
     public string[] Tags { get; set; } = [];
 
+    // Address of the secret vault on the customer's network, e.g. https://vault.internal:8200. Required
+    // only when the control plane runs the external-vault backend (it then hands the agent references
+    // instead of values, and the agent resolves them here). Leave empty for the embedded backend.
+    public string? VaultAddress { get; set; }
+
+    // Token the agent presents to the vault, if the vault requires authentication.
+    public string? VaultToken { get; set; }
+
     // Directory to scan for integration assemblies (.dll files)
     public string IntegrationsPath { get; set; } = "";
 

@@ -83,7 +83,38 @@ vault reference) rather than a store of values.
 1. ✅ **Done** — `ISecretBackend` abstraction; today's DB store is now the `EmbeddedSecretBackend` (no
    behavior change). The set/delete/resolve-bundle handlers delegate to it; key/metadata listing stays
    on the secret repository.
-2. **External-vault** backend: reference storage in the control plane + agent-side resolution.
+2. ✅ **Done** — **External-vault** backend: reference storage in the control plane + agent-side
+   resolution (see *Configuration & wire contract* below).
 3. Vault container (first-party or integration) added to the compose/agent stack.
 4. Secrets UI binding-management mode; migration tooling.
 5. Cloud mandates the external backend.
+
+## Configuration & wire contract (rollout steps 1–2, shipped)
+
+**Selecting the backend.** The control plane reads `Secrets:Backend` (default `Embedded`). Set it to
+`ExternalVault` to store references only:
+
+- `Embedded` — `EmbeddedSecretBackend`: values AES-encrypted in the control-plane DB, decrypted there.
+  `Secret.EncryptedValue` holds the ciphertext; `Secret.Reference` is null.
+- `ExternalVault` — `ExternalVaultSecretBackend`: the control plane stores `Secret.Reference` (the vault
+  handle) and never an encrypted value. Operates in **binding mode** — `SetSecret` records the supplied
+  reference; the actual value is written to the vault out-of-band via the vault's own tooling.
+
+**The manifest.** The agent endpoint `GET /api/agent/secrets/{environment}` now returns a *manifest*
+rather than a value map, so one contract serves both backends:
+
+```json
+{ "entries": [ { "key": "API_KEY", "source": "Inline|Reference", "payload": "..." } ] }
+```
+
+- `Inline` (embedded) — `payload` is the secret value (the control plane resolved it, as it always has).
+- `Reference` (external) — `payload` is the vault handle; the control plane never reads the value.
+
+**Agent-side resolution.** The runtime agent resolves the manifest into a plain key→value map before
+running integrations (so `IIntegrationContext` is unchanged). `Inline` entries pass through; `Reference`
+entries are resolved by an `IVaultClient` against the vault on the agent's own network, configured via
+`Agent:VaultAddress` (+ optional `Agent:VaultToken`). With no vault configured the agent uses a
+fail-loud `NullVaultClient` — embedded deployments never receive a `Reference`, so an unexpected one
+errors rather than silently dropping a secret. `HttpVaultClient` is the reference implementation (generic
+HTTP key-value GET); adapting it to OpenBao / HashiCorp Vault's KV API is a thin change and lands with the
+vault container in step 3.

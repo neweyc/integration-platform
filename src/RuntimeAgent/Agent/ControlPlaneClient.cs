@@ -40,7 +40,7 @@ public record ExecutionLogEntry(
     string? Exception,
     string? PropertiesJson);
 
-public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<ControlPlaneClient> logger)
+public class ControlPlaneClient(HttpClient http, AgentOptions options, IVaultClient vault, ILogger<ControlPlaneClient> logger)
     : IControlPlaneClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -55,10 +55,22 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
 
     public async Task<Dictionary<string, string>> GetSecretsAsync(CancellationToken ct)
     {
-        var response = await http.GetFromJsonAsync<SecretsResponse>(
+        var response = await http.GetFromJsonAsync<SecretManifestResponse>(
             $"/api/agent/secrets/{options.Environment}", JsonOptions, ct);
 
-        return response?.Secrets ?? [];
+        var entries = response?.Entries ?? [];
+        var secrets = new Dictionary<string, string>(entries.Count);
+
+        foreach (var entry in entries)
+        {
+            // Inline = the control plane already holds the value (embedded backend). Reference = the value
+            // lives in the vault on this network and we resolve it here, keeping it off the control plane.
+            secrets[entry.Key] = entry.Source == SecretSource.Reference
+                ? await vault.ResolveAsync(entry.Payload, ct)
+                : entry.Payload;
+        }
+
+        return secrets;
     }
 
     public async Task<List<AgentPackageInfo>> ListPackagesAsync(CancellationToken ct)
@@ -135,7 +147,7 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, ILogger<C
     }
 
     private record IntegrationsResponse(List<IntegrationItem> Integrations);
-    private record SecretsResponse(Dictionary<string, string> Secrets);
+    private record SecretManifestResponse(List<SecretManifestEntry> Entries);
     private record AgentPackagesResponse(List<AgentPackageInfo> Packages);
     private record StartExecutionResponse(Guid ExecutionId, DateTime StartedAt);
 }

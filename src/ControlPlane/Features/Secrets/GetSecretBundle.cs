@@ -3,19 +3,19 @@ using Shared.Domain;
 
 namespace ControlPlane.Features.Secrets;
 
-// Returns all secrets for a tenant + environment with values decrypted.
-// This is used internally by the control plane when dispatching work to a runtime agent.
-// It is NOT exposed as a public API endpoint.
+// Returns the secret manifest for a tenant + environment, delivered to a runtime agent at dispatch.
+// Under the embedded backend entries carry decrypted values; under the external-vault backend they carry
+// references the agent resolves locally. Served only to authenticated agents, not as a public endpoint.
 public record GetSecretBundleCommand(Guid TenantId, string Environment) : ICommand<GetSecretBundleResult>;
 
-public record GetSecretBundleResult(IReadOnlyDictionary<string, string> Secrets);
+public record GetSecretBundleResult(IReadOnlyList<SecretManifestEntry> Entries);
 
 public class GetSecretBundleHandler(ISecretBackend backend)
     : ICommandHandler<GetSecretBundleCommand, GetSecretBundleResult>
 {
     public async Task<GetSecretBundleResult> HandleAsync(GetSecretBundleCommand command, CancellationToken ct = default)
     {
-        var secrets = await backend.GetBundleAsync(command.TenantId, command.Environment, ct);
-        return new GetSecretBundleResult(secrets);
+        var manifest = await backend.GetManifestAsync(command.TenantId, command.Environment, ct);
+        return new GetSecretBundleResult(manifest.Entries);
     }
 }

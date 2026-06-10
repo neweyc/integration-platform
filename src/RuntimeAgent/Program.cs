@@ -43,6 +43,24 @@ builder.Services.AddHttpClient<IControlPlaneClient, ControlPlaneClient>(client =
     PooledConnectionLifetime = TimeSpan.FromMinutes(5)
 });
 
+// Secret vault client. When a vault address is configured (the control plane runs the external-vault
+// backend), the agent resolves secret references against the vault on its own network. Otherwise the
+// embedded backend applies and the control plane already delivers values — a Null client that fails loudly
+// guards against ever receiving a reference unexpectedly. See docs/secret-vault.md.
+if (!string.IsNullOrWhiteSpace(options.VaultAddress))
+{
+    builder.Services.AddHttpClient<IVaultClient, HttpVaultClient>(client =>
+    {
+        client.BaseAddress = new Uri(options.VaultAddress);
+        if (!string.IsNullOrWhiteSpace(options.VaultToken))
+            client.DefaultRequestHeaders.Add("X-Vault-Token", options.VaultToken);
+    });
+}
+else
+{
+    builder.Services.AddSingleton<IVaultClient, NullVaultClient>();
+}
+
 // Named HTTP client available inside integrations via IIntegrationContext.Http
 builder.Services.AddHttpClient("integration");
 

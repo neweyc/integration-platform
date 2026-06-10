@@ -676,7 +676,7 @@ commercial** (not MIT), so unlicensed commercial use is a real liability — see
 
 ### On-Prem Secret Vault (reference-based secrets)
 
-**Status:** Todo
+**Status:** In progress (backend + agent resolution shipped; vault container, UI, migration tooling remain)
 
 Stop storing secret *values* in the control plane so a hosted control plane can hold references only —
 the prerequisite for a cloud offering under "credentials never leave our network." Design doc:
@@ -687,12 +687,15 @@ Acceptance criteria:
 - ✅ An `ISecretBackend` abstraction; today's encrypted-in-DB store becomes the **embedded** backend (no
   behavior change, default for simple self-hosted). *(Shipped — the set/delete/resolve-bundle handlers
   delegate to it.)*
-- An **external-vault** backend: the control plane stores `{ environment, key } → reference` only; secret
-  values live in an on-prem vault container (first-party or an OpenBao/HashiCorp Vault/KMS integration),
-  and the **agent resolves references against the vault at run time** rather than receiving a decrypted
-  bundle from the control plane.
+- ✅ An **external-vault** backend: the control plane stores `{ environment, key } → reference` only
+  (`Secrets:Backend=ExternalVault`); the agent endpoint returns a manifest of references and the **agent
+  resolves them against the vault at run time** via `IVaultClient` (`Agent:VaultAddress`) rather than
+  receiving a decrypted bundle. *(Shipped — see secret-vault.md "Configuration & wire contract".)*
 - Secret *values* never rest in (ideally never transit) the control plane under the external backend; the
-  Secrets UI manages bindings, not values.
+  Secrets UI manages bindings, not values. *(Backend honors this today via binding mode; the UI binding
+  experience is still to come.)*
+- A vault container (first-party or an OpenBao/HashiCorp Vault/KMS adapter) wired into the compose/agent
+  stack; `HttpVaultClient` is today's generic reference implementation.
 - Migration tooling from embedded → external; the control plane no longer needs `Encryption:MasterKey`
   under the external backend.
 - Cloud deployments mandate the external backend ("no secrets in the cloud, full stop").

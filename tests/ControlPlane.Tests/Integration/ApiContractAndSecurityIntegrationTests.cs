@@ -343,7 +343,11 @@ public class ApiContractAndSecurityIntegrationTests
         client.DefaultRequestHeaders.Add("X-Agent-Token", token.Token);
         using var secrets = await GetJsonDocumentAsync(client, "/api/agent/secrets/Production");
 
-        Assert.Equal("s3cr3t", secrets.RootElement.GetProperty("secrets").GetProperty("API_KEY").GetString());
+        // Embedded backend: the manifest carries an Inline entry with the decrypted value.
+        var entry = secrets.RootElement.GetProperty("entries").EnumerateArray()
+            .Single(e => e.GetProperty("key").GetString() == "API_KEY");
+        Assert.Equal("Inline", entry.GetProperty("source").GetString());
+        Assert.Equal("s3cr3t", entry.GetProperty("payload").GetString());
     }
 
     private static async Task<SetupResponse> SetupTenantAsync(HttpClient client)

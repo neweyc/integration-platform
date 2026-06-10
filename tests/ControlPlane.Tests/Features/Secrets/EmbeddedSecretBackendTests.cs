@@ -59,7 +59,7 @@ public class EmbeddedSecretBackendTests
     }
 
     [Fact]
-    public async Task GetBundleAsync_DecryptsAllValues()
+    public async Task GetManifestAsync_DecryptsAllValuesAsInlineEntries()
     {
         _readRepository.ListAsync(_tenantId, Environment).Returns(new List<Secret>
         {
@@ -69,10 +69,12 @@ public class EmbeddedSecretBackendTests
         _encryption.Decrypt("enc:abc").Returns("real-api-key");
         _encryption.Decrypt("enc:xyz").Returns("real-db-password");
 
-        var bundle = await _backend.GetBundleAsync(_tenantId, Environment);
+        var manifest = await _backend.GetManifestAsync(_tenantId, Environment);
 
-        Assert.Equal("real-api-key", bundle["API_KEY"]);
-        Assert.Equal("real-db-password", bundle["DB_PASSWORD"]);
+        // Embedded backend resolves values here: every entry is Inline carrying the decrypted value.
+        Assert.All(manifest.Entries, e => Assert.Equal(SecretSource.Inline, e.Source));
+        Assert.Equal("real-api-key", manifest.Entries.Single(e => e.Key == "API_KEY").Payload);
+        Assert.Equal("real-db-password", manifest.Entries.Single(e => e.Key == "DB_PASSWORD").Payload);
     }
 
     [Fact]

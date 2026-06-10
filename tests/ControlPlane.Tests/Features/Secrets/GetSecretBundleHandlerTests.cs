@@ -16,29 +16,47 @@ public class GetSecretBundleHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_ReturnsBackendBundle()
+    public async Task HandleAsync_ReturnsBackendManifestEntries()
     {
-        _backend.GetBundleAsync(_tenantId, "production", Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<string, string>
+        _backend.GetManifestAsync(_tenantId, "production", Arg.Any<CancellationToken>())
+            .Returns(new SecretManifest(new List<SecretManifestEntry>
             {
-                ["API_KEY"] = "real-api-key",
-                ["DB_PASSWORD"] = "real-db-password"
-            });
+                new("API_KEY", SecretSource.Inline, "real-api-key"),
+                new("DB_PASSWORD", SecretSource.Inline, "real-db-password")
+            }));
 
         var result = await _handler.HandleAsync(new GetSecretBundleCommand(_tenantId, "production"));
 
-        Assert.Equal("real-api-key", result.Secrets["API_KEY"]);
-        Assert.Equal("real-db-password", result.Secrets["DB_PASSWORD"]);
+        Assert.Equal("real-api-key", result.Entries.Single(e => e.Key == "API_KEY").Payload);
+        Assert.Equal("real-db-password", result.Entries.Single(e => e.Key == "DB_PASSWORD").Payload);
     }
 
     [Fact]
-    public async Task HandleAsync_NoSecrets_ReturnsEmptyDictionary()
+    public async Task HandleAsync_PassesThroughReferenceEntries()
     {
-        _backend.GetBundleAsync(_tenantId, "staging", Arg.Any<CancellationToken>())
-            .Returns(new Dictionary<string, string>());
+        // Under the external-vault backend the handler must relay references untouched — the control plane
+        // never resolves a value.
+        _backend.GetManifestAsync(_tenantId, "production", Arg.Any<CancellationToken>())
+            .Returns(new SecretManifest(new List<SecretManifestEntry>
+            {
+                new("API_KEY", SecretSource.Reference, "kv/production/api_key")
+            }));
+
+        var result = await _handler.HandleAsync(new GetSecretBundleCommand(_tenantId, "production"));
+
+        var entry = Assert.Single(result.Entries);
+        Assert.Equal(SecretSource.Reference, entry.Source);
+        Assert.Equal("kv/production/api_key", entry.Payload);
+    }
+
+    [Fact]
+    public async Task HandleAsync_NoSecrets_ReturnsEmptyEntries()
+    {
+        _backend.GetManifestAsync(_tenantId, "staging", Arg.Any<CancellationToken>())
+            .Returns(new SecretManifest(new List<SecretManifestEntry>()));
 
         var result = await _handler.HandleAsync(new GetSecretBundleCommand(_tenantId, "staging"));
 
-        Assert.Empty(result.Secrets);
+        Assert.Empty(result.Entries);
     }
 }
