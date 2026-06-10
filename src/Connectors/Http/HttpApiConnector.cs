@@ -25,6 +25,16 @@ public sealed class HttpApiConnector
 
     public HttpApiConnector(IIntegrationContext context, string? baseUrl = null)
     {
+        // A base URL is optional (callers may use absolute paths), but if one is given it must be an
+        // absolute http/https URL — otherwise requests fail later with an opaque URI error.
+        if (baseUrl is not null
+            && (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)))
+        {
+            throw new ArgumentException(
+                $"HttpConnector: '{baseUrl}' is not a valid absolute http(s) base URL.", nameof(baseUrl));
+        }
+
         _context = context;
         _baseUrl = baseUrl;
     }

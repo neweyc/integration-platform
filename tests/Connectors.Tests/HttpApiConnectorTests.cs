@@ -187,6 +187,27 @@ public class HttpApiConnectorTests
         Assert.Equal([1, 2, 3], items);
     }
 
+    [Theory]
+    [InlineData("not-a-url")]
+    [InlineData("ftp://example.com")]
+    [InlineData("/relative/path")]
+    public void Constructor_InvalidBaseUrl_Throws(string baseUrl)
+    {
+        var context = new TestIntegrationContext();
+
+        Assert.Throws<ArgumentException>(() => new HttpApiConnector(context, baseUrl));
+    }
+
+    [Fact]
+    public void Constructor_NullBaseUrl_IsAllowed()
+    {
+        var context = new TestIntegrationContext();
+
+        var exception = Record.Exception(() => new HttpApiConnector(context, baseUrl: null));
+
+        Assert.Null(exception);
+    }
+
     [Fact]
     public async Task MissingSecret_ThrowsClearError()
     {

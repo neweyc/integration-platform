@@ -80,13 +80,13 @@ Available commands:
 
 | Command | Purpose |
 |---------|---------|
-| `serto init [name]` | Scaffold a new integration project |
+| `serto init [name]` | Scaffold a new integration project + unit-test project, README, and secrets example (`--template scheduled`\|`webhook`) |
 | `serto scan` | Preview integrations/triggers/required-secrets discovered from the current project |
 | `serto package` | Build, validate, SHA-256, and archive the project (no upload) |
 | `serto login` | Save an API token for a control plane so `serto deploy` stops prompting |
 | `serto logout` | Remove a saved API token (`--all` clears every saved control plane) |
 | `serto deploy` | Run the scan preview, then upload and auto-provision in the control plane |
-| `serto test` | Run an integration locally |
+| `serto test` | Validate (attribute, cron, constructor, required secrets) and run an integration locally |
 | `serto dev` | Watch source files and re-run tests on save |
 | `serto webhook replay` | Sign and POST a sample webhook payload to a running control plane |
 | `serto --version` | Print the installed CLI version |
@@ -134,12 +134,12 @@ dotnet publish src/Cli -c Release -o ~/.serto
 alias serto='dotnet ~/.serto/Cli.dll'
 ```
 
-> **Note:** `serto init` scaffolds a project that references the published `Serto.Sdk` and `Serto.Connectors` NuGet packages. The current package version is `1.0.3`:
+> **Note:** `serto init` scaffolds a project that references the published `Serto.Sdk`, `Serto.Connectors`, and `Serto.Testing` NuGet packages. The current package version is `1.0.18`:
 >
 > ```xml
 > <ItemGroup>
->   <PackageReference Include="Serto.Sdk" Version="1.0.3" />
->   <PackageReference Include="Serto.Connectors" Version="1.0.3" />
+>   <PackageReference Include="Serto.Sdk" Version="1.0.18" />
+>   <PackageReference Include="Serto.Connectors" Version="1.0.18" />
 > </ItemGroup>
 > ```
 
@@ -292,7 +292,7 @@ npm run build   # outputs to src/ControlPlane/wwwroot
 - **Control plane can't connect to the database** — confirm the dev container is healthy (`docker compose -f docker-compose.dev.yml ps`) and that the connection string host/port match (`127.0.0.1:5433`).
 - **UI loads but API calls fail in dev** — make sure the control plane is running on `:5000`; the Vite dev server on `:5173` proxies to it.
 - **`/setup` doesn't appear** — setup is only offered until the first tenant exists. If a tenant was already created, go to the login page instead.
-- **Scaffolded integration won't restore `Serto.Sdk`** — confirm NuGet.org is reachable and that the generated project references a published package version such as `1.0.3`.
+- **Scaffolded integration won't restore `Serto.Sdk`** — confirm NuGet.org is reachable and that the generated project references a published package version such as `1.0.18`.
 
 ---
 

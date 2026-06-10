@@ -13,6 +13,21 @@ public sealed class SqlConnector
 
     public SqlConnector(IIntegrationContext context, string connectionString)
     {
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new ArgumentException("SqlConnector: the connection string is empty.", nameof(connectionString));
+
+        // Validate the connection string up front so a malformed value fails clearly at construction
+        // (and during `serto test`) instead of with an opaque error on the first query.
+        try
+        {
+            _ = new SqlConnectionStringBuilder(connectionString);
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException(
+                $"SqlConnector: the connection string is malformed ({ex.Message}).", nameof(connectionString));
+        }
+
         _context = context;
         _connectionString = connectionString;
     }

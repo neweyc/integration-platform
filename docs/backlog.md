@@ -77,7 +77,7 @@ Completed notes:
 Remaining gaps:
 
 - The deploy secret check runs against the provisioning environment (the tenant's default environment); `serto deploy --environment` is not yet honored for provisioning or the check.
-- `serto test` does not yet validate cancellation-token usage, connector configuration, sample payload behavior, or required secrets.
+- `serto test` now runs a preflight before executing: it errors on a missing `[Integration]` attribute, an invalid cron expression, or a non-parameterless constructor, and warns when a code-referenced secret is missing from `--secrets`. The connectors also validate their configuration at construction (absolute http(s) base URL, parseable SQL connection string). Still not validated: cancellation-token usage and sample-payload/webhook schema behavior.
 - `serto webhook replay` sends signed payloads to a running control plane; it does not yet spin up an in-process control-plane test harness.
 
 ### Trigger Declarations And Runtime Overrides
@@ -234,7 +234,7 @@ Remaining limitations:
 - HTTP connector does not yet cover pagination, rate-limit handling, retry classification, or idempotency helpers.
 - SQL connector does not yet cover batching, transactions, or bulk upsert patterns.
 - File/SFTP, object storage, and notification connectors are not implemented yet.
-- Connector behavior needs dedicated tests with fake transports or local test services.
+- Both connectors now validate their configuration at construction (the HTTP base URL must be an absolute http(s) URL; the SQL connection string must parse), so misconfiguration fails fast during `serto test` instead of on the first call. Missing auth secrets still surface at first use (HTTP) or at construction (SQL).
 
 Design rule:
 
@@ -508,36 +508,6 @@ Acceptance criteria:
 - Existing target secrets require confirmation before overwrite.
 - Secret values remain write-only in user-facing APIs.
 - Promotion is audited.
-
----
-
-## P2 — Developer Experience
-
-### Integration Template
-
-**Status:** Todo
-
-Provide a starter project for integration authors.
-
-Acceptance criteria:
-
-- Template includes a sample `IIntegration`.
-- Template includes local unit test examples.
-- Template includes publish/package commands.
-- Docs reference the template.
-
-### Local Integration Test Harness
-
-**Status:** Todo
-
-Make it easy to run integrations locally with realistic context.
-
-Acceptance criteria:
-
-- CLI or test helper can run one integration class locally.
-- Secrets can be loaded from a local JSON/env file.
-- Logs are printed to console.
-- Cancellation behavior can be tested.
 
 ---
 

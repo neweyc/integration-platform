@@ -717,6 +717,42 @@ Implementation notes: environment names are canonicalized to lowercase via a sin
 
 ## P2 — Developer Experience
 
+### Integration Template
+
+**Status:** Done
+
+Provide a starter project for integration authors.
+
+Acceptance criteria:
+
+- Template includes a sample `IIntegration`. ✅ (`serto init` scaffolds a scheduled sample, or a webhook sample with `--template webhook`.)
+- Template includes local unit test examples. ✅ (A sibling `{name}.Tests` xUnit project with a passing `IntegrationTester.RunAsync<MyIntegration>` example.)
+- Template includes publish/package commands. ✅ (Generated README documents `serto test`/`serto dev`/`dotnet test` and `serto login`/`serto deploy`; the "Next steps" output lists them.)
+- Docs reference the template. ✅ (installation.md.)
+
+Completed notes:
+
+- `serto init` now scaffolds: the integration `.csproj`, `MyIntegration.cs` (scheduled or webhook), a `{name}.Tests` xUnit project referencing `Serto.Testing` with a passing example test, a `README.md` documenting the context/secrets/dev-loop, a `.secrets.example.json`, and a `.gitignore` that ignores `secrets.json`.
+- The template generators are pure static methods (`BuildIntegrationClass`, `BuildTestProjectFile`, `BuildExampleTest`, …) and unit tested.
+
+### Local Integration Test Harness
+
+**Status:** Done
+
+Make it easy to run integrations locally with realistic context.
+
+Acceptance criteria:
+
+- CLI or test helper can run one integration class locally. ✅ (`serto test` runs it with preflight validation; `Serto.Testing.IntegrationTester.RunAsync<T>` runs it in a unit test.)
+- Secrets can be loaded from a local JSON/env file. ✅ (`serto test --secrets file.json`; the scaffold ships a `.secrets.example.json`.)
+- Logs are printed to console. ✅ (`serto test` wires a console logger.)
+- Cancellation behavior can be tested. ✅ (Construct a `TestIntegrationContext` / `TestContextBuilder` and call `RunAsync(context, token)` with a cancelled token; the one-liner `IntegrationTester` uses `CancellationToken.None`.)
+
+Completed notes:
+
+- `Serto.Testing` gained a fluent `TestContextBuilder` and a `TestHttp` helper (`Responding`/`RespondingJson`/`Recording`) so HTTP-calling integrations can be unit-tested without real endpoints, alongside the existing `TestIntegrationContext` and `IntegrationTester`.
+- `serto test` runs a preflight (attribute/cron/constructor + required-secret cross-check) before executing, so structural mistakes surface locally; `serto dev` runs the same path on every save.
+
 ### SDK NuGet Package
 
 **Status:** Done

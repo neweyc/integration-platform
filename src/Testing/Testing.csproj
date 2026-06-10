@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Serto.Testing</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.18</Version>
     <Authors>Craytech</Authors>
     <Company>Craytech</Company>
     <Description>Testing helpers for Serto integrations — provides a test context and integration runner.</Description>

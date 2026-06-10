@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Serto.Sdk</RootNamespace>
     <PackageId>Serto.Sdk</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.18</Version>
     <Authors>Craytech</Authors>
     <Company>Craytech</Company>
     <Description>SDK for building code-first integrations on Serto.</Description>

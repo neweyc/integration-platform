@@ -12,7 +12,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>Serto.Connectors</PackageId>
-    <Version>1.0.3</Version>
+    <Version>1.0.18</Version>
     <Authors>Craytech</Authors>
     <Company>Craytech</Company>
     <Description>Core connectors for Serto, providing simplified HTTP and SQL access.</Description>
