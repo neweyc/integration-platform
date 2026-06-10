@@ -21,4 +21,15 @@ public static class TagSet
         var set = new HashSet<string>(a, StringComparer.OrdinalIgnoreCase);
         return b.All(set.Contains);
     }
+
+    // The routing rule: an agent can run an integration iff it offers every tag the integration
+    // requires (subset/AND). No required tags ⇒ runnable on any agent.
+    public static bool IsSatisfiedBy(IReadOnlyCollection<string> required, IReadOnlyCollection<string> offered)
+    {
+        if (required.Count == 0)
+            return true;
+
+        var set = new HashSet<string>(offered, StringComparer.OrdinalIgnoreCase);
+        return required.All(set.Contains);
+    }
 }

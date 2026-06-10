@@ -171,6 +171,30 @@ The deploy also sends the required secret names found by the scan, and the Contr
 
 Use `[Integration]` for executable metadata without stored triggers. Use `[ScheduledIntegration]` and `[WebhookIntegration]` when the package should also provision trigger records. Timeout and retry properties are optional integer named arguments; leave them unset to use the platform defaults.
 
+### Targeting specific agents (capabilities)
+
+By default any runtime agent in an integration's environment can run it. When an integration needs a *particular* host — one wired to hardware, inside a specific network, or with a licensed driver — declare the capabilities it requires:
+
+```csharp
+[Integration("Pulse the reactor", "reactor-pulse")]
+[RequiresAgentCapabilities("hardware-signal", "site-floor-1")]
+public class ReactorPulse : IIntegration { ... }
+```
+
+The control plane only routes the integration's work to an agent whose offered tags include **all** of the required tags. An agent advertises what it offers via its config:
+
+```json
+{ "Agent": { "Environment": "production", "Tags": ["hardware-signal", "site-floor-1"] } }
+```
+
+Notes:
+
+- No `[RequiresAgentCapabilities]` ⇒ runnable on any agent in the environment (unchanged behavior).
+- Tags are matched case-insensitively as a set (order doesn't matter).
+- Like trigger cron/enabled, the attribute is the **declared default**: an operator can override an integration's required tags in the control plane, and package redeploys preserve that override and report it as drift.
+- Capability tags are **routing only** — they decide *where* work runs, not *who* can access what. They are self-reported by the agent and are not a security boundary.
+- If no agent offers the required tags, the integration's work stays queued until one connects, rather than running on the wrong host.
+
 ---
 
 ## IIntegrationContext

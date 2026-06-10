@@ -64,7 +64,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimPendingManualRunsAsync(
-                tenant.Id, "production", newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
             Assert.Equal(reclaimableIntegration.Id, claimed[0].Integration.Id);
@@ -105,7 +105,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
             Assert.Equal(integration.Id, claimed[0].Integration.Id);
@@ -190,7 +190,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimPendingWebhookRunsAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             var item = Assert.Single(claimed);
             Assert.Equal(productionIntegration.Id, item.Integration.Id);
@@ -240,7 +240,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
             Assert.Equal(freeIntegration.Id, claimed[0].Integration.Id);
@@ -289,7 +289,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Empty(claimed);
         }
@@ -332,7 +332,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], newAgentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             Assert.Single(claimed);
             Assert.Equal(integration.Id, claimed[0].Integration.Id);
@@ -385,7 +385,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
             Assert.Empty(claimed);
         }
 
@@ -400,7 +400,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
             Assert.Single(claimed);
             Assert.Equal(integration.Id, claimed[0].Integration.Id);
         }
@@ -454,7 +454,7 @@ public class PollRepositoryIntegrationTests
         {
             var repository = new PollRepository(db);
             var claimed = await repository.ClaimDueScheduledAsync(
-                tenant.Id, "production", agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
+                tenant.Id, "production", [], agentId, TimeSpan.FromMinutes(5), now, CancellationToken.None);
 
             // Both enabled schedules are claimed as independent work items; the disabled one is not.
             Assert.Equal(2, claimed.Count);
@@ -486,6 +486,67 @@ public class PollRepositoryIntegrationTests
         CronExpression = "* * * * *",
         CreatedAt = createdAt
     };
+
+    [Fact]
+    public async Task ClaimPendingManualRunsAsync_RoutesTagGatedWorkOnlyToMatchingAgent()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var gated = CreateIntegration(tenant.Id, "reactor");
+        gated.RequiredTags = ["hardware-signal"];
+        var open = CreateIntegration(tenant.Id, "open"); // no required tags
+        var now = DateTime.UtcNow;
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production");
+            db.Integrations.AddRange(gated, open);
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = gated.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Manual,
+                Status = WorkItemStatus.Pending,
+                AvailableAt = now
+            });
+            db.WorkItems.Add(new WorkItem
+            {
+                TenantId = tenant.Id,
+                IntegrationId = open.Id,
+                Environment = "production",
+                TriggerSource = TriggerSource.Manual,
+                Status = WorkItemStatus.Pending,
+                AvailableAt = now
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // An agent that offers no tags claims the untagged work but leaves the gated item pending.
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimPendingManualRunsAsync(
+                tenant.Id, "production", [], Guid.NewGuid(), TimeSpan.FromMinutes(5), now, CancellationToken.None);
+
+            Assert.Equal(open.Id, Assert.Single(claimed).Integration.Id);
+        }
+
+        // An agent offering the required tag picks up the gated work.
+        await using (var db = database.CreateContext())
+        {
+            var repository = new PollRepository(db);
+            var claimed = await repository.ClaimPendingManualRunsAsync(
+                tenant.Id, "production", ["hardware-signal"], Guid.NewGuid(), TimeSpan.FromMinutes(5),
+                now.AddSeconds(1), CancellationToken.None);
+
+            Assert.Equal(gated.Id, Assert.Single(claimed).Integration.Id);
+        }
+    }
 
     private static Integration CreateIntegration(Guid tenantId, string slug, DateTime? createdAt = null) => new()
     {

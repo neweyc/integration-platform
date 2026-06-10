@@ -93,7 +93,8 @@ public static class AgentTokenEndpoints
 
             // Use the agent token ID as the lease owner to track which agent claimed work
             var result = await dispatcher.SendAsync(
-                new PollIntegrationsCommand(agentToken.TenantId, agentToken.Environment, agentToken.Id), ct);
+                new PollIntegrationsCommand(
+                    agentToken.TenantId, agentToken.Environment, agentToken.Id, ParseAgentCapabilities(http)), ct);
 
             return Results.Ok(result);
         });
@@ -121,7 +122,8 @@ public static class AgentTokenEndpoints
                     request.Version,
                     request.Hostname,
                     request.CurrentConcurrency,
-                    request.MaxConcurrency),
+                    request.MaxConcurrency,
+                    ParseAgentCapabilities(http)),
                 ct);
 
             return Results.NoContent();
@@ -275,6 +277,20 @@ public static class AgentTokenEndpoints
         var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
 
         return agentToken?.Environment == environment ? agentToken : null;
+    }
+
+    // Parses the X-Agent-Capabilities header (comma-separated) into the capabilities the agent
+    // offers. Self-reported and used for routing only (see the agent capability-tags design).
+    private static string[] ParseAgentCapabilities(HttpContext http)
+    {
+        var header = http.Request.Headers["X-Agent-Capabilities"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(header))
+            return [];
+
+        return header
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }
 

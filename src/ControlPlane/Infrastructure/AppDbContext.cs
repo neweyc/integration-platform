@@ -538,6 +538,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(h => h.Environment).IsRequired().HasMaxLength(50);
             b.Property(h => h.Version).HasMaxLength(100);
             b.Property(h => h.Hostname).HasMaxLength(200);
+            b.Property(h => h.Tags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
 
             b.HasIndex(h => new { h.TenantId, h.AgentTokenId }).IsUnique();
             b.HasIndex(h => new { h.TenantId, h.Environment, h.LastSeenAt });

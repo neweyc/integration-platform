@@ -71,7 +71,7 @@ public class PollIntegrationsHandlerTests
         await _handler.HandleAsync(new PollIntegrationsCommand(_tenantId, "production", _leaseOwnerId));
 
         await _repository.Received(1).ClaimDueScheduledAsync(
-            _tenantId, "production", _leaseOwnerId,
+            _tenantId, "production", Arg.Any<IReadOnlyList<string>>(), _leaseOwnerId,
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
@@ -297,43 +297,43 @@ public class PollIntegrationsHandlerTests
 
     private void SetupScheduled(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimDueScheduledAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupManual(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingManualRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupWebhook(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingWebhookRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupRetry(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingRetryRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupWorkflow(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingWorkflowRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupQueue(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingQueueRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 
     private void SetupFile(IReadOnlyList<ClaimedWork> result) =>
         _repository.ClaimPendingFileRunsAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(),
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<Guid>(),
             Arg.Any<TimeSpan>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
         .Returns(result);
 

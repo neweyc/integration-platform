@@ -171,6 +171,7 @@ Set the agent's configuration (via `src/RuntimeAgent/appsettings.json`, user sec
     "ControlPlaneUrl": "http://localhost:5000",
     "AgentToken": "agt_<your-token>",
     "Environment": "production",
+    "Tags": [],
     "IntegrationsPath": "./integrations",
     "PackagesPath": "./packages",
     "PollIntervalSeconds": 30,
