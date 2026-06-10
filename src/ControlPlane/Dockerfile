@@ -29,6 +29,7 @@ WORKDIR /src
 # Copy project files first so Docker can cache the restore layer
 COPY src/Shared/Shared.csproj src/Shared/
 COPY src/Sdk/Sdk.csproj src/Sdk/
+COPY src/Licensing/Licensing.csproj src/Licensing/
 COPY src/ControlPlane/ControlPlane.csproj src/ControlPlane/
 RUN if [ "$TARGETARCH" = "amd64" ]; then ARCH=x64; else ARCH=$TARGETARCH; fi && \
     dotnet restore src/ControlPlane/ControlPlane.csproj -r linux-${ARCH}
@@ -36,6 +37,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then ARCH=x64; else ARCH=$TARGETARCH; fi && 
 # Copy everything else and build
 COPY src/Shared/ src/Shared/
 COPY src/Sdk/ src/Sdk/
+COPY src/Licensing/ src/Licensing/
 COPY src/ControlPlane/ src/ControlPlane/
 
 # Copy the built frontend into wwwroot before publishing
