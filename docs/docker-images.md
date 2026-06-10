@@ -13,9 +13,31 @@ Serto publishes two Docker images:
 
 Use immutable version tags for deployments and documentation. `latest` can be published as a convenience tag, but production examples should prefer a concrete version such as `1.0.3`.
 
-## Build And Push
+## Automated publish (recommended)
 
-Images must be published as **multi-architecture** manifests covering both `linux/amd64` and `linux/arm64`. A plain `docker build` only produces an image for the machine you build on — building on an Apple Silicon Mac yields an arm64-only image, and pulling it on an amd64 Linux host fails with `no matching manifest for linux/amd64`. Use `docker buildx` with explicit `--platform` so a single manifest serves both architectures. The Dockerfiles already cross-compile correctly via `$BUILDPLATFORM`/`TARGETARCH`.
+Pushing a `v*` tag runs the **Publish release** workflow (`.github/workflows/publish.yml`), which both
+publishes the NuGet packages and builds and pushes the multi-architecture control-plane and agent
+images, tagged with the version (e.g. `1.1.0`) and `latest`:
+
+```bash
+git tag -a v1.1.0 -m "v1.1.0"
+git push origin v1.1.0
+```
+
+The Docker job requires two repository secrets in addition to `NUGET_API_KEY`:
+
+| Secret | Purpose |
+|--------|---------|
+| `DOCKERHUB_USERNAME` | Docker Hub account/org with push access to `craytech/*` |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (Account Settings → Security) |
+
+The image build is gated on the NuGet build succeeding, so a tag never ships images alongside a build
+that failed `-warnaserror`.
+
+## Build And Push (manual fallback)
+
+The commands below reproduce what CI does, for local/manual publishing. Images must be published as
+**multi-architecture** manifests covering both `linux/amd64` and `linux/arm64`. A plain `docker build` only produces an image for the machine you build on — building on an Apple Silicon Mac yields an arm64-only image, and pulling it on an amd64 Linux host fails with `no matching manifest for linux/amd64`. Use `docker buildx` with explicit `--platform` so a single manifest serves both architectures. The Dockerfiles already cross-compile correctly via `$BUILDPLATFORM`/`TARGETARCH`.
 
 One-time setup of a builder that can produce multi-platform images (the default `docker` driver cannot push them):
 

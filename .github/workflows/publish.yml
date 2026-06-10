@@ -1,4 +1,4 @@
-name: Publish to NuGet
+name: Publish release
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  publish:
-    name: Pack and publish
+  nuget:
+    name: Pack and publish NuGet packages
     runs-on: ubuntu-latest
 
     env:
@@ -79,3 +79,54 @@ jobs:
           --api-key ${{ secrets.NUGET_API_KEY }}
           --source https://api.nuget.org/v3/index.json
           --skip-duplicate
+
+  docker:
+    name: Build and push Docker images
+    runs-on: ubuntu-latest
+    # Only publish images once the packaged build has succeeded, so a tag never ships images
+    # alongside a NuGet build that failed (e.g. on -warnaserror).
+    needs: nuget
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # QEMU + Buildx enable the multi-arch (linux/amd64 + linux/arm64) manifest the Dockerfiles
+      # cross-compile for via $BUILDPLATFORM/TARGETARCH.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push control plane
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/ControlPlane/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            craytech/serto.controlplane:${{ steps.version.outputs.version }}
+            craytech/serto.controlplane:latest
+
+      - name: Build and push runtime agent
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/RuntimeAgent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            craytech/serto.agent:${{ steps.version.outputs.version }}
+            craytech/serto.agent:latest
