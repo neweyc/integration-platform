@@ -22,6 +22,8 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet'
 import { AccessDenied } from '@/components/layout/AccessDenied'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Layers } from 'lucide-react'
 import { getCurrentUser, hasPermission } from '@/lib/rbac'
 
 export function EnvironmentsPage() {
@@ -134,6 +136,7 @@ export function EnvironmentsPage() {
         <EnvironmentsTable
           environments={data?.environments ?? []}
           canManage={canManage}
+          onCreate={handleOpenCreate}
           onEdit={handleOpenEdit}
           onDelete={name => {
             setActionError(null)
@@ -226,19 +229,24 @@ export function EnvironmentsPage() {
 function EnvironmentsTable({
   environments,
   canManage,
+  onCreate,
   onEdit,
   onDelete,
 }: {
   environments: EnvironmentSummary[]
   canManage: boolean
+  onCreate: () => void
   onEdit: (env: EnvironmentSummary) => void
   onDelete: (name: string) => void
 }) {
   if (environments.length === 0) {
     return (
-      <div className="text-center py-16 text-muted-foreground border rounded-lg">
-        <p className="text-sm">No environments yet.</p>
-      </div>
+      <EmptyState
+        icon={Layers}
+        title="No environments yet"
+        description="Environments (like production and staging) scope your integrations, secrets, and agent tokens. Every tenant starts with a production environment — add more to separate your deployments."
+        primaryAction={canManage ? { label: 'New environment', onClick: onCreate } : undefined}
+      />
     )
   }
 

@@ -9,6 +9,8 @@ import {
 import { AccessDenied } from '@/components/layout/AccessDenied'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Workflow } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -84,6 +86,16 @@ export function WorkflowsPage() {
 
       {workflows.isLoading ? (
         <TableSkeleton rows={4} />
+      ) : (workflows.data?.workflows.length ?? 0) === 0 ? (
+        <EmptyState
+          icon={Workflow}
+          title="No workflows yet"
+          description="Workflows orchestrate several integrations as a DAG — with dependencies, fan-out, and fan-in between steps. They're defined in code and provisioned when you deploy a package that declares them."
+        >
+          <code className="block rounded bg-muted p-3 text-left text-xs break-all select-all">
+            serto deploy
+          </code>
+        </EmptyState>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
           <WorkflowList
