@@ -336,6 +336,8 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Jwt:ExpiryHours` | `Jwt__ExpiryHours` | Access-token lifetime in hours |
 | `Jwt:RefreshTokenExpiryDays` | `Jwt__RefreshTokenExpiryDays` | Refresh-token lifetime in days (default 30). Refresh tokens rotate on every use. |
 | `App:BaseUrl` | `App__BaseUrl` | Public base URL of the control plane (e.g. `https://serto.example.com`). Required for password-reset emails to contain a working link. |
+| `UnroutableWorkMonitor:Enabled` | `UnroutableWorkMonitor__Enabled` | Master switch for the background monitor that alerts when an integration's required agent capabilities are offered by no live agent (default `true`). |
+| `UnroutableWorkMonitor:SweepIntervalSeconds` | `UnroutableWorkMonitor__SweepIntervalSeconds` | How often the monitor re-checks routability (default 120s). |
 | `RateLimit:Enabled` | `RateLimit__Enabled` | Master switch for HTTP rate limiting (default `true`). |
 | `RateLimit:PermitLimit` / `RateLimit:WindowSeconds` | `RateLimit__PermitLimit` / `RateLimit__WindowSeconds` | Global per-IP request budget and window (default 300 / 60s). |
 | `RateLimit:AuthPermitLimit` / `RateLimit:AuthWindowSeconds` | `RateLimit__AuthPermitLimit` / `RateLimit__AuthWindowSeconds` | Stricter per-IP budget for sensitive auth endpoints — login, setup, password reset, token refresh (default 10 / 60s). |

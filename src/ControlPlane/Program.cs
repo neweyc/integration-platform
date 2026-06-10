@@ -250,6 +250,15 @@ builder.Services.AddScoped<ICommandHandler<UpdateIntegrationAlertSettingsCommand
 builder.Services.AddScoped<ICommandHandler<SendTestAlertCommand, AlertSendOutcome>, SendTestAlertHandler>();
 builder.Services.AddHostedService<AlertDispatchService>();
 
+// Unroutable-work monitor — periodically alerts when an integration's required agent capabilities
+// are offered by no live agent, reusing the alert channels above.
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection("UnroutableWorkMonitor").Get<UnroutableWorkMonitorOptions>()
+    ?? new UnroutableWorkMonitorOptions());
+builder.Services.AddScoped<IUnroutableAlertRepository, UnroutableAlertRepository>();
+builder.Services.AddScoped<ICommandHandler<MonitorUnroutableWorkCommand, MonitorUnroutableWorkResult>, MonitorUnroutableWorkHandler>();
+builder.Services.AddHostedService<UnroutableWorkMonitor>();
+
 // Environments feature
 builder.Services.AddScoped<EnvironmentRepository>();
 builder.Services.AddScoped<IEnvironmentReadRepository>(sp => sp.GetRequiredService<EnvironmentRepository>());

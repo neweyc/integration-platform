@@ -34,6 +34,11 @@ public class Integration : Entity
     public string[] RequiredTags { get; set; } = [];
     public string[] DeclaredRequiredTags { get; set; } = [];
 
+    // Set when an "unroutable" alert has been sent for this integration (no live agent offers its
+    // required tags), and cleared when it becomes routable again. Dedups the alert so it fires once
+    // per transition into the unroutable state rather than every monitor sweep.
+    public DateTime? UnroutableAlertedAt { get; set; }
+
     public Tenant Tenant { get; set; } = null!;
     public List<IntegrationTrigger> Triggers { get; set; } = [];
 }
