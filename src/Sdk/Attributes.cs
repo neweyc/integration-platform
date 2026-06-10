@@ -19,7 +19,18 @@ public sealed class ScheduledIntegrationAttribute(string name, string slug, stri
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-public sealed class WebhookIntegrationAttribute(string name, string slug) 
+public sealed class WebhookIntegrationAttribute(string name, string slug)
     : IntegrationAttribute(name, slug)
 {
+}
+
+// Declares the agent capabilities this integration requires to run. The control plane will only
+// route the integration's work to an agent that offers all of these tags (e.g. a host wired to
+// specific hardware, behind a particular network, or with a licensed driver). Omit it to run on
+// any agent in the integration's environment. Operators can override the required tags in the
+// control plane; this attribute is the code-declared default.
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class RequiresAgentCapabilitiesAttribute(params string[] tags) : Attribute
+{
+    public string[] Tags { get; } = tags;
 }

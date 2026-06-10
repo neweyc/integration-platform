@@ -126,6 +126,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.RetryMaxAttempts);
             b.Property(i => i.RetryBackoffSeconds);
             b.Property(i => i.PackageId);
+            b.Property(i => i.RequiredTags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
+            b.Property(i => i.DeclaredRequiredTags).HasColumnType("text[]").HasDefaultValueSql("'{}'::text[]");
 
             // Slug must be unique within a tenant
             b.HasIndex(i => new { i.TenantId, i.Slug }).IsUnique();

@@ -297,6 +297,77 @@ public class UploadPackageHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ProvisionsRequiredTagsFromCode()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Reactor Pulse", "reactor-pulse", "Acme.ReactorPulse",
+                Description: null, TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                Triggers: [],
+                RequiredTags: ["hardware-signal", "gpu"])
+        ]);
+
+        Integration? captured = null;
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(),
+                Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                captured = call.Arg<Integration>();
+                return new IntegrationUpsertResult(captured, Created: true, []);
+            });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data));
+
+        // Code-driven build hands the scanner's tags to the upsert as both active and declared.
+        Assert.NotNull(captured);
+        Assert.Equal(["hardware-signal", "gpu"], captured!.RequiredTags);
+        Assert.Equal(["hardware-signal", "gpu"], captured.DeclaredRequiredTags);
+
+        var provisioned = Assert.Single(result.Provisioning);
+        Assert.Equal(["hardware-signal", "gpu"], provisioned.RequiredTags);
+        Assert.False(provisioned.RequiredTagsOverridden);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ReportsPreservedRequiredTagsOverrideAsDrift()
+    {
+        var data = CreateZipWithDll();
+        _repository.VersionExistsAsync(_tenantId, "MyCompany.Integrations", "1.0.0").Returns(false);
+        _scanner.ScanZip(data).Returns([
+            new DiscoveredIntegration(
+                "Reactor Pulse", "reactor-pulse", "Acme.ReactorPulse",
+                Description: null, TimeoutSeconds: null, RetryMaxAttempts: null, RetryBackoffSeconds: null,
+                Triggers: [],
+                RequiredTags: ["hardware-signal", "gpu"])
+        ]);
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(),
+                Arg.Any<IReadOnlyList<IntegrationTrigger>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var integration = call.Arg<Integration>();
+                // Simulate an operator override (narrowed to one tag) preserved across the redeploy.
+                integration.RequiredTags = ["hardware-signal"];
+                integration.DeclaredRequiredTags = ["hardware-signal", "gpu"];
+                return new IntegrationUpsertResult(integration, Created: false, [], RequiredTagsOverridden: true);
+            });
+
+        var result = await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "MyCompany.Integrations", "1.0.0", "integrations.zip", data));
+
+        var provisioned = Assert.Single(result.Provisioning);
+        Assert.True(provisioned.RequiredTagsOverridden);
+        Assert.Equal(["hardware-signal"], provisioned.RequiredTags);
+        Assert.Equal(["hardware-signal", "gpu"], provisioned.DeclaredRequiredTags);
+    }
+
+    [Fact]
     public async Task HandleAsync_DiscoveredIntegrationWithInvalidCron_DoesNotCreatePackage()
     {
         var data = CreateZipWithDll();

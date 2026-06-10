@@ -25,6 +25,15 @@ public class Integration : Entity
     // Pinned package. Null means the agent resolves from its local IntegrationsPath in dev mode.
     public Guid? PackageId { get; set; }
 
+    // Agent capabilities required to run this integration. Work is only routed to an agent whose
+    // offered tags are a superset of these. Empty = runnable on any agent in the environment.
+    // RequiredTags is the active (operator-overridable) value; DeclaredRequiredTags is what the
+    // code last declared. They diverge when an operator overrides the tags in the control plane —
+    // that divergence is preserved across package redeploys and reported as drift, mirroring how
+    // trigger cron/enabled overrides work.
+    public string[] RequiredTags { get; set; } = [];
+    public string[] DeclaredRequiredTags { get; set; } = [];
+
     public Tenant Tenant { get; set; } = null!;
     public List<IntegrationTrigger> Triggers { get; set; } = [];
 }

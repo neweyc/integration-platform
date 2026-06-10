@@ -60,7 +60,10 @@ public record PackageProvisioningResult(
     string ClassName,
     string Action,
     Guid PackageId,
-    IReadOnlyList<PackageProvisionedTriggerResult> Triggers);
+    IReadOnlyList<PackageProvisionedTriggerResult> Triggers,
+    IReadOnlyList<string>? RequiredTags = null,
+    IReadOnlyList<string>? DeclaredRequiredTags = null,
+    bool RequiredTagsOverridden = false);
 
 public record PackageProvisionedTriggerResult(
     Guid Id,
@@ -133,6 +136,10 @@ public class UploadPackageHandler(
         {
             var triggers = ToTriggerInputs(integration);
 
+            // Code-driven build: declared and active required tags both start as what the code declared;
+            // the repository preserves any prior operator override and reports drift.
+            var codeTags = TagSet.Normalize(integration.RequiredTags);
+
             var upsert = await integrationRepository.UpsertBySlugAsync(new Integration
             {
                 TenantId = command.TenantId,
@@ -145,7 +152,9 @@ public class UploadPackageHandler(
                 RetryMaxAttempts = integration.RetryMaxAttempts ?? 0,
                 RetryBackoffSeconds = integration.RetryBackoffSeconds,
                 PackageId = created.Id,
-                Status = IntegrationStatus.Enabled
+                Status = IntegrationStatus.Enabled,
+                RequiredTags = codeTags,
+                DeclaredRequiredTags = codeTags
             }, CreateIntegrationHandler.BuildTriggers(command.TenantId, triggers, encryption), ct);
 
             provisioning.Add(ToProvisioningResult(upsert, created.Id, tenantSlug));
@@ -252,7 +261,10 @@ public class UploadPackageHandler(
             integration.ClassName,
             upsert.Created ? "Created" : "Updated",
             packageId,
-            upsert.Triggers.Select(t => ToProvisionedTriggerResult(integration, t, tenantSlug)).ToList());
+            upsert.Triggers.Select(t => ToProvisionedTriggerResult(integration, t, tenantSlug)).ToList(),
+            integration.RequiredTags,
+            integration.DeclaredRequiredTags,
+            upsert.RequiredTagsOverridden);
     }
 
     private static PackageProvisionedTriggerResult ToProvisionedTriggerResult(

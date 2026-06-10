@@ -255,6 +255,68 @@ public class IntegrationRepositoryIntegrationTests
         return db.Integrations.Single(i => i.TenantId == tenantId && i.Slug == "order-sync").Id;
     }
 
+    [Fact]
+    public async Task UpsertBySlugAsync_PreservesOperatorRequiredTagOverride_AndReportsDrift()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenantId = Guid.NewGuid();
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(new Tenant { Id = tenantId, Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" });
+            TestEnvironments.Seed(db, tenantId, "production");
+            await db.SaveChangesAsync();
+        }
+
+        // 1. Code provisions the integration with two required tags.
+        await using (var db = database.CreateContext())
+        {
+            var repo = new IntegrationRepository(db);
+            var code = CodeIntegration(tenantId);
+            code.RequiredTags = ["hardware-signal", "gpu"];
+            code.DeclaredRequiredTags = ["hardware-signal", "gpu"];
+            var created = await repo.UpsertBySlugAsync(code, []);
+            Assert.True(created.Created);
+            Assert.False(created.RequiredTagsOverridden);
+        }
+
+        // text[] round-trips through Postgres.
+        await using (var db = database.CreateContext())
+        {
+            var stored = db.Integrations.Single(i => i.TenantId == tenantId && i.Slug == "order-sync");
+            Assert.True(TagSet.Equal(["hardware-signal", "gpu"], stored.RequiredTags));
+        }
+
+        // 2. An operator narrows the active tags (the Phase-4 edit path, simulated directly here).
+        await using (var db = database.CreateContext())
+        {
+            var stored = db.Integrations.Single(i => i.TenantId == tenantId && i.Slug == "order-sync");
+            stored.RequiredTags = ["hardware-signal"];
+            await db.SaveChangesAsync();
+        }
+
+        // 3. A code redeploy must preserve the override and report drift.
+        await using (var db = database.CreateContext())
+        {
+            var repo = new IntegrationRepository(db);
+            var code = CodeIntegration(tenantId);
+            code.RequiredTags = ["hardware-signal", "gpu"];
+            code.DeclaredRequiredTags = ["hardware-signal", "gpu"];
+            var result = await repo.UpsertBySlugAsync(code, []);
+            Assert.False(result.Created);
+            Assert.True(result.RequiredTagsOverridden);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var stored = db.Integrations.Single(i => i.TenantId == tenantId && i.Slug == "order-sync");
+            Assert.True(TagSet.Equal(["hardware-signal"], stored.RequiredTags));            // override preserved
+            Assert.True(TagSet.Equal(["hardware-signal", "gpu"], stored.DeclaredRequiredTags)); // declared follows code
+        }
+    }
+
     private static Integration CodeIntegration(Guid tenantId) =>
         new()
         {
