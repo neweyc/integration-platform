@@ -8,7 +8,7 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
 {
     // The Serto.Sdk/Connectors/Testing version scaffolded projects reference. Bump this to the
     // current release whenever those packages are published so `serto init` pins a real, recent version.
-    private const string SertoPackageVersion = "1.4.1";
+    private const string SertoPackageVersion = "1.5.0";
     private const string TestSdkVersion = "17.14.1";
     private const string XunitVersion = "2.9.3";
     private const string XunitRunnerVersion = "3.1.4";
