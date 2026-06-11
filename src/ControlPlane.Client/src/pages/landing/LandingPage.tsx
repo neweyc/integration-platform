@@ -3,12 +3,14 @@ import {
   ArrowRight,
   CheckCircle2,
   Code2,
+  GitBranch,
   KeyRound,
   LockKeyhole,
   RadioTower,
   ServerCog,
   ShieldCheck,
   Terminal,
+  Unlock,
   Workflow,
 } from 'lucide-react'
 import heroImage from '@/assets/hero.png'
@@ -82,10 +84,53 @@ docker compose up -d
 
 # 3. Open http://localhost:8080 and create your admin account`
 
+// The hero snippet — a real integration (mirrors src/Examples/SqlToHttp). The attribute IS the
+// manifest; RunAsync is plain C#; secrets are referenced by name, never inlined.
+const heroSnippet = `// An integration is just a C# class.
+[ScheduledIntegration("Order Sync", "order-sync", "*/15 * * * *")]
+public class OrderSync : IIntegration
+{
+    public async Task RunAsync(IIntegrationContext ctx, CancellationToken ct)
+    {
+        var db  = ctx.SqlConnector("ORDERS_DB");
+        var erp = ctx.HttpConnector("https://api.erp.com")
+                     .WithBearerToken("ERP_API_KEY");
+
+        var pending = await db.QueryAsync<Order>(
+            "SELECT * FROM Orders WHERE Status = 'Pending'", ct: ct);
+
+        foreach (var order in pending)
+            await erp.PostJsonAsync("/orders", order, ct);
+    }
+}`
+
+// The "why" — the low-code trap, and why owning your integrations as code is the way out.
+const philosophyPoints = [
+  {
+    icon: GitBranch,
+    title: 'It’s just code',
+    description:
+      'Integrations are C# in your repo. Diff them, review them in a PR, unit-test them, roll them back — with the tools you already use, not a proprietary canvas.',
+  },
+  {
+    icon: ServerCog,
+    title: 'You own the runtime',
+    description:
+      'They run on your infrastructure, against your systems, with your secrets. No data detour through a vendor’s cloud, no per-task metering.',
+  },
+  {
+    icon: Unlock,
+    title: 'No lock-in',
+    description:
+      'The SDK and CLI are MIT-licensed and your integrations are ordinary .NET. They’re portable because there’s nothing proprietary to escape.',
+  },
+]
+
 export function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <HeroSection />
+      <PhilosophySection />
       <CapabilitiesSection />
       <ScopeSection />
       <OperationsSection />
@@ -99,19 +144,11 @@ export function LandingPage() {
 function HeroSection() {
   return (
     <section className="relative min-h-[92vh] overflow-hidden border-b bg-[linear-gradient(180deg,oklch(0.985_0_0),oklch(1_0_0))]">
-      <div className="absolute inset-y-0 right-0 hidden w-[58%] border-l bg-muted/35 lg:block">
+      <div className="absolute inset-y-0 right-0 hidden w-[58%] bg-muted/35 lg:block">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(1_0_0),oklch(0.985_0_0/0.2))]" />
-        <img src={heroImage} alt="" className="absolute right-[14%] top-[18%] h-64 w-64 opacity-90" />
-        <div className="absolute bottom-16 right-[12%] w-[38rem] rounded-lg border bg-background/90 p-4 shadow-sm">
-          <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.8fr] gap-3 border-b pb-3 text-xs font-medium text-muted-foreground">
-            <span>Integration</span>
-            <span>Environment</span>
-            <span>Last run</span>
-            <span>Status</span>
-          </div>
-          <HeroTableRow name="Sync orders" env="production" run="2 min ago" status="Succeeded" />
-          <HeroTableRow name="Refresh inventory" env="staging" run="12 min ago" status="Running" />
-          <HeroTableRow name="Export invoices" env="production" run="1 hr ago" status="Succeeded" />
+        <img src={heroImage} alt="" className="absolute right-[14%] top-[8%] h-52 w-52 opacity-90" />
+        <div className="absolute bottom-14 right-[8%] w-[34rem] rounded-lg bg-background shadow-xl">
+          <CodeBlock filename="OrderSync.cs" code={heroSnippet} />
         </div>
       </div>
 
@@ -123,6 +160,9 @@ function HeroSection() {
           <span>Serto</span>
         </Link>
         <nav className="flex items-center gap-2">
+          <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/docs">
+            Docs
+          </Link>
           <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/install">
             Self-host
           </Link>
@@ -161,20 +201,56 @@ function HeroSection() {
           <p className="mt-4 text-sm text-muted-foreground">
             Free, self-hosted Community edition. Commercial licenses lift the caps.
           </p>
+          <ul className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <li className="inline-flex items-center gap-1.5">
+              <Code2 className="size-4" />
+              Built for .NET
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="size-4" />
+              MIT-licensed SDK &amp; CLI
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <ServerCog className="size-4" />
+              Runs on your infrastructure
+            </li>
+          </ul>
         </div>
       </div>
     </section>
   )
 }
 
-function HeroTableRow({ name, env, run, status }: { name: string; env: string; run: string; status: string }) {
+function PhilosophySection() {
   return (
-    <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.8fr] gap-3 border-b py-3 text-sm last:border-b-0">
-      <span className="font-medium">{name}</span>
-      <span className="text-muted-foreground">{env}</span>
-      <span className="text-muted-foreground">{run}</span>
-      <span className="font-medium">{status}</span>
-    </div>
+    <section className="border-b bg-muted/35 py-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            The low-code trap
+          </p>
+          <h2 className="mt-4 text-3xl font-semibold tracking-normal sm:text-4xl">
+            Stop fighting visual designers
+          </h2>
+          <p className="mt-5 text-lg leading-8 text-muted-foreground">
+            Drag-and-drop platforms promise speed and quietly hand you lock-in. The moment an
+            integration outgrows the happy path, you’re debugging a flowchart you can’t diff, can’t
+            unit-test, and can’t run anywhere but their cloud — with your business logic stuck in a
+            format only their designer can open. Serto is the opposite bet: your integrations are code
+            you own, running where you choose.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-4 md:grid-cols-3">
+          {philosophyPoints.map(item => (
+            <article key={item.title} className="rounded-lg border bg-card p-6">
+              <item.icon className="size-5 text-muted-foreground" />
+              <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
 

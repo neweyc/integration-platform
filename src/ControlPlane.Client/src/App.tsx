@@ -7,6 +7,8 @@ import { ForgotPasswordPage } from '@/pages/login/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/login/ResetPasswordPage'
 import { LandingPage } from '@/pages/landing/LandingPage'
 import { InstallPage } from '@/pages/install/InstallPage'
+import { DocsPage } from '@/pages/docs/DocsPage'
+import { DocPage } from '@/pages/docs/DocPage'
 import { IntegrationsPage } from '@/pages/integrations/IntegrationsPage'
 import { IntegrationHistoryPage } from '@/pages/integrationHistory/IntegrationHistoryPage'
 import { PackagesPage } from '@/pages/packages/PackagesPage'
@@ -51,6 +53,8 @@ export default function App() {
             {/* Public routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/install" element={<InstallPage />} />
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/docs/:slug" element={<DocPage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
