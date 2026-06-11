@@ -16,7 +16,8 @@ public record IntegrationTriggerInput(
     string Slug,
     TriggerType Type,
     bool Enabled = true,
-    string? CronExpression = null);
+    string? CronExpression = null,
+    string? Subject = null);
 
 public record CreateIntegrationCommand(
     Guid TenantId,
@@ -197,6 +198,7 @@ public class CreateIntegrationHandler(
             }
 
             var cronExpression = input.Type == TriggerType.Scheduled ? input.CronExpression : null;
+            var subject = input.Type == TriggerType.Queue ? input.Subject : null;
             triggers.Add(new IntegrationTrigger
             {
                 TenantId = tenantId,
@@ -205,8 +207,10 @@ public class CreateIntegrationHandler(
                 Type = input.Type,
                 Enabled = input.Enabled,
                 CronExpression = cronExpression,
+                Subject = subject,
                 // A freshly built trigger has no override yet: the declared defaults match the active values.
                 DeclaredCronExpression = cronExpression,
+                DeclaredSubject = subject,
                 DeclaredEnabled = input.Enabled,
                 EncryptedWebhookSecret = encryptedWebhookSecret
             });

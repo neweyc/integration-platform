@@ -16,6 +16,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
     private const string IntegrationAttributeName = "Serto.Sdk.IntegrationAttribute";
     private const string ScheduledAttributeName = "Serto.Sdk.ScheduledIntegrationAttribute";
     private const string WebhookAttributeName = "Serto.Sdk.WebhookIntegrationAttribute";
+    private const string MessageAttributeName = "Serto.Sdk.MessageIntegrationAttribute";
     private const string RequiresCapabilitiesAttributeName = "Serto.Sdk.RequiresAgentCapabilitiesAttribute";
 
     public sealed class Settings : CommandSettings
@@ -196,7 +197,7 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             var attributes = type.GetCustomAttributes(inherit: false).ToList();
             var integrationAttr = attributes.FirstOrDefault(a => a.GetType().FullName == IntegrationAttributeName);
             var triggerMetadataAttr = attributes.FirstOrDefault(a =>
-                a.GetType().FullName is ScheduledAttributeName or WebhookAttributeName);
+                a.GetType().FullName is ScheduledAttributeName or WebhookAttributeName or MessageAttributeName);
             var metadataAttr = integrationAttr ?? triggerMetadataAttr;
 
             if (metadataAttr is null)
@@ -212,6 +213,9 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
                         break;
                     case WebhookAttributeName:
                         triggers.Add(new ScannedTrigger("Webhook", "webhook", "Webhook", CronExpression: null));
+                        break;
+                    case MessageAttributeName:
+                        triggers.Add(new ScannedTrigger("Message", "message", "Queue", CronExpression: null, Subject: GetString(attribute, "Subject")));
                         break;
                 }
             }
@@ -497,4 +501,5 @@ public record ScannedTrigger(
     string Name,
     string Slug,
     string Type,
-    string? CronExpression);
+    string? CronExpression,
+    string? Subject = null);

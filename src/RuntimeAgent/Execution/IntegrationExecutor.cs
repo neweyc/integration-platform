@@ -44,7 +44,10 @@ public class IntegrationExecutor(
             Environment: options.Environment,
             ScheduledAt: DateTime.UtcNow);
 
-        var context = new ExecutionContext(secrets, integrationLogger, http, metadata, integration.Payload);
+        var publisher = new AgentMessagePublisher(controlPlane, executionId);
+        var trigger = TriggerInfoMapper.From(integration, metadata.ScheduledAt);
+        var context = new ExecutionContext(
+            secrets, integrationLogger, http, metadata, publisher, trigger, integration.Payload);
 
         logger.LogInformation("Starting execution {ExecutionId} for integration {Name}", executionId, integration.Name);
 

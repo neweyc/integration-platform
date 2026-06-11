@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace Serto.Sdk;
@@ -20,9 +21,27 @@ public interface IIntegrationContext
     ExecutionMetadata Execution { get; }
 
     /// <summary>
-    /// Raw request body for Webhook-triggered executions. Null for Scheduled and Manual triggers.
+    /// Raw request body for Webhook- and Message-triggered executions. Null for Scheduled and Manual
+    /// triggers. For a message this is the published body verbatim — use <see cref="PayloadAs{T}"/>
+    /// to deserialize it.
     /// </summary>
     string? Payload { get; }
+
+    /// <summary>Publishes messages other integrations can subscribe to.</summary>
+    IMessagePublisher Messages { get; }
+
+    /// <summary>
+    /// How this run was triggered. Pattern-match the concrete type (e.g. <see cref="MessageTrigger"/>)
+    /// for source-specific details.
+    /// </summary>
+    TriggerInfo Trigger { get; }
+
+    /// <summary>
+    /// Deserialize <see cref="Payload"/> into <typeparamref name="T"/>. Returns default when there is
+    /// no payload. Works for both webhook and message bodies.
+    /// </summary>
+    T? PayloadAs<T>() =>
+        string.IsNullOrEmpty(Payload) ? default : JsonSerializer.Deserialize<T>(Payload, MessageJson.Options);
 }
 
 public record ExecutionMetadata(

@@ -357,6 +357,7 @@ public class PollRepository(AppDbContext db) : IPollRepository
         var claimable = await db.WorkItems
             .Include(w => w.Integration)
             .Include(w => w.IntegrationTrigger)
+            .Include(w => w.Message)
             .Where(w => w.TenantId == tenantId
                      && w.Environment == environment
                      && w.TriggerSource == triggerSource

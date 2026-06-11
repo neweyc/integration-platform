@@ -13,6 +13,7 @@ using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
 using ControlPlane.Features.Invitations;
 using ControlPlane.Features.Licensing;
+using ControlPlane.Features.Messages;
 using ControlPlane.Features.Onboarding;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Features.Setup;
@@ -220,6 +221,9 @@ builder.Services.AddScoped<IManualRunRequestRepository, ManualRunRequestReposito
 builder.Services.AddScoped<ICommandHandler<StartExecutionCommand, StartExecutionResult>, StartExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<CompleteExecutionCommand, bool>, CompleteExecutionHandler>();
 builder.Services.AddScoped<ICommandHandler<RecordExecutionLogCommand, bool>, RecordExecutionLogHandler>();
+
+// Message publish/subscribe — delivers a published message to subscribing integrations
+builder.Services.AddScoped<ICommandHandler<PublishMessageCommand, PublishMessageResult>, PublishMessageHandler>();
 
 // Orphaned execution reaper — backstop for executions stuck Running after an agent crash/disconnect
 builder.Services.AddSingleton(

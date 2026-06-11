@@ -197,6 +197,42 @@ Notes:
 
 `serto scan` lists each integration's required capabilities as an advisory (it runs offline, so it can't check live agents). `serto deploy` goes further: after uploading it checks the control plane and warns if a just-deployed integration is **not currently routable** — i.e. no connected agent in its environment offers the required capabilities.
 
+### Message triggers (publish / subscribe)
+
+An integration can **publish** a message that any other integration **subscribes** to — letting one integration react to a fact another raised, without either knowing about the other. (This is choreography, distinct from the Workflows feature's pre-defined A→B pipelines.)
+
+Publish from inside any integration via the context:
+
+```csharp
+[Message("high-wind")]                       // the subject — the wire contract; stable, refactor-proof
+public record HighWindDetected(DateTime ObservedAt);
+
+// ...inside RunAsync, only when the condition is met:
+await context.Messages.PublishAsync(new HighWindDetected(observedAt), ct);
+```
+
+Subscribe by declaring a message integration; it runs once per matching published message:
+
+```csharp
+[MessageIntegration("High Wind Job", "high-wind-job", subject: "high-wind")]
+public class HighWindJob : IIntegration
+{
+    public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
+    {
+        var msg = context.PayloadAs<HighWindDetected>();          // the raw body, deserialized
+        var trigger = (MessageTrigger)context.Trigger;            // subject, message id, publish time, source
+        // ...react: write a record, page on-call, call an API...
+    }
+}
+```
+
+Notes:
+
+- The **subject** (string) is the contract — match by subject, not by .NET type. If a message type has no `[Message]` attribute, the subject defaults to a kebab-case of the type name (`HighWindDetected` → `high-wind-detected`). Use `[Message("...")]` for anything published across packages.
+- Delivery is scoped to the **same tenant + environment** as the publishing run, and routed by the usual capability tags. A message with no subscribers is recorded and dropped — not an error.
+- The published body arrives raw on `context.Payload`; `context.Trigger` (a `MessageTrigger`) carries the subject/id/publish-time and the publishing execution, so runs are linked end-to-end in execution history.
+- Full design and semantics: `docs/message-triggers.md`.
+
 ---
 
 ## IIntegrationContext
@@ -216,8 +252,17 @@ public interface IIntegrationContext
     // Metadata about the current run
     ExecutionMetadata Execution { get; }
 
-    // Raw request body for Webhook-triggered executions
+    // Raw request body for Webhook- and Message-triggered executions
     string? Payload { get; }
+
+    // Publish messages other integrations can subscribe to
+    IMessagePublisher Messages { get; }
+
+    // How this run was triggered — pattern-match for details (e.g. MessageTrigger)
+    TriggerInfo Trigger { get; }
+
+    // Deserialize Payload into T (webhook or message body)
+    T? PayloadAs<T>();
 }
 
 public record ExecutionMetadata(

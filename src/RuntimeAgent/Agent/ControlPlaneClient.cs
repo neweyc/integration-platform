@@ -13,6 +13,7 @@ public interface IControlPlaneClient
     Task<Guid> StartExecutionAsync(Guid workItemId, CancellationToken ct);
     Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct);
     Task CompleteExecutionAsync(Guid executionId, bool succeeded, string? errorMessage, CancellationToken ct, bool isTimeout = false, bool retryable = true);
+    Task PublishMessageAsync(string subject, string? body, Guid? sourceExecutionId, CancellationToken ct);
 }
 
 public record AgentPackageInfo(Guid Id, string Name, string Version, string Sha256Hash);
@@ -31,7 +32,15 @@ public record IntegrationItem(
     int? TimeoutSeconds = null,
     Guid? WorkItemId = null,
     Guid? PackageId = null,
-    string? Payload = null);
+    string? Payload = null,
+    string? MessageSubject = null,            // Queue
+    Guid? MessageId = null,                   // Queue
+    DateTime? MessagePublishedAt = null,      // Queue
+    Guid? ParentExecutionId = null,           // Queue (message source) / Workflow (upstream)
+    string? DeliveryId = null,                // Webhook
+    Guid? WorkflowRunId = null,               // Workflow
+    Guid? WorkflowNodeId = null,              // Workflow
+    int AttemptNumber = 1);                   // Retry
 
 public record ExecutionLogEntry(
     DateTime Timestamp,
@@ -122,6 +131,17 @@ public class ControlPlaneClient(HttpClient http, AgentOptions options, IVaultCli
 
         if (!response.IsSuccessStatusCode)
             logger.LogWarning("Failed to complete execution {ExecutionId}: {Status}", executionId, response.StatusCode);
+    }
+
+    public async Task PublishMessageAsync(string subject, string? body, Guid? sourceExecutionId, CancellationToken ct)
+    {
+        var response = await http.PostAsJsonAsync(
+            "/api/agent/messages",
+            new { Subject = subject, Body = body, SourceExecutionId = sourceExecutionId },
+            JsonOptions, ct);
+
+        if (!response.IsSuccessStatusCode)
+            logger.LogWarning("Failed to publish message '{Subject}': {Status}", subject, response.StatusCode);
     }
 
     public async Task RecordLogAsync(Guid executionId, ExecutionLogEntry log, CancellationToken ct)

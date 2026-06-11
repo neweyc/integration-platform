@@ -45,6 +45,21 @@ public class AssemblyScannerTests
     }
 
     [Fact]
+    public void ScanAssembly_MessageIntegrationAttribute_DiscoversQueueTriggerWithSubject()
+    {
+        var discovered = AssemblyScanner.ScanAssembly(typeof(MessageDiscoveredIntegration).Assembly);
+
+        var integration = discovered.Single(i => i.Slug == "scanner-message");
+        var trigger = Assert.Single(integration.Triggers);
+
+        Assert.Equal("Message", trigger.Name);
+        Assert.Equal("message", trigger.Slug);
+        Assert.Equal(TriggerType.Queue, trigger.Type);
+        Assert.Equal("high-wind", trigger.Subject);
+        Assert.Null(trigger.CronExpression);
+    }
+
+    [Fact]
     public void ScanAssembly_RequiresAgentCapabilities_DiscoversNormalizedRequiredTags()
     {
         var discovered = AssemblyScanner.ScanAssembly(typeof(CapabilityTaggedIntegration).Assembly);
@@ -77,6 +92,12 @@ public class AssemblyScannerTests
     [Integration("Scanner Capability Tagged", "scanner-capability-tagged")]
     [RequiresAgentCapabilities("hardware-signal", " site-floor-1 ", "Hardware-Signal")]
     private sealed class CapabilityTaggedIntegration : IIntegration
+    {
+        public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    [MessageIntegration("Scanner Message", "scanner-message", subject: "high-wind")]
+    private sealed class MessageDiscoveredIntegration : IIntegration
     {
         public Task RunAsync(IIntegrationContext context, CancellationToken ct) => Task.CompletedTask;
     }

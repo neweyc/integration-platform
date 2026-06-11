@@ -11,4 +11,10 @@
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Used by the WindMonitor example to read a Raspberry Pi GPIO pin. Microsoft's
+         cross-platform GPIO library; resolves the libgpiod character-device driver on a Pi. -->
+    <PackageReference Include="System.Device.Gpio" Version="3.2.0" />
+  </ItemGroup>
+
 </Project>
