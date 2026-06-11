@@ -1,6 +1,6 @@
 services:
   controlplane:
-    image: craytech/serto.controlplane:${SERTO_IMAGE_TAG:-1.3.0}
+    image: craytech/serto.controlplane:${SERTO_IMAGE_TAG:-1.4.1}
     ports:
       - "8080:8080"
     environment:
