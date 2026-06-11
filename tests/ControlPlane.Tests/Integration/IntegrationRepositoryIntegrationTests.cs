@@ -317,6 +317,140 @@ public class IntegrationRepositoryIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task UpdateAsync_OperatorEditDroppingSubject_PreservesQueueSubscription()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var integration = new Integration
+        {
+            TenantId = tenant.Id,
+            Name = "Wind Job",
+            Slug = "wind-job",
+            Environment = "production",
+            ClassName = "Acme.WindJob",
+            Status = IntegrationStatus.Enabled,
+            Triggers =
+            [
+                new IntegrationTrigger
+                {
+                    TenantId = tenant.Id,
+                    Name = "Message",
+                    Slug = "message",
+                    Type = TriggerType.Queue,
+                    Enabled = true,
+                    Subject = "high-wind",
+                    DeclaredSubject = "high-wind"
+                }
+            ]
+        };
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production");
+            db.Integrations.Add(integration);
+            await db.SaveChangesAsync();
+        }
+
+        // The operator edit UI round-trips the Queue trigger but supplies no subject (the bug repro).
+        await using (var db = database.CreateContext())
+        {
+            var repository = new IntegrationRepository(db);
+            var existing = await repository.GetByIdAsync(tenant.Id, integration.Id);
+            Assert.NotNull(existing);
+
+            await repository.UpdateAsync(existing!,
+            [
+                new IntegrationTrigger
+                {
+                    TenantId = tenant.Id,
+                    Name = "Message",
+                    Slug = "message",
+                    Type = TriggerType.Queue,
+                    Enabled = true,
+                    Subject = null,
+                    DeclaredSubject = null
+                }
+            ]);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var trigger = db.IntegrationTriggers.Single(t => t.TenantId == tenant.Id && t.Slug == "message");
+            Assert.Equal("high-wind", trigger.Subject); // subscription survived the edit
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_OperatorSuppliesNewSubject_AppliesIt()
+    {
+        await using var database = await IntegrationTestDatabase.CreateAsync();
+        if (database is null)
+            return;
+
+        var tenant = new Tenant { Name = "Acme", Slug = $"acme-{Guid.NewGuid():N}" };
+        var integration = new Integration
+        {
+            TenantId = tenant.Id,
+            Name = "Wind Job",
+            Slug = "wind-job",
+            Environment = "production",
+            ClassName = "Acme.WindJob",
+            Status = IntegrationStatus.Enabled,
+            Triggers =
+            [
+                new IntegrationTrigger
+                {
+                    TenantId = tenant.Id,
+                    Name = "Message",
+                    Slug = "message",
+                    Type = TriggerType.Queue,
+                    Enabled = true,
+                    Subject = "high-wind",
+                    DeclaredSubject = "high-wind"
+                }
+            ]
+        };
+
+        await using (var db = database.CreateContext())
+        {
+            db.Tenants.Add(tenant);
+            TestEnvironments.Seed(db, tenant.Id, "production");
+            db.Integrations.Add(integration);
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var repository = new IntegrationRepository(db);
+            var existing = await repository.GetByIdAsync(tenant.Id, integration.Id);
+
+            await repository.UpdateAsync(existing!,
+            [
+                new IntegrationTrigger
+                {
+                    TenantId = tenant.Id,
+                    Name = "Message",
+                    Slug = "message",
+                    Type = TriggerType.Queue,
+                    Enabled = true,
+                    Subject = "gale-warning",
+                    DeclaredSubject = "gale-warning"
+                }
+            ]);
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var trigger = db.IntegrationTriggers.Single(t => t.TenantId == tenant.Id && t.Slug == "message");
+            Assert.Equal("gale-warning", trigger.Subject); // an explicit subject is still applied
+        }
+    }
+
     private static Integration CodeIntegration(Guid tenantId) =>
         new()
         {

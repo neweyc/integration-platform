@@ -38,6 +38,10 @@ public class WorkItem : Entity
     public Guid? WorkflowRunId { get; set; }
     public Guid? WorkflowNodeId { get; set; }
 
+    // For Queue (message) triggers: the published message envelope this work item delivers.
+    public Guid? MessageId { get; set; }
+    public Message? Message { get; set; }
+
     public bool HasActiveClaim(DateTime now) =>
         ClaimOwner.HasValue && ClaimExpiresAt.HasValue && ClaimExpiresAt.Value > now;
 

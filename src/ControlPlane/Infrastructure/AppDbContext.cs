@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ManualRunRequest> ManualRunRequests => Set<ManualRunRequest>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<TriggerEvent> TriggerEvents => Set<TriggerEvent>();
+    public DbSet<Message> Messages => Set<Message>();
     public DbSet<WorkflowDefinition> WorkflowDefinitions => Set<WorkflowDefinition>();
     public DbSet<WorkflowNode> WorkflowNodes => Set<WorkflowNode>();
     public DbSet<WorkflowEdge> WorkflowEdges => Set<WorkflowEdge>();
@@ -160,10 +161,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(t => t.Slug).IsRequired().HasMaxLength(100);
             b.Property(t => t.CronExpression).HasMaxLength(100);
             b.Property(t => t.DeclaredCronExpression).HasMaxLength(100);
+            b.Property(t => t.Subject).HasMaxLength(200);
+            b.Property(t => t.DeclaredSubject).HasMaxLength(200);
             b.Property(t => t.DeclaredEnabled).HasDefaultValue(true);
             b.Property(t => t.EncryptedWebhookSecret);
             b.HasIndex(t => new { t.TenantId, t.IntegrationId, t.Slug }).IsUnique();
             b.HasIndex(t => new { t.TenantId, t.Type, t.Enabled });
+            // Subscriber lookup on message delivery: enabled Queue triggers matching a subject.
+            b.HasIndex(t => new { t.TenantId, t.Subject });
 
             b.HasOne(t => t.Integration)
              .WithMany(i => i.Triggers)
@@ -308,6 +313,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(w => w.RootExecutionId);
             b.Property(w => w.WorkflowRunId);
             b.Property(w => w.WorkflowNodeId);
+            b.Property(w => w.MessageId);
             b.Property(w => w.IntegrationTriggerId);
 
             b.HasIndex(w => new { w.TenantId, w.IntegrationId, w.Status });
@@ -334,6 +340,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne(w => w.Tenant)
              .WithMany()
              .HasForeignKey(w => w.TenantId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(w => w.Message)
+             .WithMany()
+             .HasForeignKey(w => w.MessageId)
+             .OnDelete(DeleteBehavior.SetNull)
+             .IsRequired(false);
+        });
+
+        modelBuilder.Entity<Message>(b =>
+        {
+            b.ToTable("messages");
+            b.HasKey(m => m.Id);
+            b.Property(m => m.Environment).IsRequired().HasMaxLength(50);
+            b.Property(m => m.Subject).IsRequired().HasMaxLength(200);
+            b.Property(m => m.Body);
+            b.Property(m => m.SourceExecutionId);
+            b.Property(m => m.PublishedAt);
+
+            b.HasIndex(m => new { m.TenantId, m.Environment, m.Subject, m.PublishedAt });
+
+            b.HasOne(m => m.Tenant)
+             .WithMany()
+             .HasForeignKey(m => m.TenantId)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

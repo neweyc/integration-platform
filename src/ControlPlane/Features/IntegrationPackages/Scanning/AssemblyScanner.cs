@@ -21,7 +21,8 @@ public record DiscoveredIntegrationTrigger(
     string Name,
     string Slug,
     TriggerType Type,
-    string? CronExpression);
+    string? CronExpression,
+    string? Subject = null);
 
 public interface IAssemblyScanner
 {
@@ -34,6 +35,7 @@ public class AssemblyScanner : IAssemblyScanner
     private const string IntegrationAttributeName = "Serto.Sdk.IntegrationAttribute";
     private const string ScheduledAttributeName = "Serto.Sdk.ScheduledIntegrationAttribute";
     private const string WebhookAttributeName = "Serto.Sdk.WebhookIntegrationAttribute";
+    private const string MessageAttributeName = "Serto.Sdk.MessageIntegrationAttribute";
     private const string RequiresCapabilitiesAttributeName = "Serto.Sdk.RequiresAgentCapabilitiesAttribute";
 
     public List<DiscoveredIntegration> ScanZip(byte[] zipData)
@@ -102,7 +104,7 @@ public class AssemblyScanner : IAssemblyScanner
             var attributes = type.GetCustomAttributes(inherit: false).ToList();
             var integrationAttr = attributes.FirstOrDefault(a => a.GetType().FullName == IntegrationAttributeName);
             var triggerMetadataAttr = attributes.FirstOrDefault(a =>
-                a.GetType().FullName is ScheduledAttributeName or WebhookAttributeName);
+                a.GetType().FullName is ScheduledAttributeName or WebhookAttributeName or MessageAttributeName);
             var metadataAttr = integrationAttr ?? triggerMetadataAttr;
 
             if (metadataAttr is null)
@@ -134,6 +136,14 @@ public class AssemblyScanner : IAssemblyScanner
                             "webhook",
                             TriggerType.Webhook,
                             CronExpression: null));
+                        break;
+                    case MessageAttributeName:
+                        triggers.Add(new DiscoveredIntegrationTrigger(
+                            "Message",
+                            "message",
+                            TriggerType.Queue,
+                            CronExpression: null,
+                            Subject: GetString(attribute, "Subject")));
                         break;
                 }
             }

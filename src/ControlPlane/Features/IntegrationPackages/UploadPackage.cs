@@ -266,7 +266,8 @@ public class UploadPackageHandler(
                 trigger.Slug,
                 trigger.Type,
                 Enabled: true,
-                trigger.CronExpression)).ToList();
+                trigger.CronExpression,
+                trigger.Subject)).ToList();
 
     internal static PackageMetadata ToMetadata(AssemblyPackage package) =>
         new(

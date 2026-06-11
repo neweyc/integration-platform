@@ -11,6 +11,9 @@ export interface IntegrationTrigger {
   type: TriggerType
   enabled: boolean
   cronExpression?: string | null
+  // The subscribed subject for Queue (message) triggers. Carried through edits so a save does not
+  // erase the subscription; it is provisioned from code, not edited in this UI.
+  subject?: string | null
   webhookUrl?: string | null
   webhookSecret?: string | null
   // The cron/enabled the code last declared. When the active value diverges, an operator override

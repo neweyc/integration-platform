@@ -21,7 +21,8 @@ public record TriggerWorkItemRequest(
     Guid? WorkflowNodeId = null,
     int AttemptNumber = 1,
     Guid? ParentExecutionId = null,
-    Guid? RootExecutionId = null);
+    Guid? RootExecutionId = null,
+    Guid? MessageId = null);
 
 public enum TriggerWorkItemOutcome
 {
@@ -55,7 +56,8 @@ public class TriggerWorkItemProducer(AppDbContext db) : ITriggerWorkItemProducer
             WorkflowNodeId = request.WorkflowNodeId,
             AttemptNumber = request.AttemptNumber,
             ParentExecutionId = request.ParentExecutionId,
-            RootExecutionId = request.RootExecutionId
+            RootExecutionId = request.RootExecutionId,
+            MessageId = request.MessageId
         };
 
         db.WorkItems.Add(workItem);

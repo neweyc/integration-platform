@@ -208,17 +208,28 @@ public class IntegrationRepository(AppDbContext db)
         {
             existing.Enabled = desired.Enabled;
             existing.CronExpression = desired.CronExpression;
+            // Like the webhook secret, a message subject is not edited through the operator surface
+            // today, so a client that doesn't round-trip it must not erase the subscription. Only
+            // overwrite when the operator actually supplied a subject (a Queue trigger with an empty
+            // subject would match nothing, so preserving the existing value is always the safe choice).
+            if (!string.IsNullOrWhiteSpace(desired.Subject))
+                existing.Subject = desired.Subject;
             return;
         }
 
         var cronOverridden = IsCronOverridden(existing);
+        var subjectOverridden = IsSubjectOverridden(existing);
         var enabledOverridden = existing.Enabled != existing.DeclaredEnabled;
 
         existing.DeclaredCronExpression = desired.CronExpression;
+        existing.DeclaredSubject = desired.Subject;
         existing.DeclaredEnabled = desired.Enabled;
 
         if (!cronOverridden)
             existing.CronExpression = desired.CronExpression;
+
+        if (!subjectOverridden)
+            existing.Subject = desired.Subject;
 
         if (!enabledOverridden)
             existing.Enabled = desired.Enabled;
@@ -226,6 +237,9 @@ public class IntegrationRepository(AppDbContext db)
 
     private static bool IsCronOverridden(IntegrationTrigger trigger) =>
         !string.Equals(trigger.CronExpression, trigger.DeclaredCronExpression, StringComparison.Ordinal);
+
+    private static bool IsSubjectOverridden(IntegrationTrigger trigger) =>
+        !string.Equals(trigger.Subject, trigger.DeclaredSubject, StringComparison.Ordinal);
 
     // Integration-level analog of ReconcileRuntimeValues for the required-tags set on a code-driven
     // (package) update: record the new code-declared tags, and let the active tags follow code only

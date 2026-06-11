@@ -26,7 +26,16 @@ public record AgentIntegrationItem(
     int? TimeoutSeconds = null,
     Guid? WorkItemId = null,
     Guid? PackageId = null,
-    string? Payload = null);
+    string? Payload = null,
+    // Per-trigger-source metadata for context.Trigger — each populated only for its own source.
+    string? MessageSubject = null,            // Queue
+    Guid? MessageId = null,                   // Queue
+    DateTime? MessagePublishedAt = null,      // Queue
+    Guid? ParentExecutionId = null,           // Queue (message source) / Workflow (upstream)
+    string? DeliveryId = null,                // Webhook
+    Guid? WorkflowRunId = null,               // Workflow
+    Guid? WorkflowNodeId = null,              // Workflow
+    int AttemptNumber = 1);                   // Retry
 
 // agentTags are the capabilities the polling agent offers; only work whose integration's required
 // tags are a subset is claimable (see TagSet.IsSatisfiedBy).
@@ -182,7 +191,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.Integration.TimeoutSeconds,
                 w.WorkItem.Id,
                 w.Integration.PackageId,
-                w.WorkItem.Payload));
+                w.WorkItem.Payload,
+                DeliveryId: w.WorkItem.DeliveryId));
         }
 
         foreach (var r in retryRuns)
@@ -200,7 +210,8 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 r.Integration.TimeoutSeconds,
                 r.WorkItem.Id,
                 r.Integration.PackageId,
-                r.WorkItem.Payload));
+                r.WorkItem.Payload,
+                AttemptNumber: r.WorkItem.AttemptNumber));
         }
 
         foreach (var w in workflowRuns)
@@ -218,7 +229,10 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 w.Integration.TimeoutSeconds,
                 w.WorkItem.Id,
                 w.Integration.PackageId,
-                w.WorkItem.Payload));
+                w.WorkItem.Payload,
+                ParentExecutionId: w.WorkItem.ParentExecutionId,
+                WorkflowRunId: w.WorkItem.WorkflowRunId,
+                WorkflowNodeId: w.WorkItem.WorkflowNodeId));
         }
 
         foreach (var q in queueRuns)
@@ -236,7 +250,11 @@ public class PollIntegrationsHandler(IPollRepository repository)
                 q.Integration.TimeoutSeconds,
                 q.WorkItem.Id,
                 q.Integration.PackageId,
-                q.WorkItem.Payload));
+                q.WorkItem.Payload,
+                MessageSubject: q.WorkItem.Message?.Subject ?? q.WorkItem.IntegrationTrigger?.Subject,
+                MessageId: q.WorkItem.MessageId,
+                MessagePublishedAt: q.WorkItem.Message?.PublishedAt,
+                ParentExecutionId: q.WorkItem.ParentExecutionId));
         }
 
         foreach (var f in fileRuns)

@@ -1,4 +1,5 @@
 using ControlPlane.Features.IntegrationPackages;
+using ControlPlane.Features.Messages;
 using ControlPlane.Features.Secrets;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Authorization;
@@ -257,6 +258,33 @@ public static class AgentTokenEndpoints
                 ct);
 
             return Results.NoContent();
+        });
+
+        agent.MapPost("/messages", async (
+            [FromBody] PublishMessageRequest request,
+            HttpContext http,
+            IAgentTokenService tokenService,
+            IAgentTokenLookupRepository tokenRepo,
+            IDispatcher dispatcher,
+            CancellationToken ct) =>
+        {
+            var header = http.Request.Headers["X-Agent-Token"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header)) return Results.Unauthorized();
+
+            var hash = tokenService.Hash(header);
+            var agentToken = await tokenRepo.FindByHashAsync(hash, ct);
+            if (agentToken is null) return Results.Unauthorized();
+
+            var result = await dispatcher.SendAsync(
+                new PublishMessageCommand(
+                    agentToken.TenantId,
+                    agentToken.Environment,
+                    request.Subject,
+                    request.Body,
+                    request.SourceExecutionId),
+                ct);
+
+            return Results.Accepted($"/api/agent/messages/{result.MessageId}", result);
         });
 
         return app;
