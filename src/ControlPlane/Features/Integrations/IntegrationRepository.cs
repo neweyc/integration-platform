@@ -208,7 +208,12 @@ public class IntegrationRepository(AppDbContext db)
         {
             existing.Enabled = desired.Enabled;
             existing.CronExpression = desired.CronExpression;
-            existing.Subject = desired.Subject;
+            // Like the webhook secret, a message subject is not edited through the operator surface
+            // today, so a client that doesn't round-trip it must not erase the subscription. Only
+            // overwrite when the operator actually supplied a subject (a Queue trigger with an empty
+            // subject would match nothing, so preserving the existing value is always the safe choice).
+            if (!string.IsNullOrWhiteSpace(desired.Subject))
+                existing.Subject = desired.Subject;
             return;
         }
 

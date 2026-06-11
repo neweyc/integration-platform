@@ -66,7 +66,8 @@ public record IntegrationTriggerResult(
     WebhookSigning? WebhookSigning = null,
     string? DeclaredCronExpression = null,
     bool CronOverridden = false,
-    bool EnabledOverridden = false);
+    bool EnabledOverridden = false,
+    string? Subject = null);
 
 /// <summary>
 /// Tells a webhook integrator exactly how to sign their requests.
@@ -349,6 +350,7 @@ public class CreateIntegrationHandler(
             signing,
             trigger.DeclaredCronExpression,
             CronOverridden: !string.Equals(trigger.CronExpression, trigger.DeclaredCronExpression, StringComparison.Ordinal),
-            EnabledOverridden: trigger.Enabled != trigger.DeclaredEnabled);
+            EnabledOverridden: trigger.Enabled != trigger.DeclaredEnabled,
+            Subject: trigger.Subject);
     }
 }
