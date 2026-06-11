@@ -8,6 +8,7 @@ using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Cronos;
 using Shared.Domain;
+using Shared.Manifest;
 
 namespace ControlPlane.Features.Integrations;
 
@@ -31,7 +32,8 @@ public record CreateIntegrationCommand(
     int RetryMaxAttempts = 0,
     int? RetryBackoffSeconds = null,
     Guid? PackageId = null,
-    IReadOnlyList<string>? RequiredTags = null) : ICommand<CreateIntegrationResult>, IAuditableCommand
+    IReadOnlyList<string>? RequiredTags = null,
+    string Runtime = "dotnet") : ICommand<CreateIntegrationResult>, IAuditableCommand
 {
     public AuditDescriptor? Describe(object? result) =>
         new(AuditAction.IntegrationCreated, "Integration",
@@ -164,6 +166,7 @@ public class CreateIntegrationHandler(
             Description = command.Description,
             Environment = environment,
             ClassName = command.ClassName,
+            Runtime = command.Runtime,
             TimeoutSeconds = command.TimeoutSeconds,
             RetryMaxAttempts = command.RetryMaxAttempts,
             RetryBackoffSeconds = command.RetryBackoffSeconds,
@@ -236,8 +239,7 @@ public class CreateIntegrationHandler(
         if (string.IsNullOrWhiteSpace(command.ClassName))
             throw new ValidationException("Class name is required.");
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(command.ClassName, @"^[\w]+(?:\.[\w]+)*$"))
-            throw new ValidationException("Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').");
+        ValidateEntrypoint(command.ClassName, command.Runtime);
 
         if (command.TimeoutSeconds is <= 0)
             throw new ValidationException("Timeout must be greater than zero seconds.");
@@ -277,6 +279,27 @@ public class CreateIntegrationHandler(
                     throw new ValidationException($"'{trigger.CronExpression}' is not a valid cron expression.");
             }
         }
+    }
+
+    // The entrypoint locator is runtime-specific: a fully-qualified .NET type for "dotnet", or a
+    // language-specific locator (e.g. "main.py:handler") for other runtimes. The .NET form stays strictly
+    // validated; other runtimes get a permissive-but-bounded check since the agent's runner interprets it.
+    private static void ValidateEntrypoint(string entrypoint, string runtime)
+    {
+        if (Runtimes.IsDotnet(runtime))
+        {
+            if (!System.Text.RegularExpressions.Regex.IsMatch(entrypoint, @"^[\w]+(?:\.[\w]+)*$"))
+                throw new ValidationException("Class name must be a valid fully-qualified .NET type name (e.g. 'MyCompany.Integrations.SyncOrdersIntegration').");
+            return;
+        }
+
+        if (entrypoint.Length > 500)
+            throw new ValidationException("Entrypoint is too long.");
+
+        // Permits language locators (main.py:handler) and container image refs, including registry host,
+        // tag, and @sha256 digest pins.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(entrypoint, @"^[\w./:@#-]+$"))
+            throw new ValidationException("Entrypoint may only contain letters, numbers, and the characters . / : @ # _ -");
     }
 
     private static void ValidateSlug(string slug, string label)

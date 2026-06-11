@@ -13,6 +13,13 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
     private const string XunitVersion = "2.9.3";
     private const string XunitRunnerVersion = "3.1.4";
 
+    // The Serto Go SDK module a scaffolded Go integration imports.
+    private const string SertoGoModule = "github.com/neweyc/integration-platform/sdks/go/serto";
+    private const string SertoGoVersion = "v0.1.0";
+
+    // The Serto Node SDK version a scaffolded Node integration depends on.
+    private const string SertoNodeVersion = "^0.1.0";
+
     public sealed class Settings : CommandSettings
     {
         [CommandArgument(0, "[ProjectName]")]
@@ -20,9 +27,14 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
         public string? ProjectName { get; init; }
 
         [CommandOption("-t|--template")]
-        [Description("Which starter to scaffold: 'scheduled' (default) or 'webhook'")]
+        [Description("Which starter to scaffold: 'scheduled' (default) or 'webhook' (.NET only)")]
         [DefaultValue("scheduled")]
         public string Template { get; init; } = "scheduled";
+
+        [CommandOption("-r|--runtime")]
+        [Description("Integration runtime: 'dotnet' (default), 'python', 'node', or 'go'")]
+        [DefaultValue("dotnet")]
+        public string Runtime { get; init; } = "dotnet";
     }
 
     protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
@@ -30,8 +42,15 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
         var projectName = settings.ProjectName
             ?? AnsiConsole.Ask<string>("What is the [green]name[/] of your integration project?");
 
+        var runtime = settings.Runtime.Trim().ToLowerInvariant();
+        if (runtime is not ("dotnet" or "python" or "node" or "go"))
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] Unsupported runtime '[yellow]{Markup.Escape(settings.Runtime)}[/]'. Use 'dotnet', 'python', 'node', or 'go'.");
+            return Task.FromResult(1);
+        }
+
         var template = settings.Template.Trim().ToLowerInvariant();
-        if (template is not ("scheduled" or "webhook"))
+        if (runtime == "dotnet" && template is not ("scheduled" or "webhook"))
         {
             AnsiConsole.MarkupLine($"[red]Error:[/] Unknown template '[yellow]{Markup.Escape(settings.Template)}[/]'. Use 'scheduled' or 'webhook'.");
             return Task.FromResult(1);
@@ -45,7 +64,6 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
             return Task.FromResult(1);
         }
 
-        var namespaceName = ToNamespace(projectName);
         var dir = Path.Combine(Directory.GetCurrentDirectory(), projectName);
         if (Directory.Exists(dir))
         {
@@ -53,6 +71,53 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
             return Task.FromResult(1);
         }
 
+        if (runtime == "python")
+        {
+            AnsiConsole.Status().Start($"Creating Python integration [green]{projectName}[/]...",
+                _ => ScaffoldPython(dir, projectName));
+
+            AnsiConsole.MarkupLine($"[green]Success![/] Python integration [blue]{Markup.Escape(projectName)}[/] created.");
+            AnsiConsole.MarkupLine("Next steps:");
+            AnsiConsole.MarkupLine($"  1. [yellow]cd {Markup.Escape(projectName)}[/]");
+            AnsiConsole.MarkupLine("  2. [yellow]pip install serto-sdk[/]  (the Serto Python SDK; import name is [yellow]serto[/])");
+            AnsiConsole.MarkupLine("  3. Edit [yellow]main.py[/] and declare triggers/secrets in [yellow]serto.json[/].");
+            AnsiConsole.MarkupLine("  4. [yellow]serto scan[/]  (preview what will be provisioned)");
+            AnsiConsole.MarkupLine("  5. [yellow]serto login --url <control-plane>[/] then [yellow]serto deploy[/]");
+            return Task.FromResult(0);
+        }
+
+        if (runtime == "node")
+        {
+            AnsiConsole.Status().Start($"Creating Node.js integration [green]{projectName}[/]...",
+                _ => ScaffoldNode(dir, projectName));
+
+            AnsiConsole.MarkupLine($"[green]Success![/] Node.js integration [blue]{Markup.Escape(projectName)}[/] created.");
+            AnsiConsole.MarkupLine("Next steps:");
+            AnsiConsole.MarkupLine($"  1. [yellow]cd {Markup.Escape(projectName)}[/]");
+            AnsiConsole.MarkupLine("  2. [yellow]npm install[/]  (fetch the Serto Node SDK)");
+            AnsiConsole.MarkupLine("  3. Edit [yellow]index.js[/]; declare triggers/secrets in [yellow]serto.json[/].");
+            AnsiConsole.MarkupLine("  4. [yellow]serto scan[/]  (preview what will be provisioned)");
+            AnsiConsole.MarkupLine("  5. [yellow]serto login --url <control-plane>[/] then [yellow]serto deploy[/]");
+            return Task.FromResult(0);
+        }
+
+        if (runtime == "go")
+        {
+            AnsiConsole.Status().Start($"Creating Go integration [green]{projectName}[/]...",
+                _ => ScaffoldGo(dir, projectName));
+
+            AnsiConsole.MarkupLine($"[green]Success![/] Go integration [blue]{Markup.Escape(projectName)}[/] created (containerized).");
+            AnsiConsole.MarkupLine("Go integrations run as a container image. Next steps:");
+            AnsiConsole.MarkupLine($"  1. [yellow]cd {Markup.Escape(projectName)}[/]");
+            AnsiConsole.MarkupLine("  2. [yellow]go mod tidy[/]  (fetch the Serto Go SDK)");
+            AnsiConsole.MarkupLine("  3. Edit [yellow]main.go[/]; declare triggers/secrets in [yellow]serto.json[/].");
+            AnsiConsole.MarkupLine("  4. Build & push the image: [yellow]docker build -t <registry>/<name>:tag .[/] then [yellow]docker push <registry>/<name>:tag[/]");
+            AnsiConsole.MarkupLine("  5. Set that image as the [yellow]entrypoint[/] in [yellow]serto.json[/].");
+            AnsiConsole.MarkupLine("  6. [yellow]serto login --url <control-plane>[/] then [yellow]serto deploy[/]");
+            return Task.FromResult(0);
+        }
+
+        var namespaceName = ToNamespace(projectName);
         AnsiConsole.Status().Start($"Creating integration project [green]{projectName}[/]...",
             _ => Scaffold(dir, projectName, namespaceName, template));
 
@@ -66,6 +131,298 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
 
         return Task.FromResult(0);
     }
+
+    /// <summary>Writes a Python integration scaffold (main.py + serto.json + docs) into <paramref name="dir"/>.</summary>
+    public static void ScaffoldPython(string dir, string projectName)
+    {
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "main.py"), BuildPythonIntegration());
+        File.WriteAllText(Path.Combine(dir, ManifestPackaging.ManifestFileName), BuildPythonManifest());
+        File.WriteAllText(Path.Combine(dir, "README.md"), BuildPythonReadme(projectName));
+        File.WriteAllText(Path.Combine(dir, ".gitignore"), BuildPythonGitignore());
+    }
+
+    public static string BuildPythonIntegration() =>
+        """
+        def handler(ctx):
+            ctx.logger.info(f"Hello from {ctx.execution.integration_name}!")
+
+            # Read a secret by name (declare it under requiredSecrets in serto.json):
+            # token = ctx.secrets["EXAMPLE_API_TOKEN"]
+
+            # Publish a message other integrations can subscribe to:
+            # ctx.publish("example.event", {"hello": "world"})
+        """;
+
+    public static string BuildPythonManifest() =>
+        """
+        {
+          "manifestVersion": "1",
+          "runtime": "python",
+          "integrations": [
+            {
+              "name": "Sample Integration",
+              "slug": "sample-integration",
+              "entrypoint": "main.py:handler",
+              "triggers": [
+                { "type": "scheduled", "cron": "0 * * * *" }
+              ],
+              "requiredSecrets": []
+            }
+          ]
+        }
+        """;
+
+    public static string BuildPythonReadme(string projectName) =>
+        $$"""
+        # {{projectName}}
+
+        A Serto integration written in Python.
+
+        ## Develop
+
+        - Install the SDK: `pip install serto-sdk` (the import name is `serto`)
+        - Edit `main.py` — the `handler(ctx)` function is your integration.
+        - Declare triggers, required secrets, and the entrypoint in `serto.json`.
+        - `serto scan` — preview the integrations and triggers this package will provision.
+
+        ## The context
+
+        `handler(ctx)` gives you:
+
+        - `ctx.secrets` — configured secret values, by name.
+        - `ctx.logger` — `.info(...)`, `.warning(...)`, `.error(...)`, captured into execution history.
+        - `ctx.payload` / `ctx.payload_json()` — the raw / parsed body for webhook and message triggers.
+        - `ctx.execution` — execution and environment metadata.
+        - `ctx.publish(subject, body)` — publish a message other integrations can subscribe to.
+
+        ## Deploy
+
+            serto login --url <control-plane-url>
+            serto deploy
+        """;
+
+    public static string BuildPythonGitignore() =>
+        """
+        __pycache__/
+        .venv/
+        *.pyc
+        secrets.json
+        """;
+
+    /// <summary>Writes a containerized Go integration scaffold (main.go + go.mod + Dockerfile + serto.json) into <paramref name="dir"/>.</summary>
+    public static void ScaffoldGo(string dir, string projectName)
+    {
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "main.go"), BuildGoIntegration());
+        File.WriteAllText(Path.Combine(dir, "go.mod"), BuildGoMod(projectName));
+        File.WriteAllText(Path.Combine(dir, "Dockerfile"), BuildGoDockerfile());
+        File.WriteAllText(Path.Combine(dir, ManifestPackaging.ManifestFileName), BuildGoManifest(projectName));
+        File.WriteAllText(Path.Combine(dir, "README.md"), BuildGoReadme(projectName));
+        File.WriteAllText(Path.Combine(dir, ".gitignore"), BuildGoGitignore());
+    }
+
+    public static string BuildGoIntegration() =>
+        $$"""
+        package main
+
+        import serto "{{SertoGoModule}}"
+
+        func main() {
+            serto.Run(func(ctx *serto.Context) error {
+                ctx.Logger.Infof("Hello from %s!", ctx.Execution.IntegrationName)
+
+                // Read a secret (declare it under requiredSecrets in serto.json):
+                // token := ctx.Secrets["EXAMPLE_API_TOKEN"]
+
+                // Publish a message other integrations can subscribe to:
+                // return ctx.Publish("example.event", map[string]string{"hello": "world"})
+
+                return nil
+            })
+        }
+        """;
+
+    public static string BuildGoMod(string projectName) =>
+        $$"""
+        module {{projectName.ToLowerInvariant()}}
+
+        go 1.21
+
+        require {{SertoGoModule}} {{SertoGoVersion}}
+        """;
+
+    public static string BuildGoDockerfile() =>
+        """
+        # Build the integration binary, then ship it in a minimal image.
+        FROM golang:1.23-alpine AS build
+        WORKDIR /src
+        COPY . .
+        RUN go mod download && CGO_ENABLED=0 go build -o /app .
+
+        FROM alpine:latest
+        COPY --from=build /app /app
+        ENTRYPOINT ["/app"]
+        """;
+
+    public static string BuildGoManifest(string projectName) =>
+        $$"""
+        {
+          "manifestVersion": "1",
+          "runtime": "container",
+          "integrations": [
+            {
+              "name": "Sample Integration",
+              "slug": "sample-integration",
+              "entrypoint": "your-registry/{{projectName.ToLowerInvariant()}}:latest",
+              "triggers": [
+                { "type": "scheduled", "cron": "0 * * * *" }
+              ],
+              "requiredSecrets": []
+            }
+          ]
+        }
+        """;
+
+    public static string BuildGoReadme(string projectName) =>
+        $$"""
+        # {{projectName}}
+
+        A Serto integration written in Go. Go integrations run as a **container image** — the image's
+        entrypoint is the compiled binary, which speaks the Serto wire protocol.
+
+        ## Develop
+
+        - Edit `main.go` — the function passed to `serto.Run` is your integration.
+        - Declare triggers, required secrets, and the image reference in `serto.json`.
+        - `go mod tidy` to fetch the SDK.
+
+        > The Serto Go SDK (`{{SertoGoModule}}`) is not yet published to a module proxy. Until it is,
+        > point go.mod at a local checkout:
+        > `go mod edit -replace {{SertoGoModule}}=/path/to/serto/sdks/go/serto`
+
+        ## The context
+
+        `serto.Run(func(ctx *serto.Context) error { ... })` gives you:
+
+        - `ctx.Secrets` — configured secret values, by name.
+        - `ctx.Logger` — `.Info(...)`, `.Warn(...)`, `.Errorf(...)`, captured into execution history.
+        - `ctx.Payload` / `ctx.PayloadJSON(&v)` — the raw / parsed body for webhook and message triggers.
+        - `ctx.Execution` — execution and environment metadata.
+        - `ctx.Publish(subject, body)` — publish a message other integrations can subscribe to.
+
+        ## Build, push, deploy
+
+            docker build -t <registry>/{{projectName.ToLowerInvariant()}}:latest .
+            docker push  <registry>/{{projectName.ToLowerInvariant()}}:latest
+
+        Set that image as the `entrypoint` in `serto.json`, then:
+
+            serto login --url <control-plane-url>
+            serto deploy
+
+        The agent pulls and runs your image when the integration is due.
+        """;
+
+    public static string BuildGoGitignore() =>
+        """
+        /app
+        *.exe
+        secrets.json
+        """;
+
+    /// <summary>Writes a Node.js integration scaffold (index.js + package.json + serto.json) into <paramref name="dir"/>.</summary>
+    public static void ScaffoldNode(string dir, string projectName)
+    {
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "index.js"), BuildNodeIntegration());
+        File.WriteAllText(Path.Combine(dir, "package.json"), BuildNodePackageJson(projectName));
+        File.WriteAllText(Path.Combine(dir, ManifestPackaging.ManifestFileName), BuildNodeManifest());
+        File.WriteAllText(Path.Combine(dir, "README.md"), BuildNodeReadme(projectName));
+        File.WriteAllText(Path.Combine(dir, ".gitignore"), BuildNodeGitignore());
+    }
+
+    public static string BuildNodeIntegration() =>
+        """
+        module.exports.handler = async (ctx) => {
+          ctx.logger.info(`Hello from ${ctx.execution.integrationName}!`);
+
+          // Read a secret (declare it under requiredSecrets in serto.json):
+          // const token = ctx.secrets.EXAMPLE_API_TOKEN;
+
+          // Publish a message other integrations can subscribe to:
+          // await ctx.publish('example.event', { hello: 'world' });
+        };
+        """;
+
+    public static string BuildNodePackageJson(string projectName) =>
+        $$"""
+        {
+          "name": "{{projectName.ToLowerInvariant()}}",
+          "version": "0.1.0",
+          "private": true,
+          "dependencies": {
+            "serto": "{{SertoNodeVersion}}"
+          }
+        }
+        """;
+
+    public static string BuildNodeManifest() =>
+        """
+        {
+          "manifestVersion": "1",
+          "runtime": "node",
+          "integrations": [
+            {
+              "name": "Sample Integration",
+              "slug": "sample-integration",
+              "entrypoint": "index.js#handler",
+              "triggers": [
+                { "type": "scheduled", "cron": "0 * * * *" }
+              ],
+              "requiredSecrets": []
+            }
+          ]
+        }
+        """;
+
+    public static string BuildNodeReadme(string projectName) =>
+        $$"""
+        # {{projectName}}
+
+        A Serto integration written in Node.js.
+
+        ## Develop
+
+        - Install the SDK: `npm install`
+        - Edit `index.js` — the exported `handler(ctx)` is your integration.
+        - Declare triggers, required secrets, and the entrypoint in `serto.json`.
+        - `serto scan` — preview the integrations and triggers this package will provision.
+
+        ## The context
+
+        `handler(ctx)` gives you:
+
+        - `ctx.secrets` — configured secret values, by name.
+        - `ctx.logger` — `.info(...)`, `.warn(...)`, `.error(...)`, captured into execution history.
+        - `ctx.payload` / `ctx.payloadJson()` — the raw / parsed body for webhook and message triggers.
+        - `ctx.execution` — execution and environment metadata.
+        - `ctx.publish(subject, body)` — publish a message other integrations can subscribe to.
+
+        Dependency-free integrations run as a subprocess. If you need npm dependencies at runtime, ship a
+        container image (`runtime: "container"`) instead.
+
+        ## Deploy
+
+            serto login --url <control-plane-url>
+            serto deploy
+        """;
+
+    public static string BuildNodeGitignore() =>
+        """
+        node_modules/
+        secrets.json
+        """;
 
     /// <summary>Writes the full scaffold (integration project + test project + docs) into <paramref name="dir"/>.</summary>
     public static void Scaffold(string dir, string projectName, string namespaceName, string template)

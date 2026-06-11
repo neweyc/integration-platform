@@ -1,0 +1,30 @@
+{
+  "name": "serto",
+  "version": "0.1.0",
+  "description": "Serto Node.js SDK — write integrations in JavaScript that run on the Serto platform",
+  "license": "MIT",
+  "author": "Craytech",
+  "homepage": "https://github.com/neweyc/integration-platform",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neweyc/integration-platform.git",
+    "directory": "sdks/node/serto"
+  },
+  "keywords": [
+    "serto",
+    "integration",
+    "automation",
+    "workflow"
+  ],
+  "main": "index.js",
+  "bin": {
+    "serto-runtime": "bin/serto-runtime.js"
+  },
+  "files": [
+    "index.js",
+    "bin/"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

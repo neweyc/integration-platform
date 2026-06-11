@@ -143,6 +143,13 @@ namespace ControlPlane.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("Runtime")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("dotnet");
+
                     b.Property<string>("Sha256Hash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -432,6 +439,13 @@ namespace ControlPlane.Infrastructure.Migrations
 
                     b.Property<int>("RetryMaxAttempts")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Runtime")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("dotnet");
 
                     b.Property<string>("Slug")
                         .IsRequired()

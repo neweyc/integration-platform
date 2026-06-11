@@ -19,10 +19,10 @@ public class IntegrationExecutorTests
     {
         _loader = new IntegrationLoader(NullLogger<IntegrationLoader>.Instance);
         _httpClientFactory.CreateClient("integration").Returns(new HttpClient());
+        var dotnetRunner = new InProcessDotNetRunner(_loader, _httpClientFactory, _options);
         _executor = new IntegrationExecutor(
             _controlPlane,
-            _loader,
-            _httpClientFactory,
+            [dotnetRunner],
             _options,
             NullLogger<IntegrationExecutor>.Instance);
     }

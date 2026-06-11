@@ -9,9 +9,15 @@ public class Integration : Entity
     public string Environment { get; set; } = string.Empty;
     public IntegrationStatus Status { get; set; } = IntegrationStatus.Enabled;
 
-    // Fully qualified class name that implements IIntegration (e.g. "MyCompany.Integrations.SyncOrdersIntegration").
-    // The runtime agent uses this to locate and instantiate the integration class.
+    // Fully qualified class name that implements IIntegration (e.g. "MyCompany.Integrations.SyncOrdersIntegration"),
+    // or, for non-.NET runtimes, the runtime-specific entrypoint locator (e.g. "main.py:handler"). The
+    // runtime agent uses this to locate and run the integration.
     public string ClassName { get; set; } = string.Empty;
+
+    // Execution runtime: "dotnet" (default, in-process .NET) or another runtime ("python", "node", …) the
+    // agent runs out-of-process. Denormalized from the integration's package so dispatch can pick the right
+    // runner without a join. See docs/multi-language-runtimes.md.
+    public string Runtime { get; set; } = "dotnet";
 
     // Maximum seconds an execution may run before being cancelled. Null means no timeout.
     public int? TimeoutSeconds { get; set; }

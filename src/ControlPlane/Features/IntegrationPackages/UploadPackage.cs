@@ -11,6 +11,7 @@ using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
 using Cronos;
 using Shared.Domain;
+using Shared.Manifest;
 
 namespace ControlPlane.Features.IntegrationPackages;
 
@@ -97,6 +98,7 @@ public interface IPackageRepository
 public class UploadPackageHandler(
     IPackageRepository repository,
     IAssemblyScanner scanner,
+    IManifestReader manifestReader,
     IIntegrationRepository integrationRepository,
     IEncryptionService encryption,
     ISecretReadRepository secretRepository,
@@ -117,9 +119,17 @@ public class UploadPackageHandler(
         if (await repository.VersionExistsAsync(command.TenantId, command.Name, command.Version, ct))
             throw new ConflictException($"Package '{command.Name}' version '{command.Version}' already exists.");
 
-        var discovered = scanner.ScanZip(command.Data);
+        // A package is either a .NET assembly bundle (discovered by reflection) or a manifest-described
+        // package for another runtime. A serto.json, when present, is the source of truth and selects the
+        // runtime; otherwise the package is .NET and scanned for IIntegration types.
+        var manifest = manifestReader.TryRead(command.Data);
+        var runtime = manifest?.Runtime ?? Runtimes.Dotnet;
+        var discovered = manifest is not null
+            ? ManifestReader.ToDiscovered(manifest)
+            : scanner.ScanZip(command.Data);
+
         foreach (var integration in discovered)
-            ValidateDiscoveredIntegration(command.TenantId, integration, provisioningEnvironment);
+            ValidateDiscoveredIntegration(command.TenantId, integration, provisioningEnvironment, runtime);
 
         await EnforceIntegrationCapAsync(command.TenantId, discovered, ct);
 
@@ -131,7 +141,8 @@ public class UploadPackageHandler(
             FileName = Path.GetFileName(command.FileName),
             Data = command.Data,
             SizeBytes = command.Data.LongLength,
-            Sha256Hash = Convert.ToHexString(SHA256.HashData(command.Data)).ToLowerInvariant()
+            Sha256Hash = Convert.ToHexString(SHA256.HashData(command.Data)).ToLowerInvariant(),
+            Runtime = runtime
         };
 
         var created = await repository.CreateAsync(package, ct);
@@ -156,6 +167,7 @@ public class UploadPackageHandler(
                 Description = integration.Description,
                 Environment = provisioningEnvironment,
                 ClassName = integration.ClassName,
+                Runtime = runtime,
                 TimeoutSeconds = integration.TimeoutSeconds,
                 RetryMaxAttempts = integration.RetryMaxAttempts ?? 0,
                 RetryBackoffSeconds = integration.RetryBackoffSeconds,
@@ -244,7 +256,7 @@ public class UploadPackageHandler(
     }
 
     private static void ValidateDiscoveredIntegration(
-        Guid tenantId, DiscoveredIntegration integration, string provisioningEnvironment)
+        Guid tenantId, DiscoveredIntegration integration, string provisioningEnvironment, string runtime)
     {
         CreateIntegrationHandler.ValidateCommand(new CreateIntegrationCommand(
             tenantId,
@@ -256,7 +268,8 @@ public class UploadPackageHandler(
             ToTriggerInputs(integration),
             integration.TimeoutSeconds,
             integration.RetryMaxAttempts ?? 0,
-            integration.RetryBackoffSeconds));
+            integration.RetryBackoffSeconds,
+            Runtime: runtime));
     }
 
     private static List<IntegrationTriggerInput> ToTriggerInputs(DiscoveredIntegration integration) =>
@@ -374,8 +387,12 @@ public class UploadPackageHandler(
             if (archive.Entries.Count == 0)
                 throw new ValidationException("Package archive cannot be empty.");
 
-            if (!archive.Entries.Any(e => Path.GetExtension(e.Name).Equals(".dll", StringComparison.OrdinalIgnoreCase)))
-                throw new ValidationException("Package archive must contain at least one .dll file.");
+            // A .NET package carries compiled assemblies; a package for any other runtime carries a
+            // serto.json manifest describing it. Require at least one of the two.
+            var hasDll = archive.Entries.Any(e => Path.GetExtension(e.Name).Equals(".dll", StringComparison.OrdinalIgnoreCase));
+            var hasManifest = archive.Entries.Any(e => e.Name.Equals("serto.json", StringComparison.OrdinalIgnoreCase));
+            if (!hasDll && !hasManifest)
+                throw new ValidationException("Package archive must contain at least one .dll file or a serto.json manifest.");
         }
         catch (InvalidDataException)
         {

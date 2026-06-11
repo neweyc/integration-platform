@@ -10,6 +10,7 @@ using ControlPlane.Infrastructure;
 using ControlPlane.Tests.Features.Licensing;
 using NSubstitute;
 using Shared.Domain;
+using Shared.Manifest;
 
 namespace ControlPlane.Tests.Features.IntegrationPackages;
 
@@ -17,6 +18,7 @@ public class UploadPackageHandlerTests
 {
     private readonly IPackageRepository _repository = Substitute.For<IPackageRepository>();
     private readonly IAssemblyScanner _scanner = Substitute.For<IAssemblyScanner>();
+    private readonly IManifestReader _manifestReader = Substitute.For<IManifestReader>();
     private readonly IIntegrationRepository _integrationRepository = Substitute.For<IIntegrationRepository>();
     private readonly IEncryptionService _encryption = Substitute.For<IEncryptionService>();
     private readonly ISecretReadRepository _secretRepository = Substitute.For<ISecretReadRepository>();
@@ -29,8 +31,8 @@ public class UploadPackageHandlerTests
     public UploadPackageHandlerTests()
     {
         _handler = new UploadPackageHandler(
-            _repository, _scanner, _integrationRepository, _encryption, _secretRepository, _environmentRepository,
-            _tenantRepository, _planCatalog, new PassThroughLicenseService());
+            _repository, _scanner, _manifestReader, _integrationRepository, _encryption, _secretRepository,
+            _environmentRepository, _tenantRepository, _planCatalog, new PassThroughLicenseService());
         // Auto-provisioning targets the tenant's default environment.
         _environmentRepository.GetDefaultNameAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns("production");
         _tenantRepository.GetByIdAsync(_tenantId, Arg.Any<CancellationToken>())
@@ -600,7 +602,7 @@ public class UploadPackageHandlerTests
                 "integrations.zip",
                 data)));
 
-        Assert.Equal("Package archive must contain at least one .dll file.", ex.Message);
+        Assert.Equal("Package archive must contain at least one .dll file or a serto.json manifest.", ex.Message);
     }
 
     [Fact]
@@ -615,6 +617,52 @@ public class UploadPackageHandlerTests
                 [1, 2, 3])));
 
         Assert.Equal("Package file must be a .zip archive.", ex.Message);
+    }
+
+    [Fact]
+    public async Task HandleAsync_PythonManifestPackage_ProvisionsWithRuntimeAndEntrypoint()
+    {
+        // A non-.NET package: a serto.json manifest in the archive, discovered via the manifest reader
+        // (not assembly reflection).
+        var data = CreateZip(("serto.json", "{}"));
+        _repository.VersionExistsAsync(_tenantId, "py.integrations", "1.0.0").Returns(false);
+        _manifestReader.TryRead(data).Returns(new PackageManifest
+        {
+            Runtime = "python",
+            Integrations =
+            [
+                new ManifestIntegration
+                {
+                    Name = "Hello Python",
+                    Slug = "hello-python",
+                    Entrypoint = "main.py:handler",
+                    Triggers = [new ManifestTrigger { Type = "scheduled", Cron = "0 * * * *" }]
+                }
+            ]
+        });
+
+        AssemblyPackage? capturedPackage = null;
+        _repository.CreateAsync(Arg.Any<AssemblyPackage>(), Arg.Any<CancellationToken>())
+            .Returns(call => { capturedPackage = call.Arg<AssemblyPackage>(); return capturedPackage; });
+
+        Integration? captured = null;
+        _integrationRepository.UpsertBySlugAsync(
+                Arg.Any<Integration>(), Arg.Any<IReadOnlyList<IntegrationTrigger>>(), Arg.Any<CancellationToken>())
+            .Returns(call => { captured = call.Arg<Integration>(); return new IntegrationUpsertResult(captured, true, []); });
+
+        await _handler.HandleAsync(new UploadPackageCommand(
+            _tenantId, "py.integrations", "1.0.0", "py.zip", data));
+
+        // The package and its provisioned integration both carry the python runtime, and the entrypoint
+        // (not a .NET class name) is stored as the ClassName locator.
+        Assert.Equal("python", capturedPackage!.Runtime);
+        Assert.NotNull(captured);
+        Assert.Equal("python", captured!.Runtime);
+        Assert.Equal("main.py:handler", captured.ClassName);
+        Assert.Equal("hello-python", captured.Slug);
+
+        // A manifest package is never sent through the .NET assembly scanner.
+        _scanner.DidNotReceive().ScanZip(Arg.Any<byte[]>());
     }
 
     private static byte[] CreateZipWithDll() =>

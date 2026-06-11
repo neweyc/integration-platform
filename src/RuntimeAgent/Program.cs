@@ -65,6 +65,15 @@ else
 builder.Services.AddHttpClient("integration");
 
 builder.Services.AddSingleton<IntegrationLoader>();
+
+// Runtime adapters. Register one IIntegrationRunner per supported runtime; IntegrationExecutor picks
+// the first whose CanRun matches the work item. InProcessDotNetRunner handles .NET (the default);
+// SubprocessRunner handles other languages the agent has a launch command for. CanRun is mutually
+// exclusive across the two, so registration order is irrelevant.
+builder.Services.AddSingleton<IRuntimeLaunchResolver, OptionsRuntimeLaunchResolver>();
+builder.Services.AddScoped<IIntegrationRunner, InProcessDotNetRunner>();
+builder.Services.AddScoped<IIntegrationRunner, SubprocessRunner>();
+builder.Services.AddScoped<IIntegrationRunner, ContainerRunner>();
 builder.Services.AddScoped<IntegrationExecutor>();
 builder.Services.AddScoped<PackageSyncer>();
 builder.Services.AddHostedService<Worker>();

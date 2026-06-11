@@ -45,10 +45,26 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
+        // A non-.NET serto.json project is previewed straight from its manifest — no build, no reflection.
+        var manifestProject = ManifestPackaging.TryResolve(settings.ProjectPath, Directory.GetCurrentDirectory());
+        if (manifestProject is not null)
+        {
+            var manifestResult = ManifestPackaging.ToScanResult(manifestProject.Manifest);
+            var manifestName = string.IsNullOrWhiteSpace(settings.PackageName)
+                ? manifestProject.PackageName
+                : settings.PackageName.Trim();
+            var manifestVersion = string.IsNullOrWhiteSpace(settings.Version)
+                ? DeployCommand.BuildAutoVersion(DateTimeOffset.UtcNow, GitInfo.Detect(manifestProject.Directory))
+                : settings.Version.Trim();
+
+            RenderPreview(manifestProject.PackageName, manifestName, manifestVersion, manifestResult);
+            return manifestResult.IsValid ? 0 : 1;
+        }
+
         var csprojFile = ResolveProjectPath(settings.ProjectPath, Directory.GetCurrentDirectory());
         if (csprojFile is null)
         {
-            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj file found.");
+            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj or serto.json found.");
             return 1;
         }
 

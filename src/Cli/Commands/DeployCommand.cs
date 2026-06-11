@@ -39,26 +39,17 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        var csprojFile = ScanCommand.ResolveProjectPath(settings.ProjectPath, Directory.GetCurrentDirectory());
-
-        if (csprojFile is null)
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj file found.");
-            return 1;
-        }
-
         PackageBuildResult? package = null;
 
         try
         {
             AnsiConsole.MarkupLine("[blue]Preparing deploy preview...[/]");
-            package = await PackageCommand.CreateAsync(
-                csprojFile,
-                settings.PackageName,
-                settings.Version,
-                outputDirectory: null,
-                keepArchive: true,
-                ct);
+            package = await BuildPackageAsync(settings, ct);
+            if (package is null)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] No .csproj or serto.json found in the current directory.");
+                return 1;
+            }
 
             ScanCommand.RenderPreview(package.ProjectName, package.PackageName, package.PackageVersion, package.ScanResult);
             AnsiConsole.MarkupLine($"[blue]Archive SHA-256:[/] [green]{package.Sha256Hash}[/]");
@@ -144,6 +135,26 @@ public sealed class DeployCommand : AsyncCommand<DeployCommand.Settings>
         }
 
         return 0;
+    }
+
+    // Builds the deployable package, choosing the runtime: a non-.NET serto.json project is zipped as-is,
+    // otherwise the .NET project is published and zipped. Returns null when neither is found.
+    private static async Task<PackageBuildResult?> BuildPackageAsync(Settings settings, CancellationToken ct)
+    {
+        var currentDirectory = Directory.GetCurrentDirectory();
+
+        var manifestProject = ManifestPackaging.TryResolve(settings.ProjectPath, currentDirectory);
+        if (manifestProject is not null)
+            return await ManifestPackaging.CreatePackageAsync(
+                manifestProject, settings.PackageName, settings.Version,
+                outputDirectory: null, keepArchive: true, DateTimeOffset.UtcNow, ct);
+
+        var csprojFile = ScanCommand.ResolveProjectPath(settings.ProjectPath, currentDirectory);
+        if (csprojFile is null)
+            return null;
+
+        return await PackageCommand.CreateAsync(
+            csprojFile, settings.PackageName, settings.Version, outputDirectory: null, keepArchive: true, ct);
     }
 
     // After upload, ask the control plane which integrations can't currently be routed and flag any we

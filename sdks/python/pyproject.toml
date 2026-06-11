@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution name on PyPI is "serto-sdk" (the bare "serto" name is already taken); the import package
+# is still `serto` (import serto). The release workflow overrides the version from the git tag.
+name = "serto-sdk"
+version = "0.1.0"
+description = "Serto Python SDK — write integrations in Python that run on the Serto platform"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Craytech" }]
+keywords = ["serto", "integration", "automation", "workflow"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/neweyc/integration-platform"
+Repository = "https://github.com/neweyc/integration-platform"
+
+[tool.setuptools.packages.find]
+include = ["serto*"]

@@ -124,6 +124,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(i => i.Environment).IsRequired().HasMaxLength(50);
             b.Property(i => i.Status).HasConversion<string>();
             b.Property(i => i.ClassName).IsRequired().HasMaxLength(500);
+            b.Property(i => i.Runtime).IsRequired().HasMaxLength(50).HasDefaultValue("dotnet");
             b.Property(i => i.RetryMaxAttempts);
             b.Property(i => i.RetryBackoffSeconds);
             b.Property(i => i.PackageId);
@@ -265,6 +266,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(p => p.FileName).IsRequired().HasMaxLength(255);
             b.Property(p => p.Data).IsRequired();
             b.Property(p => p.Sha256Hash).IsRequired().HasMaxLength(64);
+            b.Property(p => p.Runtime).IsRequired().HasMaxLength(50).HasDefaultValue("dotnet");
 
             // Package name + version must be unique within a tenant
             b.HasIndex(p => new { p.TenantId, p.Name, p.Version }).IsUnique();

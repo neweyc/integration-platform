@@ -38,5 +38,11 @@ public class AssemblyPackage : Entity
     /// </summary>
     public string Sha256Hash { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Execution runtime of the package's integrations: "dotnet" (compiled .NET assemblies) or another
+    /// runtime ("python", "node", …) declared by the package's serto.json manifest.
+    /// </summary>
+    public string Runtime { get; set; } = "dotnet";
+
     public Tenant Tenant { get; set; } = null!;
 }

@@ -30,20 +30,27 @@ public sealed class PackageCommand : AsyncCommand<PackageCommand.Settings>
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
     {
-        var csprojFile = ScanCommand.ResolveProjectPath(settings.ProjectPath, Directory.GetCurrentDirectory());
-        if (csprojFile is null)
+        // A non-.NET serto.json project is packaged as-is; otherwise the .NET project is published.
+        var manifestProject = ManifestPackaging.TryResolve(settings.ProjectPath, Directory.GetCurrentDirectory());
+        PackageBuildResult package;
+        if (manifestProject is not null)
         {
-            AnsiConsole.MarkupLine("[red]Error:[/] No .csproj file found.");
-            return 1;
+            package = await ManifestPackaging.CreatePackageAsync(
+                manifestProject, settings.PackageName, settings.Version, settings.OutputDirectory,
+                keepArchive: true, DateTimeOffset.UtcNow, ct);
         }
+        else
+        {
+            var csprojFile = ScanCommand.ResolveProjectPath(settings.ProjectPath, Directory.GetCurrentDirectory());
+            if (csprojFile is null)
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] No .csproj or serto.json found.");
+                return 1;
+            }
 
-        var package = await CreateAsync(
-            csprojFile,
-            settings.PackageName,
-            settings.Version,
-            settings.OutputDirectory,
-            keepArchive: true,
-            ct);
+            package = await CreateAsync(
+                csprojFile, settings.PackageName, settings.Version, settings.OutputDirectory, keepArchive: true, ct);
+        }
 
         ScanCommand.RenderPreview(package.ProjectName, package.PackageName, package.PackageVersion, package.ScanResult);
 

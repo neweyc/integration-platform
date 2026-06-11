@@ -32,7 +32,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         controlPlane.GetIntegrationsAsync(Arg.Any<CancellationToken>())
@@ -79,7 +79,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         var integrationId = Guid.NewGuid();
@@ -145,7 +145,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         var integration = new IntegrationItem(
@@ -203,7 +203,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         // No integrations claimed
@@ -249,7 +249,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         // Simulate control plane being unavailable. Signal when the worker actually polls so the
@@ -306,7 +306,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         var integrationId = Guid.NewGuid();
@@ -372,7 +372,7 @@ public class WorkerTests
         };
 
         var executor = new IntegrationExecutor(
-            controlPlane, loader, httpFactory, options,
+            controlPlane, [new InProcessDotNetRunner(loader, httpFactory, options)], options,
             NullLogger<IntegrationExecutor>.Instance);
 
         var integrationId = Guid.NewGuid();

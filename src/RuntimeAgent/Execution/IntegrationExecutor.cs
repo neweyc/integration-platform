@@ -3,29 +3,33 @@ using RuntimeAgent.Agent;
 
 namespace RuntimeAgent.Execution;
 
+// Orchestrates a single execution: picks the runtime adapter, resolves the integration, claims the
+// execution, and owns the whole lifecycle around the run (logging, message publishing, timeout,
+// completion reporting, and failure/cancellation handling). The runtime-specific part — actually
+// invoking the integration — is delegated to an IIntegrationRunner, so this lifecycle is shared by
+// every language.
 public class IntegrationExecutor(
     IControlPlaneClient controlPlane,
-    IntegrationLoader loader,
-    IHttpClientFactory httpClientFactory,
+    IEnumerable<IIntegrationRunner> runners,
     AgentOptions options,
     ILogger<IntegrationExecutor> logger)
 {
     public async Task ExecuteAsync(IntegrationItem integration, Dictionary<string, string> secrets, CancellationToken ct)
     {
-        IIntegration? instance;
-        if (integration.PackageId.HasValue)
+        var runner = runners.FirstOrDefault(r => r.CanRun(integration));
+        if (runner is null)
         {
-            var packageDir = Path.Combine(options.PackagesPath, integration.PackageId.Value.ToString());
-            instance = loader.ResolveFromDirectory(integration.ClassName, packageDir);
-        }
-        else
-        {
-            instance = loader.Resolve(integration.ClassName);
+            logger.LogWarning("Skipping {Name}: no runner for runtime '{Runtime}'",
+                integration.Name, string.IsNullOrEmpty(integration.Runtime) ? "dotnet" : integration.Runtime);
+            return;
         }
 
-        if (instance is null)
+        // Resolve BEFORE claiming an execution. A null here means "not available yet" (e.g. the package
+        // is still syncing), so we skip and let the work item be retried rather than recording a failed run.
+        var prepared = runner.Prepare(integration);
+        if (prepared is null)
         {
-            logger.LogWarning("Skipping {Name}: no matching integration class found for '{ClassName}'",
+            logger.LogWarning("Skipping {Name}: no matching integration found for '{ClassName}'",
                 integration.Name, integration.ClassName);
             return;
         }
@@ -38,7 +42,6 @@ public class IntegrationExecutor(
 
         var executionId = await controlPlane.StartExecutionAsync(integration.WorkItemId.Value, ct);
         var integrationLogger = new ControlPlaneExecutionLogger(logger, controlPlane, executionId);
-        var http = httpClientFactory.CreateClient("integration");
         var metadata = new ExecutionMetadata(
             executionId, integration.Id, integration.Name,
             Environment: options.Environment,
@@ -46,8 +49,7 @@ public class IntegrationExecutor(
 
         var publisher = new AgentMessagePublisher(controlPlane, executionId);
         var trigger = TriggerInfoMapper.From(integration, metadata.ScheduledAt);
-        var context = new ExecutionContext(
-            secrets, integrationLogger, http, metadata, publisher, trigger, integration.Payload);
+        var request = new RunRequest(integration, secrets, metadata, integrationLogger, publisher, trigger);
 
         logger.LogInformation("Starting execution {ExecutionId} for integration {Name}", executionId, integration.Name);
 
@@ -59,7 +61,7 @@ public class IntegrationExecutor(
 
         try
         {
-            await instance.RunAsync(context, timeoutCts.Token);
+            await prepared.RunAsync(request, timeoutCts.Token);
 
             await integrationLogger.FlushAsync(ct);
             await controlPlane.CompleteExecutionAsync(executionId, succeeded: true, errorMessage: null, ct);

@@ -47,4 +47,29 @@ public class AgentOptions
     // never reuses a connection the server has already dropped — the cause of intermittent
     // "the response ended prematurely" errors when reporting logs or completing executions.
     public int ControlPlaneConnectionIdleTimeoutSeconds { get; set; } = 15;
+
+    // How to launch out-of-process language runtimes, keyed by runtime name ("python", "node", "go", …).
+    // The command is host-specific (interpreter paths vary), so it's configuration rather than a built-in
+    // default. The entrypoint is NOT passed here — it travels to the integration over the wire protocol,
+    // so the command only needs to start that runtime's Serto harness. A relative command is resolved
+    // against the package directory (e.g. a Go binary shipped inside the package); otherwise it resolves
+    // from PATH. Empty = this agent runs only in-process .NET integrations.
+    public Dictionary<string, RuntimeLaunchOptions> Runtimes { get; set; } = new();
+
+    // How to run container-runtime integrations. The image reference is the integration's entrypoint; the
+    // engine and base run args are configured here. Secrets ride in the stdin invocation, not env vars, so
+    // nothing sensitive lands in `docker inspect` or the process table.
+    public ContainerOptions Container { get; set; } = new();
+}
+
+public class RuntimeLaunchOptions
+{
+    public string Command { get; set; } = "";
+    public string[] Args { get; set; } = [];
+}
+
+public class ContainerOptions
+{
+    public string Engine { get; set; } = "docker";
+    public string[] RunArgs { get; set; } = ["run", "--rm", "-i"];
 }

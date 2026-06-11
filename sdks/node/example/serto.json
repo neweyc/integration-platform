@@ -1,0 +1,16 @@
+{
+  "manifestVersion": "1",
+  "runtime": "node",
+  "integrations": [
+    {
+      "name": "Hello Node",
+      "slug": "hello-node",
+      "entrypoint": "index.js#handler",
+      "description": "A minimal Node.js integration that logs and publishes a message.",
+      "triggers": [
+        { "type": "scheduled", "cron": "0 * * * *" }
+      ],
+      "requiredSecrets": ["API_KEY"]
+    }
+  ]
+}

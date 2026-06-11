@@ -40,7 +40,9 @@ public record IntegrationItem(
     string? DeliveryId = null,                // Webhook
     Guid? WorkflowRunId = null,               // Workflow
     Guid? WorkflowNodeId = null,              // Workflow
-    int AttemptNumber = 1);                   // Retry
+    int AttemptNumber = 1,                    // Retry
+    string? Runtime = null);                  // Execution runtime: null/"dotnet" = in-process .NET,
+                                              // otherwise a process/container runner (python, node, …)
 
 public record ExecutionLogEntry(
     DateTime Timestamp,

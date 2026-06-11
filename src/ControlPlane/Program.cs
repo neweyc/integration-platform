@@ -164,6 +164,7 @@ builder.Services.AddScoped<ICommandHandler<DeliverWebhookCommand, DeliverWebhook
 
 // Integration packages feature
 builder.Services.AddScoped<IAssemblyScanner, AssemblyScanner>();
+builder.Services.AddScoped<IManifestReader, ManifestReader>();
 builder.Services.AddScoped<PackageRepository>();
 builder.Services.AddScoped<IPackageRepository>(sp => sp.GetRequiredService<PackageRepository>());
 builder.Services.AddScoped<IPackageReadRepository>(sp => sp.GetRequiredService<PackageRepository>());

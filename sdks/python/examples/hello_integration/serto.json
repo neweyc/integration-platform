@@ -1,0 +1,16 @@
+{
+  "manifestVersion": "1",
+  "runtime": "python",
+  "integrations": [
+    {
+      "name": "Hello Python",
+      "slug": "hello-python",
+      "entrypoint": "main.py:handler",
+      "description": "A minimal Python integration that logs and publishes a message.",
+      "triggers": [
+        { "type": "scheduled", "cron": "0 * * * *" }
+      ],
+      "requiredSecrets": ["API_KEY"]
+    }
+  ]
+}
