@@ -366,8 +366,8 @@ function SecuritySection() {
         <div className="grid gap-4 lg:grid-cols-3">
           <FeatureBand
             icon={ShieldCheck}
-            title="Tenant scoped"
-            text="Resources are isolated by tenant across integrations, secrets, tokens, packages, and execution records."
+            title="Audited & access-controlled"
+            text="Every deploy, run, and config change is written to an audit log, and role-based permissions control who can deploy, run, and read secrets — the governance the big platforms charge for, built in."
           />
           <FeatureBand
             icon={KeyRound}
