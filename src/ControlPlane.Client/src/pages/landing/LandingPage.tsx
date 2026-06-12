@@ -25,7 +25,7 @@ const capabilities = [
     icon: Code2,
     title: 'Your code is the manifest',
     description:
-      'Write integrations as C# classes and decorate them with a trigger. `serto deploy` provisions the schedule and triggers — no click-ops, no proprietary designer.',
+      'Write a job in C#, Python, Node, or Go, decorate it with a trigger, and `serto deploy` provisions the schedule from your terminal. The code is the manifest — no YAML, no click-ops, no proprietary designer.',
   },
   {
     icon: RadioTower,
@@ -64,7 +64,7 @@ const scope = [
 ]
 
 const runtimeFlow = [
-  'Register the integration class',
+  'Register the integration',
   'Deploy the compiled package',
   'Agent claims and runs the job',
   'Review results and logs',
@@ -110,7 +110,7 @@ const philosophyPoints = [
     icon: GitBranch,
     title: 'It’s just code',
     description:
-      'Integrations are C# in your repo. Diff them, review them in a PR, unit-test them, roll them back — with the tools you already use, not a proprietary canvas.',
+      'Integrations are real code in your repo — C#, Python, Node, or Go. No YAML, no canvas. Diff them, review them in a PR, unit-test them, roll them back, with the tools you already use.',
   },
   {
     icon: ServerCog,
@@ -179,15 +179,15 @@ function HeroSection() {
       <div className="relative z-10 mx-auto grid max-w-7xl px-6 pb-12 pt-20 lg:min-h-[calc(92vh-4.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:pt-0">
         <div className="max-w-3xl">
           <Badge variant="outline" className="mb-6">
-            Self-hosted · Integration-as-Code
+            Self-hosted · Code-first automation
           </Badge>
           <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-normal text-foreground sm:text-6xl lg:text-7xl">
-            Integrations as code, on your own infrastructure
+            Automation that’s just code — no YAML, no canvas
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Write integrations as C# classes. Serto schedules them, stores their secrets and packages, and
-            runs them on agents inside your own network — the control plane never has to see your
-            credentials.
+            Write a scheduled job or integration in C#, Python, Node, or Go — then deploy it from your
+            terminal. Serto runs it on agents inside your own network, with scheduling, secrets, logs, and
+            retries built in. No flowcharts to debug, no YAML to maintain, nothing proprietary to escape.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link className={cn(buttonVariants({ size: 'lg' }))} to="/install">
@@ -204,15 +204,19 @@ function HeroSection() {
           <ul className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <li className="inline-flex items-center gap-1.5">
               <Code2 className="size-4" />
-              Built for .NET
+              C#, Python, Node &amp; Go
             </li>
             <li className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="size-4" />
-              MIT-licensed SDK &amp; CLI
+              <Terminal className="size-4" />
+              Deploy from your terminal
             </li>
             <li className="inline-flex items-center gap-1.5">
               <ServerCog className="size-4" />
               Runs on your infrastructure
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="size-4" />
+              MIT-licensed SDK &amp; CLI
             </li>
           </ul>
         </div>
@@ -227,17 +231,17 @@ function PhilosophySection() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            The low-code trap
+            Code beats config
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-normal sm:text-4xl">
-            Stop fighting visual designers
+            Your logic doesn’t belong in YAML or a flowchart
           </h2>
           <p className="mt-5 text-lg leading-8 text-muted-foreground">
-            Drag-and-drop platforms promise speed and quietly hand you lock-in. The moment an
-            integration outgrows the happy path, you’re debugging a flowchart you can’t diff, can’t
-            unit-test, and can’t run anywhere but their cloud — with your business logic stuck in a
-            format only their designer can open. Serto is the opposite bet: your integrations are code
-            you own, running where you choose.
+            Drag-and-drop canvases promise speed and quietly hand you lock-in. YAML orchestrators turn
+            every change into config you can’t unit-test. Browser-based IDEs bury your logic in someone
+            else’s database. The moment a job outgrows the happy path, you’re fighting the tool instead of
+            writing code. Serto takes the opposite bet: your automations are ordinary code in your own
+            repo — diff them, review them in a PR, test them, and run them wherever you choose.
           </p>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
@@ -311,7 +315,7 @@ function OperationsSection() {
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
           <Badge variant="secondary">Runtime workflow</Badge>
-          <h2 className="mt-5 text-3xl font-semibold tracking-normal">From C# class to observed execution</h2>
+          <h2 className="mt-5 text-3xl font-semibold tracking-normal">From code to observed execution</h2>
           <p className="mt-4 text-muted-foreground">
             The control plane stores definitions and state. Runtime agents poll for work, fetch scoped
             secrets, run integrations, and report results — re-deploys preserve any operator changes.
