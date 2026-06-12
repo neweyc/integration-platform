@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -18,6 +19,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CodeBlock } from '@/components/ui/code-block'
 import { cn } from '@/lib/utils'
+import { maintenanceApi } from '@/api/maintenance'
 
 // The three things that actually make Serto different — code-first, runs on your own infra, secrets stay put.
 const capabilities = [
@@ -127,9 +129,22 @@ const philosophyPoints = [
 ]
 
 export function LandingPage() {
+  // In soft-launch (maintenance) mode the hosted control plane accepts no writes, so hide the
+  // "open app / sign in" entry points. Defaults to off; never block the page if the check fails.
+  const [maintenance, setMaintenance] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    maintenanceApi
+      .status()
+      .then(info => { if (active) setMaintenance(info.enabled) })
+      .catch(() => { /* ignore — leave the entry points visible */ })
+    return () => { active = false }
+  }, [])
+
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <HeroSection />
+      <HeroSection maintenance={maintenance} />
       <PhilosophySection />
       <CapabilitiesSection />
       <ScopeSection />
@@ -141,7 +156,7 @@ export function LandingPage() {
   )
 }
 
-function HeroSection() {
+function HeroSection({ maintenance }: { maintenance: boolean }) {
   return (
     <section className="relative min-h-[92vh] overflow-hidden border-b bg-[linear-gradient(180deg,oklch(0.985_0_0),oklch(1_0_0))]">
       <div className="absolute inset-y-0 right-0 hidden w-[58%] bg-muted/35 lg:block">
@@ -166,13 +181,17 @@ function HeroSection() {
           <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/install">
             Self-host
           </Link>
-          <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/login">
-            Sign in
-          </Link>
-          <Link className={cn(buttonVariants({ variant: 'default' }))} to="/app">
-            Open app
-            <ArrowRight className="size-4" />
-          </Link>
+          {!maintenance && (
+            <>
+              <Link className={cn(buttonVariants({ variant: 'ghost' }), 'hidden sm:inline-flex')} to="/login">
+                Sign in
+              </Link>
+              <Link className={cn(buttonVariants({ variant: 'default' }))} to="/app">
+                Open app
+                <ArrowRight className="size-4" />
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
@@ -194,12 +213,16 @@ function HeroSection() {
               Deploy on your infrastructure
               <ArrowRight className="size-4" />
             </Link>
-            <Link className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))} to="/app">
-              Open control plane
-            </Link>
+            {!maintenance && (
+              <Link className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))} to="/app">
+                Open control plane
+              </Link>
+            )}
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            Free, self-hosted Community edition. Commercial licenses lift the caps.
+            {maintenance
+              ? 'Hosted preview — sign-ups are paused. Self-host the free Community edition to try it now.'
+              : 'Free, self-hosted Community edition. Commercial licenses lift the caps.'}
           </p>
           <ul className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <li className="inline-flex items-center gap-1.5">

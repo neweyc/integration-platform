@@ -24,6 +24,7 @@ using ControlPlane.Features.Webhooks;
 using ControlPlane.Features.Workflows;
 using ControlPlane.Infrastructure;
 using ControlPlane.Infrastructure.Auditing;
+using ControlPlane.Infrastructure.Maintenance;
 using ControlPlane.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
+
+// Soft-launch / preview circuit breaker: Maintenance__Enabled=true makes the control plane reject all
+// writes (POST/PUT/PATCH/DELETE) with 503, so nothing can be written to the database.
+builder.Services.AddMaintenanceMode(builder.Configuration);
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -350,6 +355,10 @@ app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Maintenance circuit breaker sits after static files (so the SPA + docs still render) and before
+// everything else, so when enabled it short-circuits every write before it can reach the database.
+app.UseMaintenanceMode();
+
 // Rate limiting sits after static files (so SPA assets aren't throttled) and before auth. It is
 // skipped entirely when disabled — tests turn it off so repeated requests don't trip the limiter.
 var rateLimitOptions = app.Services.GetRequiredService<IOptions<RateLimitOptions>>().Value;
@@ -368,6 +377,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthEndpoints();
+app.MapMaintenanceEndpoint();
 app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
