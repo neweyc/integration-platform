@@ -513,6 +513,38 @@ Notes:
 
 ## P2 — Security And Administration
 
+### Authz Revisit
+
+**Status:** Todo (do before "finished" / before a serious security review)
+
+The permission model (`Permission` enum + `RolePermissions`, enforced via `RequirePermission`) has been
+**extended per-feature, never designed end to end**. It works, but the role→permission mapping and the
+view-vs-manage boundaries have grown ad hoc, so there are inconsistencies. Resolve it as one holistic pass
+rather than bolting on more piecemeal — and keep any *new* per-feature authz consistent with the existing
+model in the meantime.
+
+Why this matters now: **"role-based access" is a public claim on the landing page** (the security band),
+so RBAC is something a security-conscious prospect will probe. It needs to hold together end to end before
+that happens, not just work feature-by-feature.
+
+Known rough edges to fold in:
+
+- Package **download** requires `ManagePackages` while package **list/get metadata** requires
+  `ViewIntegrations` — so a view-only user can browse packages but not download the artifact. Left as-is
+  (UI gated to match the backend) pending this pass.
+- **Trusted agent capability tags** (see [Trusted Agent Capability Tags](#trusted-agent-capability-tags)):
+  if a tag ever needs to *mean* something security-wise, tags must move from self-reported to
+  server-assigned on the agent token — design that here, not piecemeal.
+- Workflow-related authorization should be designed as part of this pass rather than bolted on.
+
+Acceptance criteria:
+
+- The permission set and role→permission mapping are defined end to end (not feature-by-feature), with a
+  documented rationale for each role (Admin/Developer/Operator) and the view-vs-manage split.
+- Every endpoint's required permission is reviewed for consistency against that model; the known rough
+  edges above are resolved or explicitly, deliberately retained.
+- The model is documented (so the public "role-based access" claim is defensible under scrutiny).
+
 ### Agent Token Expiry And Rotation
 
 **Status:** Todo
