@@ -15,10 +15,11 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
 
     // The Serto Go SDK module a scaffolded Go integration imports.
     private const string SertoGoModule = "github.com/neweyc/integration-platform/sdks/go/serto";
-    private const string SertoGoVersion = "v0.1.0";
+    private const string SertoGoVersion = "v1.5.0";
 
-    // The Serto Node SDK version a scaffolded Node integration depends on.
-    private const string SertoNodeVersion = "^0.1.0";
+    // The Serto Node SDK package + version a scaffolded Node integration depends on.
+    private const string SertoNodePackage = "@craytech/serto";
+    private const string SertoNodeVersion = "^1.5.0";
 
     public sealed class Settings : CommandSettings
     {
@@ -362,7 +363,7 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
           "version": "0.1.0",
           "private": true,
           "dependencies": {
-            "serto": "{{SertoNodeVersion}}"
+            "{{SertoNodePackage}}": "{{SertoNodeVersion}}"
           }
         }
         """;

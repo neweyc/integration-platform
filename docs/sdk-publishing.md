@@ -1,17 +1,19 @@
 # SDK publishing
 
-The platform ships SDKs in four languages. Three publish automatically from the tag-driven release
-workflow (`.github/workflows/publish.yml`, fires on `v*` tags); Go publishes from its own repo.
+The platform ships SDKs in four languages, all published from the tag-driven release workflow
+(`.github/workflows/publish.yml`, fires on `v*` tags).
 
 | SDK | Registry | Package | Source | Released by |
 |-----|----------|---------|--------|-------------|
 | .NET | NuGet | `Serto.Sdk`, `Serto.Connectors`, `Serto.Testing`, `Serto.Cli` | `src/` | `publish.yml` (nuget job) |
 | Python | PyPI | **`serto-sdk`** (import: `serto`) | `sdks/python` | `publish.yml` (pypi job) |
-| Node | npm | **`serto`** | `sdks/node/serto` | `publish.yml` (npm job) |
+| Node | npm | **`@craytech/serto`** | `sdks/node/serto` | `publish.yml` (npm job) |
 | Go | Go module proxy | **`github.com/neweyc/integration-platform/sdks/go/serto`** | `sdks/go/serto` | `publish.yml` (go-module-tag job) |
 
-> The bare `serto` name was already taken on PyPI, so the Python distribution is `serto-sdk` while the
-> import package stays `serto` (`pip install serto-sdk` → `import serto`).
+> Naming notes (both because bare `serto` was unavailable): the Python distribution is `serto-sdk` while
+> the import package stays `serto` (`pip install serto-sdk` → `import serto`). On npm, bare `serto` is
+> rejected by the typosquatting guard (too similar to `serve`), so the package is **scoped**:
+> `@craytech/serto`.
 
 All three registry jobs stamp the version from the git tag (`v1.2.3` → `1.2.3`) into the manifest before
 building, so SDK versions track the platform release.
@@ -22,8 +24,10 @@ building, so SDK versions track the platform release.
 `serto-sdk`: publisher = GitHub Actions, owner `neweyc`, repo `integration-platform`, workflow
 `publish.yml`. The `pypi` job authenticates via OIDC (`id-token: write`); no secret needed.
 
-**npm.** Create an npm **automation** token and add it as the repo secret `NPM_TOKEN`. The `npm` job
-publishes with `--provenance` (requires `id-token: write` and a public repo).
+**npm.** The package is scoped to `@craytech/serto`, so the **`craytech` org must exist on npm** and the
+token's account must have publish rights to it. Create an npm **automation** token and add it as the repo
+secret `NPM_TOKEN`. The `npm` job publishes with `--provenance --access public` (requires `id-token: write`
+and a public repo; `--access public` is required for scoped packages).
 
 **Go.** None — the SDK lives in this monorepo and releases automatically (see below). No registry account
 or token is needed; the module proxy fetches from the repo's tags.

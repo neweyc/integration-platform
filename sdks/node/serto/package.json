@@ -1,5 +1,5 @@
 {
-  "name": "serto",
+  "name": "@craytech/serto",
   "version": "0.1.0",
   "description": "Serto Node.js SDK — write integrations in JavaScript that run on the Serto platform",
   "license": "MIT",

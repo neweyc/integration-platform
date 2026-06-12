@@ -45,5 +45,5 @@ if you need npm dependencies at runtime, ship a container image (`runtime: "cont
 cd sdks/node/serto && node --test
 ```
 
-> Not yet published to npm. To use it from another package before publication, install from the local
-> path: `npm install /path/to/serto/sdks/node/serto`.
+Published to npm as the scoped package **`@craytech/serto`** (`npm install @craytech/serto`). Bare `serto`
+is rejected by npm's typosquatting guard for being too similar to `serve`, hence the scope.
