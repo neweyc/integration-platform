@@ -293,6 +293,18 @@ public class CreateIntegrationHandler(
             return;
         }
 
+        // The "shell" runtime's entrypoint is a command line (script path + args), so it must stay
+        // permissive — spaces, slashes, pipes, redirects are all expected. Just bound the length and reject
+        // control characters / newlines.
+        if (string.Equals(runtime, "shell", StringComparison.OrdinalIgnoreCase))
+        {
+            if (entrypoint.Length > 2000)
+                throw new ValidationException("Command is too long.");
+            if (entrypoint.Any(char.IsControl))
+                throw new ValidationException("Command must not contain control characters or newlines.");
+            return;
+        }
+
         if (entrypoint.Length > 500)
             throw new ValidationException("Entrypoint is too long.");
 

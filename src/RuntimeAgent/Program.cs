@@ -74,6 +74,7 @@ builder.Services.AddSingleton<IRuntimeLaunchResolver, OptionsRuntimeLaunchResolv
 builder.Services.AddScoped<IIntegrationRunner, InProcessDotNetRunner>();
 builder.Services.AddScoped<IIntegrationRunner, SubprocessRunner>();
 builder.Services.AddScoped<IIntegrationRunner, ContainerRunner>();
+builder.Services.AddScoped<IIntegrationRunner, ShellRunner>();
 builder.Services.AddScoped<IntegrationExecutor>();
 builder.Services.AddScoped<PackageSyncer>();
 builder.Services.AddHostedService<Worker>();

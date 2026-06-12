@@ -69,6 +69,7 @@ The agent's runner is the only component that interprets this string:
 | node      | `index.js#handler`         | file `#` named export                            |
 | go        | `./sync`                   | path to a built binary inside the package        |
 | container | *(optional)* `cmd arg…`    | override CMD; empty uses the image's entrypoint  |
+| shell     | `./close.sh`, `sqlplus … @x.sql` | a raw command line run through the host shell — **no SDK** (see §4) |
 
 `entrypoint` generalizes today's `Integration.ClassName`. The control plane stores it in the same field
 (renamed/loosened — see the control-plane task) and the regex that currently validates it as a CLR type
@@ -185,7 +186,34 @@ the same seam (`WireProtocolHost` holds the shared stdin/stdout/outcome handling
 
 ---
 
-## 4. What does *not* change
+## 4. Raw scripts — the shell runtime
+
+Not every job is worth wrapping in an SDK. The **`shell`** runtime (`ShellRunner`) runs a raw command or
+script — a `.sh`, a `sqlplus … @script.sql`, any executable — with **no SDK and no wire protocol**. It's
+the bring-your-existing-scripts path: get scheduling, secrets, logs, retries, and alerts around the jobs
+you already run under cron / Control-M / EBS, without rewriting them.
+
+The contract is the one every script runner already uses:
+
+- **Declared** by a manifest `runtime: "shell"` with an `entrypoint` that is a command line (`./close.sh`,
+  `sqlplus -s "$DB_USER/$DB_PW@orcl" @close.sql`). It runs through the agent's configured shell
+  (`Agent:Shell`, default `/bin/sh -c`), with the package directory as the working directory.
+- **Inputs as environment variables** — secrets under their own names (a secret `DB_PW` is `$DB_PW`), plus
+  `SERTO_EXECUTION_ID`, `SERTO_INTEGRATION_NAME`, `SERTO_ENVIRONMENT`, `SERTO_SCHEDULED_AT`,
+  `SERTO_TRIGGER_TYPE`, and (for webhook/message triggers) `SERTO_PAYLOAD` / `SERTO_MESSAGE_SUBJECT`.
+- **All stdout and stderr is captured as logs** (stderr at Warning, for visibility — it does not by itself
+  mean failure).
+- **The exit code is the outcome:** `0` = success; non-zero = failure with the stderr tail as the reason. A
+  timeout kills the process tree and reports a timeout, exactly like the other runners.
+
+Trade-offs vs the SDK path: secrets arrive as env vars (visible to the process, as every scheduler does)
+rather than over stdin, and the agent host must have whatever the script needs (a shell, `sqlplus`, …) — or
+run the script inside a container image. Because a shell integration runs arbitrary code on the agent host,
+treat deploy rights to it as you would shell access (see the Authz Revisit backlog item).
+
+---
+
+## 5. What does *not* change
 
 The orchestration substrate is already language-neutral and is untouched by all of the above:
 scheduling and cron evaluation, work-item claiming and leasing, the secret manifest, log ingestion,
@@ -194,7 +222,7 @@ of reflection) and the execution edge (wire protocol instead of an in-process ca
 
 ---
 
-## 5. Authoring with the CLI
+## 6. Authoring with the CLI
 
 The `serto` CLI treats a directory as a **manifest project** when it contains a `serto.json` whose
 runtime is not `dotnet`; otherwise it uses the existing `.csproj` flow. The same commands work for both:

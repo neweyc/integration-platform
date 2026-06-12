@@ -60,6 +60,12 @@ public class AgentOptions
     // engine and base run args are configured here. Secrets ride in the stdin invocation, not env vars, so
     // nothing sensitive lands in `docker inspect` or the process table.
     public ContainerOptions Container { get; set; } = new();
+
+    // How to run "shell" runtime integrations — raw commands and scripts (no SDK). The integration's
+    // entrypoint is a command line run through this shell (default `/bin/sh -c "<command>"`). Inputs reach
+    // the script as environment variables (secrets by their own name + SERTO_* metadata); all stdout/stderr
+    // is captured as logs; the exit code decides success.
+    public ShellOptions Shell { get; set; } = new();
 }
 
 public class RuntimeLaunchOptions
@@ -72,4 +78,10 @@ public class ContainerOptions
 {
     public string Engine { get; set; } = "docker";
     public string[] RunArgs { get; set; } = ["run", "--rm", "-i"];
+}
+
+public class ShellOptions
+{
+    public string Executable { get; set; } = "/bin/sh";
+    public string[] Args { get; set; } = ["-c"];
 }

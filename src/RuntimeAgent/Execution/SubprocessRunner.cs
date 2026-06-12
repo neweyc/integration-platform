@@ -16,6 +16,7 @@ public sealed class SubprocessRunner(
     public bool CanRun(IntegrationItem integration) =>
         !Runtimes.IsDotnet(integration.Runtime)
         && !ContainerRunner.IsContainerRuntime(integration.Runtime)
+        && !ShellRunner.IsShellRuntime(integration.Runtime)
         && launchResolver.Supports(integration.Runtime);
 
     public PreparedExecution? Prepare(IntegrationItem integration)
