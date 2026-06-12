@@ -33,7 +33,7 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
         public string Template { get; init; } = "scheduled";
 
         [CommandOption("-r|--runtime")]
-        [Description("Integration runtime: 'dotnet' (default), 'python', 'node', or 'go'")]
+        [Description("Integration runtime: 'dotnet' (default), 'python', 'node', 'go', or 'shell'")]
         [DefaultValue("dotnet")]
         public string Runtime { get; init; } = "dotnet";
     }
@@ -44,9 +44,9 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
             ?? AnsiConsole.Ask<string>("What is the [green]name[/] of your integration project?");
 
         var runtime = settings.Runtime.Trim().ToLowerInvariant();
-        if (runtime is not ("dotnet" or "python" or "node" or "go"))
+        if (runtime is not ("dotnet" or "python" or "node" or "go" or "shell"))
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Unsupported runtime '[yellow]{Markup.Escape(settings.Runtime)}[/]'. Use 'dotnet', 'python', 'node', or 'go'.");
+            AnsiConsole.MarkupLine($"[red]Error:[/] Unsupported runtime '[yellow]{Markup.Escape(settings.Runtime)}[/]'. Use 'dotnet', 'python', 'node', 'go', or 'shell'.");
             return Task.FromResult(1);
         }
 
@@ -115,6 +115,21 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
             AnsiConsole.MarkupLine("  4. Build & push the image: [yellow]docker build -t <registry>/<name>:tag .[/] then [yellow]docker push <registry>/<name>:tag[/]");
             AnsiConsole.MarkupLine("  5. Set that image as the [yellow]entrypoint[/] in [yellow]serto.json[/].");
             AnsiConsole.MarkupLine("  6. [yellow]serto login --url <control-plane>[/] then [yellow]serto deploy[/]");
+            return Task.FromResult(0);
+        }
+
+        if (runtime == "shell")
+        {
+            AnsiConsole.Status().Start($"Creating shell job [green]{projectName}[/]...",
+                _ => ScaffoldShell(dir, projectName));
+
+            AnsiConsole.MarkupLine($"[green]Success![/] Shell job [blue]{Markup.Escape(projectName)}[/] created.");
+            AnsiConsole.MarkupLine("Next steps:");
+            AnsiConsole.MarkupLine($"  1. [yellow]cd {Markup.Escape(projectName)}[/]");
+            AnsiConsole.MarkupLine("  2. Edit [yellow]job.sh[/]; declare the command, triggers, and secrets in [yellow]serto.json[/].");
+            AnsiConsole.MarkupLine("  3. [yellow]sh job.sh[/]  (run it locally)");
+            AnsiConsole.MarkupLine("  4. [yellow]serto scan[/]  (preview what will be provisioned)");
+            AnsiConsole.MarkupLine("  5. [yellow]serto login --url <control-plane>[/] then [yellow]serto deploy[/]");
             return Task.FromResult(0);
         }
 
@@ -422,6 +437,86 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
     public static string BuildNodeGitignore() =>
         """
         node_modules/
+        secrets.json
+        """;
+
+    /// <summary>Writes a shell-job scaffold (job.sh + serto.json) into <paramref name="dir"/>.</summary>
+    public static void ScaffoldShell(string dir, string projectName)
+    {
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "job.sh"), BuildShellScript());
+        File.WriteAllText(Path.Combine(dir, ManifestPackaging.ManifestFileName), BuildShellManifest());
+        File.WriteAllText(Path.Combine(dir, "README.md"), BuildShellReadme(projectName));
+        File.WriteAllText(Path.Combine(dir, ".gitignore"), BuildShellGitignore());
+    }
+
+    public static string BuildShellScript() =>
+        """
+        #!/bin/sh
+        set -e
+
+        echo "Running $SERTO_INTEGRATION_NAME in $SERTO_ENVIRONMENT"
+
+        # Secrets arrive as environment variables, by name. Declare them under
+        # requiredSecrets in serto.json, then use them here:
+        #   echo "Using API key: $EXAMPLE_API_TOKEN"
+
+        # Do the work — run a query, call a CLI, move a file, sync data, ...
+        echo "Done."
+        """;
+
+    public static string BuildShellManifest() =>
+        """
+        {
+          "manifestVersion": "1",
+          "runtime": "shell",
+          "integrations": [
+            {
+              "name": "Sample Job",
+              "slug": "sample-job",
+              "entrypoint": "sh job.sh",
+              "triggers": [
+                { "type": "scheduled", "cron": "0 * * * *" }
+              ],
+              "requiredSecrets": []
+            }
+          ]
+        }
+        """;
+
+    public static string BuildShellReadme(string projectName) =>
+        $$"""
+        # {{projectName}}
+
+        A Serto shell job — a raw script with scheduling, secrets, logs, retries, and alerts around it.
+        Bring a script you already run under cron / Control-M / EBS; no rewrite required.
+
+        ## Develop
+
+        - Edit `job.sh` — your script. Run it locally with `sh job.sh`.
+        - Set the command, triggers, and required secrets in `serto.json` (the `entrypoint` is a command
+          line — `sh job.sh`, `sqlplus -s "$DB_USER/$DB_PW@orcl" @close.sql`, any executable).
+        - `serto scan` — preview the job and triggers this package will provision.
+
+        ## What your script gets
+
+        - **Secrets** as environment variables, by name (list them under `requiredSecrets`).
+        - `SERTO_EXECUTION_ID`, `SERTO_INTEGRATION_NAME`, `SERTO_ENVIRONMENT`, `SERTO_SCHEDULED_AT`,
+          `SERTO_TRIGGER_TYPE`, and (for webhook/message triggers) `SERTO_PAYLOAD` / `SERTO_MESSAGE_SUBJECT`.
+
+        All stdout and stderr is captured as logs; a non-zero exit code marks the run failed.
+
+        ## Deploy
+
+            serto login --url <control-plane-url>
+            serto deploy
+
+        The agent runs the command through its shell, so the agent host must have whatever your script needs
+        (a shell, `sqlplus`, …). For heavy dependencies, package it as a container image instead.
+        """;
+
+    public static string BuildShellGitignore() =>
+        """
         secrets.json
         """;
 

@@ -238,10 +238,12 @@ For a non-.NET project the CLI does **not** build or reflect: `scan`/`deploy` re
 directly, and `package` zips the project source (excluding `.git`, `bin`, `obj`, `node_modules`, and
 language caches). The control plane then discovers integrations from the manifest on upload.
 
-`serto init` scaffolds `dotnet`, `python`, `node`, and `go`:
+`serto init` scaffolds `dotnet`, `python`, `node`, `go`, and `shell`:
 
 - `--runtime python` → `main.py` + `serto.json` (runtime `python`, subprocess).
 - `--runtime node` → `index.js` + `package.json` + `serto.json` (runtime `node`, subprocess).
+- `--runtime shell` → `job.sh` + `serto.json` (runtime `shell`) — a raw script with scheduling, secrets,
+  logs, and retries around it; no SDK (see §4).
 - `--runtime go` → `main.go` + `go.mod` + `Dockerfile` + `serto.json` (runtime `container`). Go is
   compiled, so it ships as an image: build & push it, set the image as the integration's `entrypoint`,
   then `serto deploy`. The agent's `ContainerRunner` runs it.
