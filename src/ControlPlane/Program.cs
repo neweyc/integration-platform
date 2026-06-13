@@ -8,6 +8,7 @@ using ControlPlane.Features.Auth;
 using ControlPlane.Features.Billing;
 using ControlPlane.Features.Environments;
 using ControlPlane.Features.Health;
+using ControlPlane.Features.InfoRequest;
 using ControlPlane.Features.IntegrationPackages;
 using ControlPlane.Features.IntegrationPackages.Scanning;
 using ControlPlane.Features.Integrations;
@@ -45,6 +46,10 @@ builder.Services.AddEndpointsApiExplorer();
 // Soft-launch / preview circuit breaker: Maintenance__Enabled=true makes the control plane reject all
 // writes (POST/PUT/PATCH/DELETE) with 503, so nothing can be written to the database.
 builder.Services.AddMaintenanceMode(builder.Configuration);
+
+// Public "request more info" form — emails submissions (no DB write).
+builder.Services.Configure<InfoRequestOptions>(builder.Configuration.GetSection(InfoRequestOptions.SectionName));
+builder.Services.AddScoped<InfoRequestHandler>();
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -378,6 +383,7 @@ app.UseAuthorization();
 
 app.MapHealthEndpoints();
 app.MapMaintenanceEndpoint();
+app.MapInfoRequestEndpoints();
 app.MapSetupEndpoints();
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();

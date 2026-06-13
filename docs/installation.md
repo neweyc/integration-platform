@@ -347,6 +347,7 @@ The control plane reads standard ASP.NET Core configuration. Any setting can be 
 | `Zepto:FromAddress` | `Zepto__FromAddress` | Verified sender address platform-sent alert emails come from. Required for the email default to work. |
 | `Zepto:FromName` | `Zepto__FromName` | Display name on platform-sent alert emails (defaults to `Serto Alerts`). |
 | `Zepto:BaseUrl` | `Zepto__BaseUrl` | ZeptoMail API endpoint. Override for the EU data center. Defaults to `https://api.zeptomail.com/v1.1/email`. |
+| `InfoRequest:Recipient` | `InfoRequest__Recipient` | Email address the public "request more info" form (`POST /api/info-request`) sends to (default `info@craytech-solutions.com`). Requires ZeptoMail configured (`Zepto:Token` + `Zepto:FromAddress`). The form sends only an email — never a DB write — so it stays available even in maintenance mode. |
 | `AlertWebhooks:AllowPrivateNetworkTargets` | `AlertWebhooks__AllowPrivateNetworkTargets` | When `false` (default), alert webhook URLs that resolve to private/loopback/link-local/metadata addresses are blocked (SSRF protection). Set `true` only on self-hosted deployments that deliberately post alerts to internal endpoints. |
 | `Stripe:SecretKey` | `Stripe__SecretKey` | Stripe secret key. Leave blank to disable self-serve billing entirely (the feature is inert without it). |
 | `Stripe:WebhookSecret` | `Stripe__WebhookSecret` | Signing secret for the `/api/billing/webhook` endpoint, used to verify Stripe webhook signatures. |

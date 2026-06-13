@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -19,7 +19,10 @@ import { buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CodeBlock } from '@/components/ui/code-block'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { maintenanceApi } from '@/api/maintenance'
+import { infoRequestApi } from '@/api/infoRequest'
 
 // The three things that actually make Serto different — code-first, runs on your own infra, secrets stay put.
 const capabilities = [
@@ -151,6 +154,7 @@ export function LandingPage() {
       <OperationsSection />
       <DeploySection />
       <SecuritySection />
+      <RequestInfoSection />
       <FinalSection />
     </main>
   )
@@ -213,7 +217,11 @@ function HeroSection({ maintenance }: { maintenance: boolean }) {
               Deploy on your infrastructure
               <ArrowRight className="size-4" />
             </Link>
-            {!maintenance && (
+            {maintenance ? (
+              <a href="#request-info" className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))}>
+                Request info
+              </a>
+            ) : (
               <Link className={cn(buttonVariants({ variant: 'outline', size: 'lg' }))} to="/app">
                 Open control plane
               </Link>
@@ -417,6 +425,95 @@ function FeatureBand({ icon: Icon, title, text }: { icon: typeof ShieldCheck; ti
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
       </div>
     </div>
+  )
+}
+
+function RequestInfoSection() {
+  const [form, setForm] = useState({ name: '', email: '', company: '', message: '' })
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [error, setError] = useState<string | null>(null)
+
+  const update =
+    (field: keyof typeof form) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm(current => ({ ...current, [field]: event.target.value }))
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setStatus('sending')
+    setError(null)
+    try {
+      await infoRequestApi.submit({
+        name: form.name,
+        email: form.email,
+        company: form.company || undefined,
+        message: form.message,
+      })
+      setStatus('sent')
+    } catch (err) {
+      setStatus('error')
+      setError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+    }
+  }
+
+  return (
+    <section id="request-info" className="scroll-mt-20 border-b bg-muted/35 py-24">
+      <div className="mx-auto max-w-2xl px-6">
+        <Badge variant="secondary">Get in touch</Badge>
+        <h2 className="mt-5 text-3xl font-semibold tracking-normal">Request more information</h2>
+        <p className="mt-4 text-muted-foreground">
+          Tell us what you’re trying to run and we’ll get back to you.
+        </p>
+
+        {status === 'sent' ? (
+          <div className="mt-8 rounded-lg border bg-card p-6">
+            <h3 className="text-base font-semibold">Thanks — we got it.</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              We’ll be in touch at {form.email} shortly.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={onSubmit} className="mt-8 grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="ir-name">Name</Label>
+                <Input id="ir-name" required value={form.name} onChange={update('name')} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ir-email">Email</Label>
+                <Input id="ir-email" type="email" required value={form.email} onChange={update('email')} />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ir-company">
+                Company <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input id="ir-company" value={form.company} onChange={update('company')} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ir-message">What are you looking to run?</Label>
+              <textarea
+                id="ir-message"
+                required
+                rows={4}
+                value={form.message}
+                onChange={update('message')}
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div>
+              <button
+                type="submit"
+                disabled={status === 'sending'}
+                className={cn(buttonVariants({ size: 'lg' }))}
+              >
+                {status === 'sending' ? 'Sending…' : 'Send request'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
   )
 }
 

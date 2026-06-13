@@ -63,4 +63,17 @@ public class MaintenanceMiddlewareTests
 
         Assert.True(wasNextCalled());
     }
+
+    [Fact]
+    public async Task Enabled_AllowsAllowlistedWritePath()
+    {
+        // The info-request form (email only, no DB write) is exempt by default.
+        var (middleware, wasNextCalled) = Build(enabled: true);
+        var context = Context("POST");
+        context.Request.Path = "/api/info-request";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(wasNextCalled());
+    }
 }
