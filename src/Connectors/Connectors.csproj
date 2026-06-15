@@ -8,6 +8,7 @@
     <PackageReference Include="Dapper" Version="2.1.35" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <InternalsVisibleTo Include="Connectors.Tests" />
   </ItemGroup>
 
   <PropertyGroup>

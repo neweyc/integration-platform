@@ -54,7 +54,7 @@ public sealed class SqlConnector
         {
             await using var connection = CreateConnection();
             await connection.OpenAsync(ct);
-            return await connection.QueryAsync<T>(new CommandDefinition(sql, param, cancellationToken: ct));
+            return await connection.QueryAsync<T>(new CommandDefinition(sql, PrepareParameters(param), cancellationToken: ct));
         }
         catch (Exception ex)
         {
@@ -70,7 +70,7 @@ public sealed class SqlConnector
         {
             await using var connection = CreateConnection();
             await connection.OpenAsync(ct);
-            return await connection.ExecuteAsync(new CommandDefinition(sql, param, cancellationToken: ct));
+            return await connection.ExecuteAsync(new CommandDefinition(sql, PrepareParameters(param), cancellationToken: ct));
         }
         catch (Exception ex)
         {
@@ -78,6 +78,15 @@ public sealed class SqlConnector
             throw;
         }
     }
+
+    // Oracle's ADO.NET command binds parameters by POSITION by default, so named placeholders like
+    // ":InvoiceId" would silently bind in declaration order rather than by name — a classic foot-gun.
+    // Wrap the parameters so the connector flips BindByName on the OracleCommand and authors can use
+    // ":Name" placeholders with an anonymous object the same way they do for every other provider.
+    private object? PrepareParameters(object? param) =>
+        _provider == SqlProvider.Oracle && param is not null
+            ? new OracleBindByNameParameters(param)
+            : param;
 
     // One connection per call (no shared mutable state). Each provider's ADO.NET connection derives
     // from DbConnection, so Dapper and the open/dispose lifecycle are identical across engines.
@@ -113,6 +122,21 @@ public sealed class SqlConnector
             SqlProvider.Oracle => new OracleConnectionStringBuilder(connectionString),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown SQL provider.")
         };
+}
+
+// Dapper parameter wrapper that turns on Oracle's BindByName before binding. Dapper hands the live
+// IDbCommand to IDynamicParameters.AddParameters, which is the one place we can reach the command to
+// set the flag. Accepts either a plain anonymous object or an existing Dapper parameter set.
+internal sealed class OracleBindByNameParameters(object parameters) : SqlMapper.IDynamicParameters
+{
+    public void AddParameters(System.Data.IDbCommand command, SqlMapper.Identity identity)
+    {
+        if (command is OracleCommand oracleCommand)
+            oracleCommand.BindByName = true;
+
+        var inner = parameters as SqlMapper.IDynamicParameters ?? new DynamicParameters(parameters);
+        inner.AddParameters(command, identity);
+    }
 }
 
 public static class IntegrationContextExtensions

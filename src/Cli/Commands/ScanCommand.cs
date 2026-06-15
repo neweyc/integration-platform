@@ -460,7 +460,11 @@ public sealed class ScanCommand : AsyncCommand<ScanCommand.Settings>
             @"\.WithApiKeyHeader\s*\(\s*""[^""]+""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
             @"\.WithApiKeyQuery\s*\(\s*""[^""]+""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
             @"\.WithBasicAuth\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*,\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)",
-            @"\.SqlConnector\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)"
+            // SqlConnector("KEY") or SqlConnector("KEY", SqlProvider.X) — the key may be followed by a
+            // comma (provider argument) or the closing paren, so stop at either.
+            @"\.SqlConnector\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*[,)]",
+            // Engine-specific helpers: SqlServerConnector / PostgresConnector / MySqlConnector / OracleConnector.
+            @"\.(?:SqlServer|Postgres|MySql|Oracle)Connector\s*\(\s*""(?<secret>[A-Za-z0-9_.:-]+)""\s*\)"
         };
 
         foreach (var file in Directory.EnumerateFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)

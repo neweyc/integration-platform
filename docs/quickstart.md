@@ -147,6 +147,7 @@ You don't have to wait for the cron schedule — in the UI, open the integration
 
 ## Next steps
 
+- [ERP payment-run walkthrough](walkthrough-erp-payment-run.md) — a complete real-world integration (Oracle EBS → payments API) from secrets to deploy
 - [Writing integrations](writing-integrations.md) — triggers (scheduled, webhook, manual, queue), connectors (HTTP, SQL), secrets, and retries
 - [Installation Guide](installation.md) — Docker/production deployment and full configuration
 - [API reference](api-reference.md) — the control-plane HTTP API

@@ -95,4 +95,33 @@ public class SqlConnectorTests
 
         Assert.Equal(SqlProvider.MySql, context.MySqlConnector("MY").Provider);
     }
+
+    [Fact]
+    public void OracleBindByNameParameters_SetsBindByName_AndBindsParameters()
+    {
+        // Oracle binds by position unless BindByName is set. Prove the wrapper flips it and still
+        // hands the named parameters to the command — no live database needed.
+        using var connection = new Oracle.ManagedDataAccess.Client.OracleConnection();
+        using var command = new Oracle.ManagedDataAccess.Client.OracleCommand
+        {
+            CommandText = "UPDATE t SET ref = :PaymentRef WHERE id = :InvoiceId"
+        };
+        var parameters = new OracleBindByNameParameters(new { PaymentRef = "PR-1", InvoiceId = "INV-9" });
+
+        ((Dapper.SqlMapper.IDynamicParameters)parameters).AddParameters(command, NewDapperIdentity(command.CommandText, connection));
+
+        Assert.True(command.BindByName);
+        Assert.Equal(2, command.Parameters.Count);
+    }
+
+    // Dapper's Identity constructors are all internal; build one reflectively for the test.
+    private static Dapper.SqlMapper.Identity NewDapperIdentity(string sql, System.Data.IDbConnection connection)
+    {
+        var ctor = typeof(Dapper.SqlMapper.Identity).GetConstructor(
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            binder: null,
+            [typeof(string), typeof(System.Data.CommandType?), typeof(System.Data.IDbConnection), typeof(Type), typeof(Type)],
+            modifiers: null);
+        return (Dapper.SqlMapper.Identity)ctor!.Invoke([sql, null, connection, null, null]);
+    }
 }

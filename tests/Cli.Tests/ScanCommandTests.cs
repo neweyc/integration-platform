@@ -150,6 +150,11 @@ public class Integration
         _ = context.HttpConnector("https://example.com").WithApiKeyQuery("api_key", "QUERY_SECRET");
         _ = context.HttpConnector("https://example.com").WithBasicAuth("BASIC_USER", "BASIC_PASSWORD");
         _ = context.SqlConnector("SQL_SECRET");
+        _ = context.SqlConnector("SQL_ORACLE_SECRET", SqlProvider.Oracle);
+        _ = context.OracleConnector("ORACLE_SECRET");
+        _ = context.PostgresConnector("POSTGRES_SECRET");
+        _ = context.MySqlConnector("MYSQL_SECRET");
+        _ = context.SqlServerConnector("SQLSERVER_SECRET");
     }
 }
 """);
@@ -163,7 +168,12 @@ public class Integration
                 "DIRECT_SECRET",
                 "HEADER_SECRET",
                 "HTTP_SECRET",
+                "MYSQL_SECRET",
+                "ORACLE_SECRET",
+                "POSTGRES_SECRET",
                 "QUERY_SECRET",
+                "SQLSERVER_SECRET",
+                "SQL_ORACLE_SECRET",
                 "SQL_SECRET",
                 "TRY_GET_SECRET"
             ],
