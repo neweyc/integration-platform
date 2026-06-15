@@ -1,6 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="MySqlConnector" Version="2.6.0" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.200" />
     <ProjectReference Include="..\Sdk\Sdk.csproj" />
     <PackageReference Include="Dapper" Version="2.1.35" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
@@ -15,12 +18,12 @@
     <Version>1.0.18</Version>
     <Authors>Craytech</Authors>
     <Company>Craytech</Company>
-    <Description>Core connectors for Serto, providing simplified HTTP and SQL access.</Description>
+    <Description>Core connectors for Serto: secret-aware HTTP and multi-provider SQL (SQL Server, PostgreSQL, MySQL, Oracle) access with logging, retries, and pagination.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/neweyc/integration-platform</PackageProjectUrl>
     <RepositoryUrl>https://github.com/neweyc/integration-platform</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>integration;automation;workflow;connectors;http;sql</PackageTags>
+    <PackageTags>integration;automation;workflow;connectors;http;sql;postgres;mysql;oracle;sqlserver</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>

@@ -49,21 +49,27 @@ Retries fire automatically on `429` and `5xx`, honoring `Retry-After`. Non-idemp
 
 ## SQL Connector
 
-Backed by Dapper. Targets SQL Server via the secret-stored connection string.
+Backed by Dapper, over a secret-stored connection string. Works against **SQL Server, PostgreSQL, MySQL, and Oracle** — the connector handles connection lifecycle, validation, and logging identically; only the underlying ADO.NET provider differs.
 
 ```csharp
 using Serto.Connectors.Sql;
 
-var db = context.SqlConnector("DB_CONN_STRING");
+// Engine-specific helpers (clearest at the call site):
+var db = context.PostgresConnector("DB_CONN_STRING");   // or SqlServerConnector / MySqlConnector / OracleConnector
+
+// ...or pass the provider explicitly (defaults to SQL Server):
+var db2 = context.SqlConnector("DB_CONN_STRING", SqlProvider.Oracle);
 
 var users = await db.QueryAsync<User>(
-    "SELECT * FROM Users WHERE Active = 1", ct: ct);
+    "SELECT * FROM users WHERE active = true", ct: ct);
 
 var rows = await db.ExecuteAsync(
-    "INSERT INTO Orders (Id, Total) VALUES (@Id, @Total)",
+    "INSERT INTO orders (id, total) VALUES (@Id, @Total)",
     new { order.Id, order.Total },
     ct);
 ```
+
+The connection string is validated against the chosen engine's dialect at construction (so a bad secret fails clearly during `serto test`, not on the first query). Use parameterized SQL — Dapper binds `@Name` parameters for you.
 
 ## Related packages
 

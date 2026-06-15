@@ -2,6 +2,38 @@
 
 This platform should stay code-first, but code-first should not mean every team rewrites the same HTTP pagination, SQL batching, SFTP file movement, object storage, retry, and logging boilerplate.
 
+## Philosophy: connect by protocol, not by vendor
+
+Low-code platforms (Boomi, Workato, MuleSoft, n8n) build connectors **per vendor** — a Salesforce connector, a Stripe connector, a NetSuite connector. That set is infinite, so "1,200 connectors" becomes both the moat and the headline metric. Serto does not play that game and does not need to.
+
+In a code-first tool, **the language ecosystem is the connector library.** NuGet already has `Stripe.net`, the AWS and Azure SDKs, `Npgsql`, `Oracle.ManagedDataAccess`; PyPI and npm have the rest. A "Stripe connector" is just the HTTP connector pointed at Stripe's API, or `dotnet add package Stripe.net`. You never wait for us to build an adapter.
+
+So Serto connects **per protocol/transport** — HTTP, SQL, message queue, object store, SFTP. That set is small and bounded (a handful, ever), and every vendor reaches you through one of them.
+
+### Litmus test
+
+A connector ships **only if** it abstracts a cross-cutting concern that is:
+
+1. error-prone,
+2. repeated across most integrations, and
+3. not already handled by the vendor's own SDK.
+
+- **Passes** (transport-level): secret injection, auth schemes, retry/backoff/idempotency, pagination, connection lifecycle, structured logging, redaction.
+- **Fails** (per-vendor): "a Stripe connector," "a Salesforce connector." Use the vendor package directly.
+
+### The obligation this creates
+
+Because the set is small, each connector must be genuinely best-in-class. **A thin connector is worse than none** — it invites the "your connectors are shallow" critique, whereas a missing one just means "use the package you already know." The HTTP connector sets the bar (auth, retries, idempotency, pagination, log redaction); every other connector must meet it. (This is why the SQL connector is multi-provider, not SQL-Server-only — see below.)
+
+### Where the framing is weak — stated honestly
+
+- The batteries (secrets, retry, logging) only fully apply on the connector paths. Code that uses a vendor SDK directly pulls secrets from the context but is otherwise on its own rails.
+- Buyers conditioned by low-code tools will ask "do you have a connector for X?" For a developer audience, "no — use the package" is a feature; for a low-code buyer it can read as not-ready. That buyer is not the ICP.
+
+### Messaging
+
+Connector *count* is a low-code metric. **In code, every API is already connected.** We ship a few protocol connectors that kill the boilerplate every integration repeats; for everything else you use the package you'd already reach for — nothing to wait for, nothing to lock into.
+
 ## Definitions
 
 | Layer | Purpose | Owned By | Examples |
@@ -27,12 +59,13 @@ The SDK should not become a large catalog of vendor-specific APIs. A small SDK k
 
 Connectors answer: "How do I reliably talk to common systems?"
 
-They are optional libraries that integration authors can compose inside `RunAsync`. They should make common integration chores boring, observable, retry-aware, and consistent.
+They are optional libraries that integration authors can compose inside `RunAsync`. They should make common integration chores boring, observable, retry-aware, and consistent. The set is **protocol-bounded** and governed by the litmus test above — we add transports, not vendors.
 
-Examples:
+Status today:
 
-- **HTTP/API connector** — authentication helpers, JSON calls, pagination, rate-limit handling, retry classification, response logging.
-- **SQL connector** — connection setup from secrets, query/command helpers, batching, transactions, bulk upsert patterns.
+- **HTTP/API connector** *(shipped, sets the bar)* — bearer / API-key-header / API-key-query / basic auth (all secret-key-by-reference), retry with `Retry-After` + exponential backoff + idempotency-key gating on writes, cursor and offset pagination, and query-secret redaction in logs.
+- **SQL connector** *(shipped, multi-provider)* — connection from a secret-stored connection string against **SQL Server, PostgreSQL, MySQL, or Oracle**; query/command helpers via Dapper, validation up front, structured logging.
+- **SFTP/file, object storage, queue, notification** *(candidates)* — each must clear the litmus test and meet the HTTP connector's bar before it ships.
 - **SFTP/file connector** — list, download, upload, move, archive/error folders, checksums, idempotency keys.
 - **Object storage connector** — S3/Azure Blob/GCS list, upload, download, metadata, lease/etag handling.
 - **Notification connector** — email, Slack, Teams, webhook alerts with execution-aware logging.
@@ -80,11 +113,17 @@ public sealed class SyncOrdersIntegration : IIntegration
 {
     public async Task RunAsync(IIntegrationContext context, CancellationToken ct)
     {
-        var api = HttpApiConnector.FromContext(context, "SHOPIFY");
-        var sql = SqlConnector.FromContext(context, "ERP");
+        var api = context.HttpConnector("https://api.shopify.example.com")
+            .WithBearerToken("SHOPIFY_TOKEN");                  // secret key, not the value
+        var sql = context.PostgresConnector("ERP_CONN");        // or SqlServerConnector / OracleConnector / MySqlConnector
 
-        var orders = await api.GetPagedJsonAsync<Order>("/orders", ct);
-        await sql.BulkUpsertAsync("orders", orders, ct);
+        var orders = await api.GetAllPagesAsync<OrdersPage, Order>(
+            "/orders", page => page.Orders, page => page.NextLink, ct);
+
+        foreach (var order in orders)
+            await sql.ExecuteAsync(
+                "INSERT INTO orders (id, total) VALUES (@Id, @Total)",
+                new { order.Id, order.Total }, ct);
     }
 }
 ```
