@@ -84,11 +84,37 @@ To rotate a credential later, `PUT` the same key again — the next run picks up
 
 ---
 
-## Step 2 — Write the integration
+## Step 2 — Create the project
 
-Create a small project that references the published Serto packages. Your **code is the manifest** — the attributes below declare the integration, its schedule, and which agent may run it.
+Your **code is the manifest** — the attributes in the integration declare it, its schedule, and which agent may run it. There are two ways to get the project; pick one, the result is the same.
 
-`Acme.Finance.csproj`:
+### Option A — scaffold it with `serto init` (recommended)
+
+```bash
+serto init AcmePaymentRun
+cd AcmePaymentRun
+```
+
+This generates a ready-to-build project that **already references both `Serto.Sdk` and `Serto.Connectors`**, so the Oracle and HTTP connectors are available immediately — plus a test project and a local-secrets template:
+
+```
+AcmePaymentRun/
+├─ AcmePaymentRun.csproj        # references Serto.Sdk + Serto.Connectors
+├─ MyIntegration.cs             # a scheduled stub you'll replace
+├─ .secrets.example.json        # template for local-run secrets
+├─ .gitignore                   # ignores secrets.json, bin/, obj/
+└─ AcmePaymentRun.Tests/        # xUnit project wired to Serto.Testing
+```
+
+Open `MyIntegration.cs` and replace the stub with the payment run below (and rename the class to `ApPaymentRun`).
+
+> Other starters: `serto init <name> --template webhook` for a webhook-triggered .NET integration, or `--runtime python|node|go|shell` to scaffold in another language. We're using the defaults (`dotnet`, `scheduled`).
+
+### Option B — create it by hand
+
+If you'd rather not scaffold, a minimal project is just a csproj referencing the two packages:
+
+`AcmePaymentRun.csproj`:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -106,7 +132,9 @@ Create a small project that references the published Serto packages. Your **code
 </Project>
 ```
 
-`ApPaymentRun.cs`:
+### The integration
+
+Either way, this is the code (paste it into `MyIntegration.cs` if you scaffolded — the file name doesn't matter in C#):
 
 ```csharp
 using Serto.Sdk;
@@ -114,7 +142,7 @@ using Serto.Connectors.Sql;
 using Serto.Connectors.Http;
 using Microsoft.Extensions.Logging;
 
-namespace Acme.Finance;
+namespace AcmePaymentRun;
 
 // Runs at 02:00 every weekday. The capability tag pins it to the on-prem agent that can reach
 // Oracle EBS — the control plane will not hand this work to any other agent.
@@ -201,6 +229,8 @@ What's doing the heavy lifting here, none of which you had to write:
 - **Correct Oracle binding** — the SQL connector flips `BindByName` for Oracle, so `:Named` parameters bind by name like every other provider instead of by position.
 - **Partial‑failure semantics** — paid invoices commit individually; the run is still marked failed if any invoice failed, so it surfaces in history and triggers alerting.
 
+If you scaffolded (Option A), point the generated test at the renamed class: in `AcmePaymentRun.Tests/MyIntegrationTests.cs`, change `RunAsync<MyIntegration>` to `RunAsync<ApPaymentRun>`. Note that this integration talks to Oracle, so the generated "runs without error" test needs a reachable test database — for DB‑backed work, validate end‑to‑end with `serto test` against a test DB (next step) and keep the xUnit project for pure mapping/transform logic.
+
 Build it:
 
 ```bash
@@ -229,13 +259,14 @@ Required secrets: ORACLE_ERP_CONN, PAY_API_KEY
 
 ### Dry-run it locally
 
-Before it ever touches production, run the integration on your machine to prove the wiring. `test` reads secrets from a local JSON file (kept out of source control) rather than the control plane:
+Before it ever touches production, run the integration on your machine to prove the wiring. `test` reads secrets from a local JSON file rather than the control plane. Copy the scaffolded template and fill in test values (`secrets.json` is already git‑ignored):
 
 ```bash
-# secrets.local.json  — do not commit
-# { "ORACLE_ERP_CONN": "Data Source=…", "PAY_API_KEY": "sk_test_…" }
+cp .secrets.example.json secrets.json
+# edit secrets.json:
+# { "ORACLE_ERP_CONN": "Data Source=…test-db…", "PAY_API_KEY": "sk_test_…" }
 
-serto test Acme.Finance.ApPaymentRun --secrets secrets.local.json
+serto test AcmePaymentRun.ApPaymentRun --secrets secrets.json
 ```
 
 `test` builds the project, runs a preflight (the class is discoverable and instantiable, and every required secret is present in the file — it warns about any referenced in code but missing), then executes `RunAsync` locally and streams the logs — the same code path the agent will use. Point it at a test database and the payments provider's sandbox key first.
