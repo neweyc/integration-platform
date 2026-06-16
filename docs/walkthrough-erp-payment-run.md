@@ -126,8 +126,8 @@ If you'd rather not scaffold, a minimal project is just a csproj referencing the
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Serto.Sdk" Version="1.5.4" />
-    <PackageReference Include="Serto.Connectors" Version="1.5.4" />
+    <PackageReference Include="Serto.Sdk" Version="1.5.5" />
+    <PackageReference Include="Serto.Connectors" Version="1.5.5" />
   </ItemGroup>
 </Project>
 ```

@@ -8,18 +8,18 @@ public sealed class InitCommand : AsyncCommand<InitCommand.Settings>
 {
     // The Serto.Sdk/Connectors/Testing version scaffolded projects reference. Bump this to the
     // current release whenever those packages are published so `serto init` pins a real, recent version.
-    private const string SertoPackageVersion = "1.5.4";
+    private const string SertoPackageVersion = "1.5.5";
     private const string TestSdkVersion = "17.14.1";
     private const string XunitVersion = "2.9.3";
     private const string XunitRunnerVersion = "3.1.4";
 
     // The Serto Go SDK module a scaffolded Go integration imports.
     private const string SertoGoModule = "github.com/neweyc/integration-platform/sdks/go/serto";
-    private const string SertoGoVersion = "v1.5.4";
+    private const string SertoGoVersion = "v1.5.5";
 
     // The Serto Node SDK package + version a scaffolded Node integration depends on.
     private const string SertoNodePackage = "@craytech/serto";
-    private const string SertoNodeVersion = "^1.5.4";
+    private const string SertoNodeVersion = "^1.5.5";
 
     public sealed class Settings : CommandSettings
     {
